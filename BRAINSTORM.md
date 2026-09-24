@@ -8,6 +8,8 @@ A massively multiplayer world where both the code and the running of that code a
 
 ## Decisions so far
 
+- **Freedom almost always wins over safety.** Anything should be possible. The browser is the safety floor: code running in a web page cannot do much catastrophic harm to a player's machine, so the project adds few protections of its own.
+- **There is only one kind of thing: the object.** An object is a key pair plus some code. Players can make as many as they like, and any object can contain any number of any other objects. Bodies, realms, and swords differ only in the code written for them. All limits are set by code, never by the platform.
 - **Visuals come first**, or nearly first. Seeing it is a key part of the idea, so the first demo is visual, not text.
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
 - **Every realm and every object has its own public/private key pair.** That key pair is its identity.
@@ -23,9 +25,9 @@ A massively multiplayer world where both the code and the running of that code a
 
 ## Core model
 
-**Object.** Anything a player creates: a body, a sword, a house, a planet, a swarm. It has a key pair, code, state, and a look. It runs on the device of whoever owns it.
+**Object.** The only building block: a key pair (its identity) plus code (its behavior and state). A body, a sword, a house, a planet, a swarm, a universe are all just objects with different code. It runs on the device of whoever owns it.
 
-**Realm.** An object that other objects can be inside. It runs the rules and the shared space for whatever is inside it. Realms can nest (a room inside a ship inside a galaxy), and any object can also be a realm (tiny creatures living in your coat).
+**Containment.** Any object can contain any number of other objects, to any depth (a room inside a ship inside a galaxy; tiny creatures living in your coat). An object that contains others acts as their realm: it runs the rules and the shared space for what is inside it. "Realm" below just means "the containing object".
 
 **Owner.** The player whose device runs an object's code. Owning means "I run it, I hold its private key, I answer for it."
 
@@ -50,9 +52,9 @@ This is the newest and most interesting part.
 - **Realm-bound objects.** A realm can keep weapons (or anything) that never leave it. The realm owns and runs them. Visitors can use them only inside.
 - **Objects that leave with a player.** A realm can let an object go with a visitor, but that costs the realm: the object is no longer the realm's. Ownership moves to the player, and from then on the player's device runs the object's code.
 - **Gifts between players.** One player can fully give an object to another. The receiver takes on running its code.
-- **Receiving code means running someone else's code.** So every received object runs in a sealed sandbox (in a browser, a separate worker with no access to anything except the messages the runtime passes it). The receiver's agent can read the code before accepting, like customs inspecting a package.
+- **Receiving code means running someone else's code.** The browser already keeps web page code away from the rest of the machine, and that is the main protection. Running each received object in its own separate worker (a background thread in the page) also stops one object from interfering with another. The receiver's agent can read the code before accepting if the player wants.
 - **The key goes with the object.** Giving an object means handing over its private key and a signed transfer note ("A gives object X to B"). The chain of transfer notes is the object's ownership history.
-- **Open problem: copies.** The giver could keep a copy of the key and the code, and so could "give" the same sword twice. Without a shared ledger this cannot be prevented, only detected: two conflicting transfer notes prove cheating. Realms that care about rare items can check the history and refuse objects with conflicting notes. Realms that do not care (most of them) can ignore it. This is the same problem Bitcoin's blockchain exists to solve; the bet here is that most worlds will not need that much machinery.
+- **Copies are allowed.** The giver could keep a copy of the key and the code and "give" the same sword twice. Following the freedom principle, the platform does not prevent this. Two conflicting transfer notes prove it happened, so a realm that cares about rare items can write code to check an object's history and refuse duplicates. Scarcity exists only where some realm's code creates it.
 
 ## Seeing each other (first priority)
 
