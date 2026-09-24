@@ -21,6 +21,7 @@ A massively multiplayer world where both the code and the running of that code a
 - **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
 - **No rarity.** Anyone can make any object.
 - **A player can have any number of objects and any number of devices.** Each device is a separate server with its own keys. Moving an object between your own devices is just giving it to yourself.
+- **Enforcement is each realm's choice.** Some realms run entirely on the honor system (client-side rules only); others enforce their rules in server-side code. What happens when a realm's server side goes offline (freeze, carry on unchecked, or hand refereeing to a stand-in) is also up to the realm's code.
 - **The containing object has the final say** about what happens inside it. When a call involves several devices (my lent sword strikes a visitor in your realm), the realm's server-side code decides the outcome.
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
