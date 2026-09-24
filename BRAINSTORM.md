@@ -30,6 +30,20 @@ A massively multiplayer world where both the code and the running of that code a
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 
+## Rules by consensus, not by platform
+
+- **Anything is possible.** The platform forbids nothing it does not have to.
+- **Meta-rules hold by consensus.** A rule exists because the software people choose to run follows it, the way the web works because browsers and servers follow the same conventions. No one can force a rule on anyone else's device. Unlike Bitcoin, no global agreement is needed: two objects only need to agree with each other to interact.
+- **The unavoidable minimum** is also consensus: the message format, key pairs, and how an object's API is published. Software that does not follow them simply cannot talk to the rest.
+- **Defaults instead of requirements.** Things like a basic way to describe position and looks ship as defaults in the reference software. Anyone may ignore or replace them; they stay useful only as long as most people keep using them.
+
+## Protecting yourself: block lists and allow lists
+
+- **Each player's own software decides what they see.** A blocked object is invisible to you: your client does not draw it and ignores its messages. No platform involvement.
+- **Keys are free, so block lists alone leak.** A bad actor can make a new key every minute. Block by code hash as well (blocks every copy of the same bad code), and consider allow lists: see only objects vouched for by people you trust, plus whatever you explicitly allow.
+- **Shared lists.** Subscribe to the lists of friends or of curators you trust, the way ad-blockers subscribe to filter lists. Anyone can publish a list; no list is official.
+- **Limits.** Being invisible to you does not remove an object from a realm. If a realm admits something you block, it can still affect the realm (and you, through the realm's rules). Your remedy there is to leave, or to avoid realms that admit what you block.
+
 ## Why now (the pitch)
 
 - Writing a custom world used to cost months of skilled work. With an AI coding agent it costs a conversation.
@@ -152,7 +166,6 @@ Success test: two people on two machines, each with their own AI agent, each bui
 ## Open questions
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
-- Does the platform need any built-in functions at all (for example: be somewhere, have a look), or is even that left to convention?
 - Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
 - Server language: TypeScript (one language for the whole project) or Python with `uv` (your usual tooling)?
 - Name: keep "EveryGame"?
