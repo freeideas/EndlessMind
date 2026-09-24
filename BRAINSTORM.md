@@ -58,7 +58,7 @@ A massively multiplayer world where both the code and the running of that code a
 Goal: any object can be reached from anywhere. A single master list of every object would get too big (100 million players with 1,000 objects each is 100 billion entries, tens of terabytes), and it would be exactly the kind of central thing this project avoids. Options:
 
 - **Address like email.** An object's address is its public key plus a few servers where it announces itself ("key at these servers"). No one holds everything, yet anything is reachable. Simplest; the recommended start.
-- **Not everything is listed.** Only objects that want to be found (public realms, players' "self" objects) announce themselves. Objects inside a realm are reached through that realm.
+- **Decided: only what wants to be found is listed.** Only objects that want to be found (public realms, players' "self" objects) announce themselves. Objects inside a realm are reached through that realm.
 - **Directories anyone can run.** Search services can collect announcements from many servers, the way web search engines crawl the web. None is official.
 - **Later: a shared lookup table spread across participants** (a distributed hash table, as BitTorrent uses), which scales to many millions of entries without any central list.
 
