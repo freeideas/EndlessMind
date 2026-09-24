@@ -37,17 +37,29 @@ A massively multiplayer world where both the code and the running of that code a
 - **The unavoidable minimum** is also consensus: the message format, key pairs, and how an object's API is published. Software that does not follow them simply cannot talk to the rest.
 - **Defaults instead of requirements.** Things like a basic way to describe position and looks ship as defaults in the reference software. Anyone may ignore or replace them; they stay useful only as long as most people keep using them.
 
-## Protecting yourself: block lists and allow lists
+## Protecting yourself: allow lists of code
 
-- **Lists are about code, not keys.** Keys cost nothing to make, so blocking keys is pointless. You block or allow code (by its hash, or by what your agent judges the code to do). A blocked object is invisible to you: your client does not draw it and ignores its messages. No platform involvement.
-- **Shared lists.** Subscribe to the lists of friends or of curators you trust, the way ad-blockers subscribe to filter lists. Anyone can publish a list; no list is official.
-- **Limits.** A one-character change gives code a new hash, so exact-hash blocking is easy to dodge; allow lists and agent judgment are sturdier. And server-side code cannot be inspected, so an object can hide behavior there.
+- **Lists are about code, not keys.** Keys cost nothing to make, so judging by key is pointless.
+- **Each realm keeps an allow list of known-good code hashes.** An object whose code hash is on the list is admitted. When an owner changes an object's code, its hash changes, so the owner asks the realm to admit the new version; the realm (its code, its owner, or its owner's AI agent) examines it and decides whether to add the new hash. An open realm can simply allow everything.
+- **Viewers can do the same.** A player's client can keep its own allow list (plus a block list for convenience) and draw nothing else. Lists can be shared and subscribed to, like ad-blocker filter lists; none is official.
+- **Limit:** the hash covers the client-side code and the API, not the owner's hidden server-side code, which can change without notice.
 
 ## Containment and locality
 
-- **Every object is inside a realm.** A realm is just an object that contains others.
+- **Every object is inside a realm,** except each player's own top-level realms. A player can build their own realm, fill it with their own objects, and play alone if they like.
 - **Unwanted objects stay home.** If no one admits your object into their realm, it can only live in one of your own realms. Rejection needs no platform enforcement: it is simply not being admitted.
 - **Realms affect each other only through a shared container.** Two realms can interact only when both are inside the same containing realm, which referees that interaction. Like locality in physics: nothing acts at a distance.
+- **Messages go anywhere.** Locality applies to effects, not messages. Any object can message any other object and ask to enter any realm directly, from anywhere.
+
+## Finding any object
+
+Goal: any object can be reached from anywhere. A single master list of every object would get too big (100 million players with 1,000 objects each is 100 billion entries, tens of terabytes), and it would be exactly the kind of central thing this project avoids. Options:
+
+- **Address like email.** An object's address is its public key plus a few servers where it announces itself ("key at these servers"). No one holds everything, yet anything is reachable. Simplest; the recommended start.
+- **Not everything is listed.** Only objects that want to be found (public realms, players' "self" objects) announce themselves. Objects inside a realm are reached through that realm.
+- **Directories anyone can run.** Search services can collect announcements from many servers, the way web search engines crawl the web. None is official.
+- **Later: a shared lookup table spread across participants** (a distributed hash table, as BitTorrent uses), which scales to many millions of entries without any central list.
+
 
 ## Why now (the pitch)
 
@@ -170,9 +182,6 @@ Success test: two people on two machines, each with their own AI agent, each bui
 
 ## Open questions
 
-- Every object is inside a realm, and realms are objects, so what is at the top? Perhaps each player's own outermost realm, contained by nothing.
-- Does locality cover all messages, or only effects? For example, can two friends in different realms still chat, or must they meet inside a shared realm?
-- How does an object travel from realm A to realm B: step out to the realm containing both, then in; or leave A and be admitted to B directly?
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
 - Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
