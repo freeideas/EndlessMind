@@ -15,6 +15,8 @@ A massively multiplayer world where both the code and the running of that code a
 - **Every realm and every object has its own public/private key pair.** That key pair is its identity.
 - **"Body" is just one kind of object.** Players may create any number of objects.
 - **Every object has client-side code and server-side code.** Callers run the client side (and can inspect it); the owner's device runs the server side. Lending shares only the client side; giving also sends the server side.
+- **Ownership is proof of a private key.** The owner of an object is whoever can prove they hold its private key. Nothing else defines ownership.
+- **No built-in "player".** The system knows only objects and devices. A player who wants to be recognized across devices can make a "self" object that claims their other objects, with each claim signed by the claimed object's key. Recognizing a player is a convention between objects, not a platform feature.
 - **The private key marks the one real server for an object.** Server-side results are signed with it; unsigned or wrongly signed results are ignored.
 - **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
 - **No rarity.** Anyone can make any object.
@@ -35,7 +37,7 @@ A massively multiplayer world where both the code and the running of that code a
 
 **Containment.** Any object can contain any number of other objects, to any depth (a room inside a ship inside a galaxy; tiny creatures living in your coat). An object that contains others acts as their realm: it runs the rules and the shared space for what is inside it. "Realm" below just means "the containing object".
 
-**Owner.** The player whose device runs an object's code. Owning means "I run it, I hold its private key, I answer for it."
+**Owner.** Whoever can prove they hold an object's private key. Since the key lives on one device, that device runs the object's server-side code.
 
 **Contract.** A named, versioned description of messages and what they mean, readable by both humans and AI agents. For example `swordfight/1` might define `strike`, `damage`, `die`. A contract is identified by the hash (a fingerprint) of its text, so no one needs to run a registry. Popular contracts become standards by being popular, the way file formats do.
 
@@ -116,7 +118,6 @@ Success test: two people on two machines, each with their own AI agent, each bui
 
 ## Open questions
 
-- What is a "player" to the system? If each device has its own keys, something must show that several devices (and their objects) belong to the same person. One option: a player key that signs a note for each of their devices. Or: no player concept at all, and a player is just whatever objects they choose to link together.
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
 - Is a small set of built-in contracts (being somewhere, moving, having a look) acceptable, or must even those be optional?
