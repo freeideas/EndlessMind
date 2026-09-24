@@ -15,6 +15,7 @@ A massively multiplayer world where both the code and the running of that code a
 - **Every realm and every object has its own public/private key pair.** That key pair is its identity.
 - **"Body" is just one kind of object.** Players may create any number of objects.
 - **Every object has client-side code and server-side code.** Callers run the client side (and can inspect it); the owner's device runs the server side. Lending shares only the client side; giving also sends the server side.
+- **The private key marks the one real server for an object.** Server-side results are signed with it; unsigned or wrongly signed results are ignored.
 - **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
 - **No rarity.** Anyone can make any object.
 - **A player can have any number of objects and any number of devices.** Each device is a separate server with its own keys. Moving an object between your own devices is just giving it to yourself.
@@ -62,6 +63,8 @@ No rarity. Any player can make any object they want, so "rare" is an odd idea he
 This is the familiar split between a web page's code and a website's server code, applied to every single object. Since the caller can change the client-side code it runs, anything that matters (a rule, a score, a secret) belongs on the server side.
 
 **Meta-rule: a key pair lives on exactly one device.** A private key is created on a device and never leaves it. No two devices ever share a key pair.
+
+**The private key is what makes server-side code "the real one".** Every result from an object's server-side code is signed with that object's private key, and callers accept only signed results. Someone who obtains a copy of the server-side code can run it, but without the private key their answers carry no valid signature, so no one treats them as that object. The copy can only become a new object with a new key. So the key, not secrecy of the code, is what stops one player from running another player's server side on their own device.
 
 **Lending.** I let you use my object. You call its functions: the client-side parts run on your device, the server-side parts run on mine. If I go offline, the server side goes quiet (or dormant, in the story).
 
