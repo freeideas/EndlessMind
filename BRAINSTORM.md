@@ -17,6 +17,9 @@ A massively multiplayer world where both the code and the running of that code a
 - **Every object has client-side code and server-side code.** Callers run the client side (and can inspect it); the owner's device runs the server side. Lending shares only the client side; giving also sends the server side.
 - **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
 - **No rarity.** Anyone can make any object.
+- **A player can have any number of objects and any number of devices.** Each device is a separate server with its own keys. Moving an object between your own devices is just giving it to yourself.
+- **The containing object has the final say** about what happens inside it. When a call involves several devices (my lent sword strikes a visitor in your realm), the realm's server-side code decides the outcome.
+- **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 
 ## Why now (the pitch)
@@ -69,6 +72,8 @@ This is the familiar split between a web page's code and a website's server code
 3. From then on your device is the object's server. You can copy it, change it, or give it away.
 4. My old key signs a note, "object X (my key) is now object Y (your key)", so anyone who cares can follow the object's history. Whether I keep or delete my copy is up to me.
 
+**Your own devices.** A player can have any number of devices. Each is its own server with its own keys, so moving an object from your laptop to your phone is simply giving it to yourself.
+
 **Realm-owned objects** are the same choices made by a realm's code: a realm can lend weapons to visitors while they are inside, stop answering when they leave, or give one away outright.
 
 **Safety of received code.** Running client-side code, or received server-side code, means running someone else's code. The browser already keeps web page code away from the rest of the machine, and that is the main protection. Running each object in its own separate worker (a background thread in the page) also stops one object from interfering with another. A player's agent can read any code before running it.
@@ -107,6 +112,8 @@ Goal: simple enough that anyone can clone this repository and run their own serv
 Success test: two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.
 
 ## Open questions
+
+- What is a "player" to the system? If each device has its own keys, something must show that several devices (and their objects) belong to the same person. One option: a player key that signs a note for each of their devices. Or: no player concept at all, and a player is just whatever objects they choose to link together.
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
 - Is a small set of built-in contracts (being somewhere, moving, having a look) acceptable, or must even those be optional?
