@@ -64,6 +64,8 @@ No rarity. Any player can make any object they want, so "rare" is an odd idea he
 
 This is the familiar split between a web page's code and a website's server code, applied to every single object. Since the caller can change the client-side code it runs, anything that matters (a rule, a score, a secret) belongs on the server side.
 
+**When the owner's device is off.** Client-side code keeps working on the callers' devices; only server-side code stops. An object therefore degrades rather than vanishes: a lent sword still looks and swings like a sword, but anything its owner's server decides (its secrets, its memory, its special powers) is unavailable until the owner is back. Each object's author chooses how much lives on each side, trading independence (client side) against control (server side). The same holds for realms: visitors may still see a realm's scene from its client-side code while its server side, the referee, is away.
+
 **Meta-rule: a key pair lives on exactly one device.** A private key is created on a device and never leaves it. No two devices ever share a key pair.
 
 **The private key is what makes server-side code "the real one".** Every result from an object's server-side code is signed with that object's private key, and callers accept only signed results. Someone who obtains a copy of the server-side code can run it, but without the private key their answers carry no valid signature, so no one treats them as that object. The copy can only become a new object with a new key. So the key, not secrecy of the code, is what stops one player from running another player's server side on their own device.
