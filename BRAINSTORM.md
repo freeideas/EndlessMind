@@ -14,7 +14,9 @@ A massively multiplayer world where both the code and the running of that code a
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
 - **Every realm and every object has its own public/private key pair.** That key pair is its identity.
 - **"Body" is just one kind of object.** Players may create any number of objects.
-- **Whoever runs an object's code controls it.** An object can be lent (its code keeps running on the creator's device, so it cannot be copied) or given (the code moves to the new player's device). No rarity: anyone can make any object.
+- **Every object has client-side code and server-side code.** Callers run the client side (and can inspect it); the owner's device runs the server side. Lending shares only the client side; giving also sends the server side.
+- **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
+- **No rarity.** Anyone can make any object.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 
 ## Why now (the pitch)
@@ -47,13 +49,29 @@ If I swing a sword at you, my code runs on my device and yours on yours, and any
 
 ## Objects, ownership, and code that changes hands
 
-No rarity. Any player can make any object they want, so "rare" is an odd idea here and the platform does not try to support it. What matters instead is **who runs an object's code**, because that is who controls it.
+No rarity. Any player can make any object they want, so "rare" is an odd idea here and the platform does not try to support it. What matters instead is **who runs which part of an object's code**.
 
-- **Running versus holding.** The player whose device runs an object's code controls it. Another object can hold it, carry it, or use it by sending it messages, without ever having its code.
-- **Lending (code stays home).** I make a special object and let you use it. Its code keeps running on my device; you only send it messages and see its look. You cannot copy it, because you never get the code. If I go offline, it goes quiet (or goes dormant, in the story).
-- **Giving (code moves).** I hand you the code and the key, and your device runs it from then on. You can then copy it, change it, or give it away. I may keep a copy too, and that is fine.
-- **Realm-owned objects** are just the same choices made by a realm's code: a realm can lend its weapons to visitors while they are inside, stop answering when they leave, or give one away outright.
-- **Receiving code means running someone else's code.** The browser already keeps web page code away from the rest of the machine, and that is the main protection. Running each received object in its own separate worker (a background thread in the page) also stops one object from interfering with another. The receiver's agent can read the code before accepting if the player wants.
+**Two halves of every object.** Each object has functions that other objects can call. Each function can have two parts:
+
+- **Client-side code** runs on the device of the calling object. The caller receives this code and can inspect it before running it. It gives speed (a sword swing looks instant) and a local look and feel.
+- **Server-side code** runs on the device of the object's owner. Each player's device is the "server" for the objects it owns. This is where secrets and anything the owner wants to control live. The caller never sees it, so it cannot be copied.
+
+This is the familiar split between a web page's code and a website's server code, applied to every single object. Since the caller can change the client-side code it runs, anything that matters (a rule, a score, a secret) belongs on the server side.
+
+**Meta-rule: a key pair lives on exactly one device.** A private key is created on a device and never leaves it. No two devices ever share a key pair.
+
+**Lending.** I let you use my object. You call its functions: the client-side parts run on your device, the server-side parts run on mine. If I go offline, the server side goes quiet (or dormant, in the story).
+
+**Giving.** When I give you an object:
+
+1. Your device generates a brand-new key pair for it. No private key is ever transferred.
+2. You already have the client-side code (you received it when you first used or saw the object). The transfer sends you the server-side code.
+3. From then on your device is the object's server. You can copy it, change it, or give it away.
+4. My old key signs a note, "object X (my key) is now object Y (your key)", so anyone who cares can follow the object's history. Whether I keep or delete my copy is up to me.
+
+**Realm-owned objects** are the same choices made by a realm's code: a realm can lend weapons to visitors while they are inside, stop answering when they leave, or give one away outright.
+
+**Safety of received code.** Running client-side code, or received server-side code, means running someone else's code. The browser already keeps web page code away from the rest of the machine, and that is the main protection. Running each object in its own separate worker (a background thread in the page) also stops one object from interfering with another. A player's agent can read any code before running it.
 
 ## Seeing each other (first priority)
 
