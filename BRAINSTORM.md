@@ -100,13 +100,28 @@ A browser tab can act as the server for the objects it owns: peers reach it over
 - **Storage can be wiped.** Clearing site data deletes the private keys, and with them ownership of every object on that device. Backup (exporting keys) conflicts with the "key never leaves its device" default; freedom suggests allowing it with a clear warning.
 - **Isolation needs care.** Code in ordinary workers shares the page's storage and could read its keys. Foreign code must run in sandboxed frames with their own blank origin (a browser security boundary) to be kept away from keys and other objects.
 
+**Local files from a browser.**
+
+- Every browser has a private file area per site (the Origin Private File System). It is fast and roomy, but hidden from the user and deleted when site data is cleared.
+- Chrome and Edge on desktop can also read and write a real folder the player picks once (the File System Access API), and can remember that permission. Firefox and Safari do not support this.
+- A page can ask the browser to mark its storage as "persistent" so it is not cleared automatically when space runs low.
+
+**Storage and relay nodes, borrowing from torrents and similar networks.** Ideas worth copying:
+
+- BitTorrent and WebTorrent (BitTorrent inside browsers): data is named by its hash (fingerprint), and anyone holding a piece can serve it.
+- IPFS: "pinning" services that promise to keep particular data available.
+- Nostr: independent relays that store signed messages, each with its own limits.
+- Holepunch/Hypercore: peer-to-peer append-only logs that friends can keep copies of ("seeding").
+
+Applied here: the same small server program could offer optional roles, each switched on by its operator: **finder** (announcements, who is online), **relay** (pass traffic for peers who cannot connect directly), and **storage** (keep signed, encrypted data blobs, with a size limit per key). An object's saved state is encrypted with its owner's key, so storage nodes cannot read it, and signed, so they cannot fake it. Objects keep copies on several storage nodes, like seeding. An encrypted key backup (unlocked by a passphrase) can live there too, which fixes the wiped-browser problem.
+
 **Direction:** object code is plain JavaScript that runs unchanged in the browser and in a headless runtime (Deno or Node) on any always-on machine. The browser is where players look and play; the headless runner is how an object or realm stays up while its owner sleeps. A desktop app wrapper is possible later but not needed.
 
 ## The server: a small program anyone can run
 
 Goal: simple enough that anyone can clone this repository and run their own server with one command.
 
-- **It does three things:** stores signed announcements (an object's or realm's manifest and how to reach it), tells who is online, and passes messages between two players who cannot connect directly (for example, because both are behind home routers).
+- **It does three things (each role optional, see storage and relay nodes above):** stores signed announcements (an object's or realm's manifest and how to reach it), tells who is online, and passes messages between two players who cannot connect directly (for example, because both are behind home routers).
 - **It cannot cheat.** Everything it stores is signed by the key that wrote it, so a server cannot forge a realm, object, or transfer. It holds no game state and makes no rules. A bad or dead server is simply one you stop using.
 - **Servers do not talk to each other.** A player lists a few servers they like; a realm announces itself on several. No syncing, no voting, no shared ledger.
 - **It also serves the web page** that players open, so one server is all a group of friends needs.
