@@ -39,10 +39,15 @@ A massively multiplayer world where both the code and the running of that code a
 
 ## Protecting yourself: block lists and allow lists
 
-- **Each player's own software decides what they see.** A blocked object is invisible to you: your client does not draw it and ignores its messages. No platform involvement.
-- **Keys are free, so block lists alone leak.** A bad actor can make a new key every minute. Block by code hash as well (blocks every copy of the same bad code), and consider allow lists: see only objects vouched for by people you trust, plus whatever you explicitly allow.
+- **Lists are about code, not keys.** Keys cost nothing to make, so blocking keys is pointless. You block or allow code (by its hash, or by what your agent judges the code to do). A blocked object is invisible to you: your client does not draw it and ignores its messages. No platform involvement.
 - **Shared lists.** Subscribe to the lists of friends or of curators you trust, the way ad-blockers subscribe to filter lists. Anyone can publish a list; no list is official.
-- **Limits.** Being invisible to you does not remove an object from a realm. If a realm admits something you block, it can still affect the realm (and you, through the realm's rules). Your remedy there is to leave, or to avoid realms that admit what you block.
+- **Limits.** A one-character change gives code a new hash, so exact-hash blocking is easy to dodge; allow lists and agent judgment are sturdier. And server-side code cannot be inspected, so an object can hide behavior there.
+
+## Containment and locality
+
+- **Every object is inside a realm.** A realm is just an object that contains others.
+- **Unwanted objects stay home.** If no one admits your object into their realm, it can only live in one of your own realms. Rejection needs no platform enforcement: it is simply not being admitted.
+- **Realms affect each other only through a shared container.** Two realms can interact only when both are inside the same containing realm, which referees that interaction. Like locality in physics: nothing acts at a distance.
 
 ## Why now (the pitch)
 
@@ -164,6 +169,10 @@ Goal: simple enough that anyone can clone this repository and run their own serv
 Success test: two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.
 
 ## Open questions
+
+- Every object is inside a realm, and realms are objects, so what is at the top? Perhaps each player's own outermost realm, contained by nothing.
+- Does locality cover all messages, or only effects? For example, can two friends in different realms still chat, or must they meet inside a shared realm?
+- How does an object travel from realm A to realm B: step out to the realm containing both, then in; or leave A and be admitted to B directly?
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
 - Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
