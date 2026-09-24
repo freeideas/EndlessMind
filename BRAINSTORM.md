@@ -90,6 +90,18 @@ This is the familiar split between a web page's code and a website's server code
 - **Look format:** start with a tiny set of 3D primitives (boxes, spheres, cylinders, colors, grouped together), which an AI agent can write by hand in seconds. Allow standard 3D model files (glTF, the common web format for 3D models) later.
 - **Platform:** the browser. It can draw 3D (with a library such as three.js), connect peers directly (WebRTC), and run received code in a sandbox, and anyone can join by opening a page. A player's realm and objects run in their own browser tab.
 
+## The game container: browser, with limits to design around
+
+A browser tab can act as the server for the objects it owns: peers reach it over direct browser-to-browser connections (WebRTC), set up with help from one of the small public servers. Limits found so far:
+
+- **Only alive while the tab is open.** Phones suspend background tabs almost at once; desktops slow down background timers but keep receiving messages. Anything meant to stay up (a public realm, a lent object used by many) needs an always-on host.
+- **Direct connections sometimes fail.** Some home routers and most mobile carriers block direct peer connections, so traffic must be relayed through a server, which costs that server bandwidth.
+- **A home connection can host only so many visitors.** Tens of visitors in a busy realm is realistic; hundreds is not, from one browser on home internet. This limit applies to any player-hosted design, not only the browser.
+- **Storage can be wiped.** Clearing site data deletes the private keys, and with them ownership of every object on that device. Backup (exporting keys) conflicts with the "key never leaves its device" default; freedom suggests allowing it with a clear warning.
+- **Isolation needs care.** Code in ordinary workers shares the page's storage and could read its keys. Foreign code must run in sandboxed frames with their own blank origin (a browser security boundary) to be kept away from keys and other objects.
+
+**Direction:** object code is plain JavaScript that runs unchanged in the browser and in a headless runtime (Deno or Node) on any always-on machine. The browser is where players look and play; the headless runner is how an object or realm stays up while its owner sleeps. A desktop app wrapper is possible later but not needed.
+
 ## The server: a small program anyone can run
 
 Goal: simple enough that anyone can clone this repository and run their own server with one command.
