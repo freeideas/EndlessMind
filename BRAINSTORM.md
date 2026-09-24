@@ -14,7 +14,7 @@ A massively multiplayer world where both the code and the running of that code a
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
 - **Every realm and every object has its own public/private key pair.** That key pair is its identity.
 - **"Body" is just one kind of object.** Players may create any number of objects.
-- **Whoever owns an object runs its code.** Ownership can be given away; the new owner then runs the code.
+- **Whoever runs an object's code controls it.** An object can be lent (its code keeps running on the creator's device, so it cannot be copied) or given (the code moves to the new player's device). No rarity: anyone can make any object.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 
 ## Why now (the pitch)
@@ -43,18 +43,17 @@ If I swing a sword at you, my code runs on my device and yours on yours, and any
 
 1. **The realm is the referee inside the realm.** It runs the physics and the rules, and it checks that every object inside follows them. A sword-fighting realm keeps its own damage count for each visitor and calls `die` when the count runs out. If a visitor's code refuses to die, or reports things the realm's rules do not allow, the realm can simply declare that object no longer inside. The realm's authority ends at its border.
 2. **What happens after leaving belongs to the object and its owner.** A realm can throw you out, or kill your presence inside it, but it cannot reach your device. Your object's own code (and perhaps the server, for bookkeeping) decides what leaving means: back home, a ghost, a scar, nothing at all.
-3. **Things that cross realms carry signatures.** A realm's record ("this sword killed 12 opponents here") is a statement signed by the realm. Another realm decides whether it trusts that statement. Value between worlds comes from trust between realms, not from a central ledger.
+3. **Things that cross realms carry signatures.** A realm's record ("this player won 12 fights here") is a statement signed by the realm. Another realm decides whether it trusts that statement. Value between worlds comes from trust between realms, not from a central ledger.
 
 ## Objects, ownership, and code that changes hands
 
-This is the newest and most interesting part.
+No rarity. Any player can make any object they want, so "rare" is an odd idea here and the platform does not try to support it. What matters instead is **who runs an object's code**, because that is who controls it.
 
-- **Realm-bound objects.** A realm can keep weapons (or anything) that never leave it. The realm owns and runs them. Visitors can use them only inside.
-- **Objects that leave with a player.** A realm can let an object go with a visitor, but that costs the realm: the object is no longer the realm's. Ownership moves to the player, and from then on the player's device runs the object's code.
-- **Gifts between players.** One player can fully give an object to another. The receiver takes on running its code.
+- **Running versus holding.** The player whose device runs an object's code controls it. Another object can hold it, carry it, or use it by sending it messages, without ever having its code.
+- **Lending (code stays home).** I make a special object and let you use it. Its code keeps running on my device; you only send it messages and see its look. You cannot copy it, because you never get the code. If I go offline, it goes quiet (or goes dormant, in the story).
+- **Giving (code moves).** I hand you the code and the key, and your device runs it from then on. You can then copy it, change it, or give it away. I may keep a copy too, and that is fine.
+- **Realm-owned objects** are just the same choices made by a realm's code: a realm can lend its weapons to visitors while they are inside, stop answering when they leave, or give one away outright.
 - **Receiving code means running someone else's code.** The browser already keeps web page code away from the rest of the machine, and that is the main protection. Running each received object in its own separate worker (a background thread in the page) also stops one object from interfering with another. The receiver's agent can read the code before accepting if the player wants.
-- **The key goes with the object.** Giving an object means handing over its private key and a signed transfer note ("A gives object X to B"). The chain of transfer notes is the object's ownership history.
-- **Copies are allowed.** The giver could keep a copy of the key and the code and "give" the same sword twice. Following the freedom principle, the platform does not prevent this. Two conflicting transfer notes prove it happened, so a realm that cares about rare items can write code to check an object's history and refuse duplicates. Scarcity exists only where some realm's code creates it.
 
 ## Seeing each other (first priority)
 
