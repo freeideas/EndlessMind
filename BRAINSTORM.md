@@ -40,7 +40,9 @@ A massively multiplayer world where both the code and the running of that code a
 ## Protecting yourself: allow lists of code
 
 - **Lists are about code, not keys.** Keys cost nothing to make, so judging by key is pointless.
-- **Each realm keeps an allow list of known-good code hashes.** An object whose code hash is on the list is admitted. When an owner changes an object's code, its hash changes, so the owner asks the realm to admit the new version; the realm (its code, its owner, or its owner's AI agent) examines it and decides whether to add the new hash. An open realm can simply allow everything.
+- **Every object is potentially a container, and every object keeps an allow list of known-good code hashes.** An object whose code hash is on the list is let in automatically. An object that cannot contain anything simply lets nothing in. So "realm" is not a separate kind of thing, only a way an object behaves.
+- **Asking to be let in.** An object not on the list asks; the container runs its own admission code (and perhaps asks its owner or its owner's AI agent) to decide whether to add the hash. When an owner changes an object's code, its hash changes, so it asks again. An open container can allow everything.
+- **Admission code normally runs server-side,** on the container owner's device, because client-side code runs on the requester's own device, where the requester could fake a yes. A container that does not care (honor system) can admit from client-side code instead. Freedom first: the platform requires neither.
 - **Viewers can do the same.** A player's client can keep its own allow list (plus a block list for convenience) and draw nothing else. Lists can be shared and subscribed to, like ad-blocker filter lists; none is official.
 - **Limit:** the hash covers the client-side code and the API, not the owner's hidden server-side code, which can change without notice.
 
