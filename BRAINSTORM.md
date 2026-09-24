@@ -8,7 +8,7 @@ A massively multiplayer world where both the code and the running of that code a
 
 ## What changed from the earlier design document
 
-- The earlier document kept a thin central service for identity, discovery, and transit. The new idea removes it entirely. Identity becomes a key pair, discovery becomes a peer-to-peer lookup, and anyone can run the helper nodes that let peers find and reach each other.
+- The earlier document kept one thin central service. The new idea keeps the service thin but makes it a program anyone can clone and run, so there are many interchangeable servers and none is in charge. Identity becomes a key pair, so no server owns your account.
 - The earlier document treated the AI as background. The new idea puts it at the center: "your own AI coder understands all this and writes it." That is the reason this is possible in 2026 and was not before. Until now, every participant in a world like this would have had to be a programmer.
 - Kept from the earlier document: bodies and realms are the same basic thing in different roles; realms can nest; dangerous actions are proposals the target decides on; entry depends on computed compatibility; offline means frozen.
 
@@ -44,12 +44,16 @@ This removes most cheating incentives without any central authority: inside a re
 - Low latency (fast action games) may later need the realm to run a small piece of the visitor's code locally. That code would run in a sealed sandbox (WebAssembly, a portable format for running untrusted code safely), with only the powers the realm grants it.
 - A contract is a text document plus a machine-readable message schema. The AI agent reads the text; the software checks the schema.
 
-## No central server: how peers find each other
+## The "central server" is a program anyone can run
 
-- Identity: a public key. No sign-up anywhere.
-- Finding a realm: a shared lookup table spread across all participants (a "distributed hash table", the method BitTorrent uses), or links shared any way people like.
-- Connecting through home routers: the usual tricks (hole punching, and relaying through a willing third peer when that fails). Libraries such as libp2p already do this.
-- A few well-known starting points are still needed to join the first time, but anyone can run one, and they hold no authority. Nostr's relays are a good model to study.
+Goal (Ace, 2026-09-24): the server code is simple enough that anyone can clone this repository and start running their own server. There is not one central server but many interchangeable copies, like Bitcoin nodes or Nostr relays.
+
+- **What a server does.** Only three things: store signed announcements (a node's manifest and where to reach it), tell who is online, and pass messages between two peers that cannot connect directly (for example, because both are behind home routers).
+- **What a server cannot do.** Everything it stores is signed by the player who wrote it, so a server cannot forge a player, a realm, or an item. It holds no game state and makes no rules. A bad or dead server is simply one you stop using.
+- **Servers do not need to talk to each other.** A player lists a few servers they like; a realm announces itself on several. No syncing between servers, no voting, no shared ledger. This is the design choice that keeps the server small. (Servers copying each other's announcements could come later as an option.)
+- **Identity:** a public key. No sign-up anywhere, so switching servers loses nothing.
+- **Size target:** one small program with few dependencies that runs with one command on any cheap machine. If it grows past a few hundred lines, that is a warning sign that game logic is leaking into it.
+- Later option: a shared lookup table spread across players (a "distributed hash table", as BitTorrent uses) could remove the need for servers for finding realms, but it is not needed for the first version.
 
 ## Seeing each other
 
