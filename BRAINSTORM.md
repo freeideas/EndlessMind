@@ -59,6 +59,7 @@ Goal: any object can be reached from anywhere. A single master list of every obj
 
 - **Address like email.** An object's address is its public key plus a few servers where it announces itself ("key at these servers"). No one holds everything, yet anything is reachable. Simplest; the recommended start.
 - **Decided: only what wants to be found is listed.** Only objects that want to be found (public realms, players' "self" objects) announce themselves. Objects inside a realm are reached through that realm.
+- **Devices announce; everything else is consolidation and indexing.** Each device announces the objects on it that want to be found, signed by each object's key. Servers keep what they are sent; directories gather and index it.
 - **Directories anyone can run.** Search services can collect announcements from many servers, the way web search engines crawl the web. None is official.
 - **Later: a shared lookup table spread across participants** (a distributed hash table, as BitTorrent uses), which scales to many millions of entries without any central list.
 
