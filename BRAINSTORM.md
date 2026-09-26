@@ -189,4 +189,4 @@ Success test: two people on two machines, each with their own AI agent, each bui
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
 - Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
 - Server language: TypeScript (one language for the whole project) or Python with `uv` (your usual tooling)?
-- Name: keep "EveryGame"?
+- Name: keep "EveryGame", or call it "Infinite Worlds Unlimited"?
