@@ -30,8 +30,9 @@ A massively multiplayer world where both the code and the running of that code a
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 - **Growth over control.** The goal is for EveryGame to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
-- **One click to play.** Anyone can open a realm's link and start playing at once, with no install, no account and no AI agent. Every realm ships a player template and a renderer so this works (see "Joining with one click").
+- **One click to play.** Anyone can open a realm's link and start playing at once, with no install, no account and no AI agent. Each realm turns a visitor's character into an in-realm form and ships a renderer so this works (see "Joining with one click").
 - **Every realm leads to more realms.** From inside any realm, a player can always find other realms.
+- **License: MIT.** A copyleft license such as the GPL stops copying of the code but not rebuilding of the same features, so it protects little and slows growth. A permissive license spreads fastest.
 - **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
 
 ## Rules by consensus, not by platform
@@ -74,14 +75,19 @@ Goal: any object can be reached from anywhere. A single master list of every obj
 - Two worlds that do not quite fit together used to stay apart. Now an agent can write the missing piece at the door, in seconds.
 - So the old tradeoff (one central server for compatibility, or freedom and fragmentation) goes away. Compatibility is worked out per visit, by agents.
 
-## Joining with one click: player templates
+## Joining with one click: characters and in-realm forms
 
 Most people have no AI coding agent, so playing must not need one. Agents are for making new things; playing needs only a link.
 
-- **A player's persistent body.** A player's browser keeps one body object for them (created on first visit, kept across visits): its key, a name, a basic look, and whatever else they want to carry from realm to realm. It is still an ordinary object, not a built-in "player".
-- **Every realm ships a player template.** The template is code the realm adds to a visitor's body so it fits that realm (for example `move` and `caught` in a maze). Opening a realm's link loads the realm, takes the visitor's body (or makes one), adds the template, and the visitor is playing.
-- **Templates add, they do not replace.** The body's own code stays; each realm's template is added alongside it. The body can keep templates for next time, so returning is instant.
-- **Templates spread by use.** Since code is identified by its hash, a realm can accept a template another realm already wrote. Popular templates (a common way to walk, to take damage, to carry things) become shared habits without any platform standard, fitting "No named contracts".
+- **A player's character.** A player's browser keeps a character object for them (created on first visit, kept across visits). It is still an ordinary object, not a built-in "player".
+- **Characters publish a general API** that any realm can read, not tied to any realm: name, look, a plain-language description ("a small fox knight who carries a lantern"), and what it has earned or carries. The reference software ships a default layout for this; anyone may extend or ignore it ("Defaults instead of requirements").
+- **Each realm has its own API, and makes an in-realm form of each visitor.** The realm reads the character's general API and builds a form that fits the realm (a runner in a maze, a driver in a city). The realm owns that form and lends it to the visitor while they are inside, so the realm stays a fair referee.
+- **The character itself is never changed by a realm.** No realm code is added to it, so a hostile realm cannot damage a visitor's character. Anything earned comes back out as statements signed by the realm, and the character's own code decides whether to keep them.
+- **Mixing at the door happens at three levels:**
+  1. **The realm's own code, automatically.** Entry code maps what it understands from the character's API (look, name) and ignores the rest. Instant and free, so it covers one-click players with no agent.
+  2. **The player's own AI agent, for a better fit.** It writes a custom adapter for that realm ("make my lantern scare the chasers"). The realm checks the adapter like any visiting code and remembers its code hash once approved.
+  3. **The realm's AI, optionally.** A realm owner can pay for AI translation of unusual characters at entry. Their choice and their cost.
+- **Adapters spread by use.** Since code is identified by its hash, a realm can accept adapters written for other realms. Popular ones (a common way to walk, to take damage, to carry things) become shared habits without any platform standard, fitting "No named contracts".
 - **Every realm ships a renderer.** Client-side code that draws the realm (3D, flat 2D, text, anything). Viewers may replace it, as in "Seeing each other".
 - **Finding more realms is built into the viewer.** The viewer's own menu, not the realm's code, always offers a way onward: realms this realm links to (doors and portals), realms friends visited, and directory search. A realm cannot trap a visitor or hide the way out.
 
@@ -243,4 +249,3 @@ Success test: two people on two machines, each with their own AI agent, each bui
 - Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
 - Server language: TypeScript (one language for the whole project) or Python with `uv` (your usual tooling)?
 - Name: keep "EveryGame", or call it "Infinite Worlds Unlimited"?
-- License: permissive (MIT, best for growth, lets companies build closed products on it) or copyleft (AGPL, makes them share their changes)?
