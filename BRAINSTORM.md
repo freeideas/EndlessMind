@@ -29,6 +29,10 @@ A massively multiplayer world where both the code and the running of that code a
 - **The containing object has the final say** about what happens inside it. When a call involves several devices (my lent sword strikes a visitor in your realm), the realm's server-side code decides the outcome.
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
+- **Growth over control.** The goal is for EveryGame to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
+- **One click to play.** Anyone can open a realm's link and start playing at once, with no install, no account and no AI agent. Every realm ships a player template and a renderer so this works (see "Joining with one click").
+- **Every realm leads to more realms.** From inside any realm, a player can always find other realms.
+- **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
 
 ## Rules by consensus, not by platform
 
@@ -69,6 +73,44 @@ Goal: any object can be reached from anywhere. A single master list of every obj
 - Writing a custom world used to cost months of skilled work. With an AI coding agent it costs a conversation.
 - Two worlds that do not quite fit together used to stay apart. Now an agent can write the missing piece at the door, in seconds.
 - So the old tradeoff (one central server for compatibility, or freedom and fragmentation) goes away. Compatibility is worked out per visit, by agents.
+
+## Joining with one click: player templates
+
+Most people have no AI coding agent, so playing must not need one. Agents are for making new things; playing needs only a link.
+
+- **A player's persistent body.** A player's browser keeps one body object for them (created on first visit, kept across visits): its key, a name, a basic look, and whatever else they want to carry from realm to realm. It is still an ordinary object, not a built-in "player".
+- **Every realm ships a player template.** The template is code the realm adds to a visitor's body so it fits that realm (for example `move` and `caught` in a maze). Opening a realm's link loads the realm, takes the visitor's body (or makes one), adds the template, and the visitor is playing.
+- **Templates add, they do not replace.** The body's own code stays; each realm's template is added alongside it. The body can keep templates for next time, so returning is instant.
+- **Templates spread by use.** Since code is identified by its hash, a realm can accept a template another realm already wrote. Popular templates (a common way to walk, to take damage, to carry things) become shared habits without any platform standard, fitting "No named contracts".
+- **Every realm ships a renderer.** Client-side code that draws the realm (3D, flat 2D, text, anything). Viewers may replace it, as in "Seeing each other".
+- **Finding more realms is built into the viewer.** The viewer's own menu, not the realm's code, always offers a way onward: realms this realm links to (doors and portals), realms friends visited, and directory search. A realm cannot trap a visitor or hide the way out.
+
+## Growth and money
+
+**What could make it spread:**
+
+- **The "one sentence to a game" moment.** Someone describes a game, it appears, and a friend joins from their phone seconds later. Short videos of that moment are the main engine of growth; the first version should make that clip possible.
+- **Every game is a link** that shows a preview picture when shared on social media or in chats. Every player is one tap away from making their own.
+- **Remix everything.** Client-side code is visible, so every object and realm can offer "remix this": copy it and tell your agent what to change. The signed history credits the original maker.
+- **Portals between creators.** Each world advertises others, and popular worlds send visitors to smaller ones. Each new world makes the network more worth visiting.
+- **A built-in builder** for people without an AI agent: type what you want, get a realm or object.
+- **Creators keep what they earn.** Tips or entry fees go straight to realm creators, with no platform cut. Earning creators promote the platform on their own.
+- **A launch built for attention:** a handful of great original worlds, a post on Hacker News, a game jam with prizes, and early access for streamers who build live.
+
+**How Ace earns, without controlling anything.** All of these are optional services anyone may compete with; the network never depends on them.
+
+- **Always-on hosting** for realms that must stay up while their owner's device is off.
+- **The built-in AI builder:** a free tier, then paid heavier use.
+- **Fast relays** for players whose routers block direct connections: a free tier with limits.
+- **The best-known app and directory,** under the name "EveryGame" (a trademark Ace keeps).
+
+**Risks:**
+
+- **Free services must have firm limits from day one.** If Ace runs the default free relays and it goes viral, costs grow as fast as users. The software should make it easy for others to share the load.
+- **"Cannot be shut down" also means illegal content cannot be removed centrally,** so allow lists, block lists and takedown support are essential for ordinary people to feel safe running servers. Describe the design as "no single point of failure, like email", never as built to escape authorities.
+- **The industry is more likely to ignore, copy or compete than to buy.** The open-code-plus-services path still pays in that case.
+
+**Weak points to remove before launch:** the website serving the page (make it one file anyone can mirror or keep locally), the default server list (gather it from several sources), and the code host (mirror the repository elsewhere).
 
 ## Core model
 
@@ -201,3 +243,4 @@ Success test: two people on two machines, each with their own AI agent, each bui
 - Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
 - Server language: TypeScript (one language for the whole project) or Python with `uv` (your usual tooling)?
 - Name: keep "EveryGame", or call it "Infinite Worlds Unlimited"?
+- License: permissive (MIT, best for growth, lets companies build closed products on it) or copyleft (AGPL, makes them share their changes)?
