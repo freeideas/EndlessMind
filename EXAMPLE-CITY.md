@@ -10,15 +10,15 @@ Written 2026-09-27. A technical example of how the EveryGame model described in 
 
 ## Vehicles: fast physics on the driver's device
 
-- A vehicle is an object. Its client-side code draws it and runs the steering physics on the driver's own device, so driving responds instantly. Its server-side code holds what the owner controls: fuel, upgrades, a location beacon.
-- **Borrowing and taking over vehicles.** Private keys never move, so control of a vehicle can change hands only by rules. An owner can lend a vehicle to the city, and the city's server-side code records who is driving it at each moment. If the city's rules let one visitor take over a parked vehicle, the city simply records the new driver. The owner's own code decides what it allows beyond that, such as a beacon that reports where the vehicle is, or refusing to run outside the city.
+- A vehicle is an object. Its public code draws it and runs the steering physics on the driver's own device, so driving responds instantly. What the owner controls (fuel, upgrades, a location beacon) is signed by the owner's key, and any secret parts are encrypted.
+- **Borrowing and taking over vehicles.** Private keys never move, so control of a vehicle can change hands only by rules. An owner can lend a vehicle to the city, and the city's referee records who is driving it at each moment. If the city's rules let one visitor take over a parked vehicle, the city simply records the new driver. The owner's own code decides what it allows beyond that, such as a beacon that reports where the vehicle is, or refusing to run outside the city.
 - **Limits on tools.** The city admits only tool code it has approved (by code hash), and it keeps its own record of every visitor's health or energy. A modified tool cannot do more than the city's rules allow.
 
 ## City-run characters and tasks
 
-- Traffic and passers-by are simple objects the city creates. They are cheap client-side code, so each viewer's device can draw and move them locally.
-- Rule keepers (guards, referees, officials) are objects run by the city's server-side code, so visitors cannot tamper with them.
-- Tasks are objects anyone can write. A task giver hands a visitor a package, and the task's server-side code checks delivery against position records signed by the city.
+- Traffic and passers-by are simple objects the city creates. They are cheap public code, so each player's device can draw and move them locally.
+- Rule keepers (guards, referees, officials) are objects run by the city's referee (its key holder or authorized host), so visitors cannot tamper with them.
+- Tasks are objects anyone can write. A task giver hands a visitor a package, and the task's referee checks delivery against position records signed by the city.
 
 ## Money and records between realms
 

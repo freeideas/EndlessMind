@@ -16,7 +16,7 @@ Written 2026-09-27. A technical example of how the EveryGame model described in 
 
 ## Gathering, crafting, and value
 
-- Anyone can make anything, so a rare material is worth something only because a world says so. The world's server-side code records what each visitor gathered and signs their inventory. Materials from a strict gathering world are trusted elsewhere; materials from a free-building world are not.
+- Anyone can make anything, so a rare material is worth something only because a world says so. The world's referee records what each visitor gathered and signs their inventory. Materials from a strict gathering world are trusted elsewhere; materials from a free-building world are not.
 - Carrying items between worlds works like currency in the [city example](EXAMPLE-CITY.md): each world decides which other worlds' signed items it accepts.
 
 ## Extensions are just objects
@@ -29,4 +29,4 @@ Written 2026-09-27. A technical example of how the EveryGame model described in 
 - **Machines that cross region borders.** A circuit or a water flow spanning two regions hosted on two devices needs the world to referee the border (locality: they meet only in a shared container). That is slow for fast machines.
 - **Two players changing the same block.** Whoever referees the region must pick one order, and the other player's device must undo what it predicted.
 - **Who referees unclaimed land.** Busy wild areas need someone to host them, or the rules fall back to the honor system while no host is online.
-- **Trusting the terrain.** A player could generate fake materials on their own device, so materials found in untouched terrain should be checked against the seed by the world's server-side code before they count.
+- **Trusting the terrain.** A player could generate fake materials on their own device, so materials found in untouched terrain should be checked against the seed by the world's referee before they count.

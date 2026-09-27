@@ -4,7 +4,7 @@ Started 2026-09-24. Sources: Ace's chat notes of 2026-09-24, follow-up decisions
 
 ## The idea in one paragraph
 
-A massively multiplayer world where both the code and the running of that code are spread across the players. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code, and it runs on their own device. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). The server is a small program anyone can clone and run, so there is no single server to shut down. It is not one game but every game anyone can imagine.
+A massively multiplayer world where both the code and the running of that code are spread across the players. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code. The code is public and anyone can run it, but only the holder of an object's private key can operate it or speak for it. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). The server is a small program anyone can clone and run, so there is no single server to shut down. It is not one game but every game anyone can imagine.
 
 ## Decisions so far
 
@@ -14,19 +14,21 @@ A massively multiplayer world where both the code and the running of that code a
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
 - **Every realm and every object has its own public/private key pair.** That key pair is its identity.
 - **"Body" is just one kind of object.** Players may create any number of objects.
-- **Every object has client-side code and server-side code.** Callers run the client side (and can inspect it); the owner's device runs the server side. Lending shares only the client side; giving also sends the server side.
+- **All code is public, and anyone can run any object.** Objects are published on a torrent-like network (shared by whoever has a copy). This replaces the earlier idea of hidden server-side code that ran only on the owner's device; see "Objects, ownership, and code that changes hands".
+- **Keys, not code, decide who operates an object.** An object's code obeys only commands signed by its key, and only results signed by its key (or by a host it authorized) are official. Running a copy without the key just makes a different object (a fork).
+- **Secrets are optional encrypted parts.** An object may keep some code or data encrypted. Encrypted parts can run only where the key is, or on a host the owner trusts with them.
 - **Ownership is proof of a private key.** The owner of an object is whoever can prove they hold its private key. Nothing else defines ownership.
 - **No built-in "player".** The system knows only objects and devices. A player who wants to be recognized across devices can make a "self" object that claims their other objects, with each claim signed by the claimed object's key. Recognizing a player is a convention between objects, not a platform feature.
-- **The private key marks the one real server for an object.** Server-side results are signed with it; unsigned or wrongly signed results are ignored.
+- **The private key marks the one real instance of an object.** Official results are signed with it, or by a host holding the owner's signed permission; unsigned or wrongly signed results are ignored.
 - **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
 - **No rarity.** Anyone can make any object.
 - **A player can have any number of objects and any number of devices.** Each device is a separate server with its own keys. Moving an object between your own devices is just giving it to yourself.
-- **Enforcement is each realm's choice.** Some realms run entirely on the honor system (client-side rules only); others enforce their rules in server-side code. What happens when a realm's server side goes offline (freeze, carry on unchecked, or hand refereeing to a stand-in) is also up to the realm's code.
-- **Everything a visitor needs to judge a realm is visible.** Visitors (in practice, their AI agents) can read all of a realm's client-side code and see which calls go to its server side, so no separate declaration of enforcement style is needed. The only hidden part is what the server-side calls do internally.
-- **It works both ways.** A realm can read any visiting object's client-side code and see which of its calls go to the object's own device, so it knows roughly how the object behaves before admitting it. Since code is identified by its hash, a realm can remember code it has already approved and admit it instantly next time.
-- **No named contracts.** The platform enforces no shared vocabulary of functions. Every object can examine every other object's API (its callable functions and their client-side code) and decide for itself. How shallow or deep that examination goes is up to the examining code.
-- **Where code runs is not enforced either.** An object's author decides which functions run on the caller's device and which on the owner's; the platform requires neither.
-- **The containing object has the final say** about what happens inside it. When a call involves several devices (my lent sword strikes a visitor in your realm), the realm's server-side code decides the outcome.
+- **Enforcement is each realm's choice.** Some realms run entirely on the honor system (every player's copy decides for itself); others have the key holder or an authorized host referee and sign the official state. What happens when no referee is online (freeze, carry on unchecked, or hand refereeing to a stand-in) is also up to the realm's code.
+- **Everything a visitor needs to judge a realm is visible.** Visitors (in practice, their AI agents) can read all of a realm's code and see which parts are encrypted, so no separate declaration of enforcement style is needed. The only hidden part is what the encrypted parts do.
+- **It works both ways.** A realm can read any visiting object's code and see which parts are encrypted, so it knows roughly how the object behaves before admitting it. Since code is identified by its hash, a realm can remember code it has already approved and admit it instantly next time.
+- **No named contracts.** The platform enforces no shared vocabulary of functions. Every object can examine every other object's API (its callable functions and their code) and decide for itself. How shallow or deep that examination goes is up to the examining code.
+- **Where code runs is not enforced either.** An object's author decides what is public, what is encrypted, and who may host it; the platform requires none of it.
+- **The containing object has the final say** about what happens inside it. When a call involves several devices (my lent sword strikes a visitor in your realm), the realm's referee (its key holder or authorized host) decides the outcome.
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 - **Growth over control.** The goal is for EveryGame to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
@@ -34,6 +36,9 @@ A massively multiplayer world where both the code and the running of that code a
 - **Every realm leads to more realms.** From inside any realm, a player can always find other realms.
 - **License: MIT.** A copyleft license such as the GPL stops copying of the code but not rebuilding of the same features, so it protects little and slows growth. A permissive license spreads fastest.
 - **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
+- **Custom renderers and controls are a headline feature.** Anyone can write their own renderer (make plain state look fantastic, show a 2D game in 3D) and their own controls suited to a kind of play. See "How it fits together".
+- **There is no cheating, only rules.** Players are free to do anything their own software can do. Whatever a realm's rules and referee allow is fair play; a realm that wants something prevented must design it so (see "Hidden information").
+- **Unused things fade away.** Nothing is stored forever by default; data lives only while someone keeps a copy. See "Where things are saved".
 
 ## Rules by consensus, not by platform
 
@@ -47,9 +52,9 @@ A massively multiplayer world where both the code and the running of that code a
 - **Lists are about code, not keys.** Keys cost nothing to make, so judging by key is pointless.
 - **Every object is potentially a container, and every object keeps an allow list of known-good code hashes.** An object whose code hash is on the list is let in automatically. An object that cannot contain anything simply lets nothing in. So "realm" is not a separate kind of thing, only a way an object behaves.
 - **Asking to be let in.** An object not on the list asks; the container runs its own admission code (and perhaps asks its owner or its owner's AI agent) to decide whether to add the hash. When an owner changes an object's code, its hash changes, so it asks again. An open container can allow everything.
-- **Admission code normally runs server-side,** on the container owner's device, because client-side code runs on the requester's own device, where the requester could fake a yes. A container that does not care (honor system) can admit from client-side code instead. Freedom first: the platform requires neither.
-- **Viewers can do the same.** A player's client can keep its own allow list (plus a block list for convenience) and draw nothing else. Lists can be shared and subscribed to, like ad-blocker filter lists; none is official.
-- **Limit:** the hash covers the client-side code and the API, not the owner's hidden server-side code, which can change without notice.
+- **Admission is normally decided by the container's referee** (its key holder or authorized host), because a copy running on the requester's own device could fake a yes. A container that does not care (honor system) can let each copy decide. Freedom first: the platform requires neither.
+- **Players can do the same.** A player's app can keep its own allow list (plus a block list for convenience) and draw nothing else. Lists can be shared and subscribed to, like ad-blocker filter lists; none is official.
+- **Limit:** the hash covers the public code and the API, not what an object's encrypted parts do.
 
 ## Containment and locality
 
@@ -88,8 +93,8 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
   2. **The player's own AI agent, for a better fit.** It writes a custom adapter for that realm ("make my lantern scare the chasers"). The realm checks the adapter like any visiting code and remembers its code hash once approved.
   3. **The realm's AI, optionally.** A realm owner can pay for AI translation of unusual characters at entry. Their choice and their cost.
 - **Adapters spread by use.** Since code is identified by its hash, a realm can accept adapters written for other realms. Popular ones (a common way to walk, to take damage, to carry things) become shared habits without any platform standard, fitting "No named contracts".
-- **Every realm ships a renderer.** Client-side code that draws the realm (3D, flat 2D, text, anything). Viewers may replace it, as in "Seeing each other".
-- **Finding more realms is built into the viewer.** The viewer's own menu, not the realm's code, always offers a way onward: realms this realm links to (doors and portals), realms friends visited, and directory search. A realm cannot trap a visitor or hide the way out.
+- **Every realm ships a default renderer** that draws it (3D, flat 2D, text, anything). Players may replace it; see "How it fits together".
+- **Finding more realms is built into the app.** The app's own menu, not the realm's code, always offers a way onward: realms this realm links to (doors and portals), realms friends visited, and directory search. A realm cannot trap a visitor or hide the way out.
 
 ## Growth and money
 
@@ -97,7 +102,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 
 - **The "one sentence to a game" moment.** Someone describes a game, it appears, and a friend joins from their phone seconds later. Short videos of that moment are the main engine of growth; the first version should make that clip possible.
 - **Every game is a link** that shows a preview picture when shared on social media or in chats. Every player is one tap away from making their own.
-- **Remix everything.** Client-side code is visible, so every object and realm can offer "remix this": copy it and tell your agent what to change. The signed history credits the original maker.
+- **Remix everything.** All code is public, so every object and realm can offer "remix this": copy it and tell your agent what to change. The signed history credits the original maker.
 - **Portals between creators.** Each world advertises others, and popular worlds send visitors to smaller ones. Each new world makes the network more worth visiting.
 - **A built-in builder** for people without an AI agent: type what you want, get a realm or object.
 - **Creators keep what they earn.** Tips or entry fees go straight to realm creators, with no platform cut. Earning creators promote the platform on their own.
@@ -105,7 +110,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 
 **How Ace earns, without controlling anything.** All of these are optional services anyone may compete with; the network never depends on them.
 
-- **Always-on hosting** for realms that must stay up while their owner's device is off.
+- **Always-on hosting** for realms that must stay up while their owner's device is off, by the owner's signed permission, including keeping copies of their data.
 - **The built-in AI builder:** a free tier, then paid heavier use.
 - **Fast relays** for players whose routers block direct connections: a free tier with limits.
 - **The best-known app and directory,** under the name "EveryGame" (a trademark Ace keeps).
@@ -120,14 +125,13 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 
 ## Core model
 
-**Object.** The only building block: a key pair (its identity) plus code (its behavior and state). A body, a sword, a house, a planet, a swarm, a universe are all just objects with different code. It runs on the device of whoever owns it.
+**Object.** The only building block: a key pair (its identity) plus code (its behavior and state). A body, a sword, a house, a planet, a swarm, a universe are all just objects with different code. Anyone can run its public code; only its key holder can operate it.
 
 **Containment.** Any object can contain any number of other objects, to any depth (a room inside a ship inside a galaxy; tiny creatures living in your coat). An object that contains others acts as their realm: it runs the rules and the shared space for what is inside it. "Realm" below just means "the containing object".
 
-**Owner.** Whoever can prove they hold an object's private key. Since the key lives on one device, that device runs the object's server-side code.
+**Owner.** Whoever can prove they hold an object's private key. Since the key lives on one device, that device (or a host it authorizes) signs the object's official results and runs its encrypted parts.
 
-
-**API.** What each object exposes to others: its public key, its callable functions (each with client-side code, a server-side part, or both), and its look. Anyone can read it.
+**API.** What each object exposes to others: its public key, its callable functions and their code (with any encrypted parts marked), and its look. Anyone can read it.
 
 **Entering.** An object asks to enter a realm. The realm examines the object's API and decides; the object may examine the realm's API first. If the realm says no, the visitor's AI agent can read why (or read the realm's code) and offer to add what is missing ("This realm wants objects that can take damage and die. Want me to add that? About 30 seconds.").
 
@@ -139,53 +143,132 @@ If I swing a sword at you, my code runs on my device and yours on yours, and any
 2. **What happens after leaving belongs to the object and its owner.** A realm can throw you out, or kill your presence inside it, but it cannot reach your device. Your object's own code (and perhaps the server, for bookkeeping) decides what leaving means: back home, a ghost, a scar, nothing at all.
 3. **Things that cross realms carry signatures.** A realm's record ("this player won 12 fights here") is a statement signed by the realm. Another realm decides whether it trusts that statement. Value between worlds comes from trust between realms, not from a central ledger.
 
+**Single-player games need no host.** All code is public, so a single-player game runs entirely in the player's browser once its files arrive (from mirrors, other players or storage nodes, none of which run game code). It even works offline. Without the realm's key, the player's copy cannot sign results, so scores are not trusted elsewhere unless the moves are sent to the realm's key holder or an authorized host to check and sign.
+
+**Shared state in multiplayer: the official state wins.** Every browser predicts the state so play feels instant; when the official, signed state arrives, it wins and the browser corrects itself. The referee is whoever holds the realm's key or an authorized host (a creator's browser tab, a friend's always-on machine, a paid host). A realm picks one of two ways to share the work:
+
+1. **The host keeps the full state** and sends updates. Simplest, and handles hidden information, but the host's connection carries everything (tens of players on a home connection).
+2. **The host only puts moves in order** (lockstep). Every browser runs the same public realm code on the same ordered moves and reaches the same state, so the host's work is tiny. Everyone has the full state, so hidden information needs the tools below.
+
+Slow, turn-based games (chess, cards between friends) can skip the host: players sign their own moves and each browser checks every move against the rules.
+
+**Hidden information.** Anything sent to a player's browser counts as seen by that player, whatever renderer they use. Realms keep secrets with:
+
+- **Sending each player only their share.** The host never sends what a player may not see (enemies behind walls), so no renderer can show it.
+- **Encrypting a secret to its owner.** A card dealt to a player travels encrypted to their key, readable only by them, even in lockstep games.
+- **Commit now, reveal later.** A player publishes a hash of a hidden choice, proving it is fixed without revealing it, and reveals it at the end for everyone to check. Works with no host at all.
+
+A realm cannot enforce which renderer a player uses, since a browser can claim anything. That is fine: custom renderers and controls are a feature, and anything the rules and referee allow is fair play.
+
 ## Objects, ownership, and code that changes hands
 
-No rarity. Any player can make any object they want, so "rare" is an odd idea here and the platform does not try to support it. What matters instead is **who runs which part of an object's code**.
+No rarity. Any player can make any object they want, so "rare" is an odd idea here and the platform does not try to support it. What matters instead is **who can operate an object and speak for it**.
 
-**Two halves of every object.** Each object has functions that other objects can call. Each function can have two parts:
+**Earlier idea, replaced (2026-09-27).** Objects used to be split into client-side code (run by callers, visible) and server-side code (run only on the owner's device, hidden). That made every object depend on its owner's device being online. The model below replaces it.
 
-- **Client-side code** runs on the device of the calling object. The caller receives this code and can inspect it before running it. It gives speed (a sword swing looks instant) and a local look and feel.
-- **Server-side code** runs on the device of the object's owner. Each player's device is the "server" for the objects it owns. This is where secrets and anything the owner wants to control live. The caller never sees it, so it cannot be copied.
+**Three layers of every object:**
 
-This is the familiar split between a web page's code and a website's server code, applied to every single object. Since the caller can change the client-side code it runs, anything that matters (a rule, a score, a secret) belongs on the server side.
+- **Public code.** Anyone can fetch it from the torrent-like network, read it and run it. It gives speed (a sword swing looks instant), lets single-player games run with no host, and lets anyone remix it.
+- **Signed commands and results.** An object's code obeys only commands signed with its key, and only results signed by its key (or an authorized host) are official. Anyone can run and watch my character; only I can steer it. This is the job of signatures, not encryption.
+- **Encrypted parts (optional).** Secret rules, hidden answers, private notes. Code must be decrypted to run, and whoever runs it can see it, so encrypted parts run only on the key holder's device or a host they trust with them.
 
-**When the owner's device is off.** Client-side code keeps working on the callers' devices; only server-side code stops. An object therefore degrades rather than vanishes: a lent sword still looks and swings like a sword, but anything its owner's server decides (its secrets, its memory, its special powers) is unavailable until the owner is back. Each object's author chooses how much lives on each side, trading independence (client side) against control (server side). The same holds for realms: visitors may still see a realm's scene from its client-side code while its server side, the referee, is away.
+**Hosting by permission.** An owner signs a note: "this machine may host my object until December." A volunteer or paid host then runs the official instance, signing results under that permission, while the owner's device is off. No private key moves.
 
-**Meta-rule: a key pair lives on exactly one device.** A private key is created on a device and never leaves it. No two devices ever share a key pair.
+**When no official host is online.** The public code still runs everywhere, so an object degrades rather than vanishes: a lent sword still looks and swings like a sword, but anything needing its key (signed results, encrypted parts, special powers) waits until the owner or a host is back. The same holds for realms: visitors can still see and even play a realm's public code, but nothing is official until a referee returns.
 
-**The private key is what makes server-side code "the real one".** Every result from an object's server-side code is signed with that object's private key, and callers accept only signed results. Someone who obtains a copy of the server-side code can run it, but without the private key their answers carry no valid signature, so no one treats them as that object. The copy can only become a new object with a new key. So the key, not secrecy of the code, is what stops one player from running another player's server side on their own device.
+**Meta-rule: a key pair lives on exactly one device.** A private key is created on a device and never leaves it, except as an encrypted backup the owner chooses to make (see "Where things are saved").
 
-**Lending.** I let you use my object. You call its functions: the client-side parts run on your device, the server-side parts run on mine. If I go offline, the server side goes quiet (or dormant, in the story).
+**The private key is what makes an instance "the real one".** Anyone can run a copy of any object, but without the private key its answers carry no valid signature, so no one treats it as that object. A copy can only become a new object with a new key (a fork, credited through the signed history).
+
+**Lending.** I let you use my object. Its public code runs on your device; its official results and encrypted parts come from me or my host. If neither is online, those parts go quiet (or dormant, in the story).
 
 **Giving.** When I give you an object:
 
 1. Your device generates a brand-new key pair for it. No private key is ever transferred.
-2. You already have the client-side code (you received it when you first used or saw the object). The transfer sends you the server-side code.
-3. From then on your device is the object's server. You can copy it, change it, or give it away.
+2. You already have the public code. The transfer sends you any encrypted parts, re-encrypted for your key.
+3. From then on you operate the object. You can copy it, change it, or give it away.
 4. My old key signs a note, "object X (my key) is now object Y (your key)", so anyone who cares can follow the object's history. Whether I keep or delete my copy is up to me.
 
-**Your own devices.** A player can have any number of devices. Each is its own server with its own keys, so moving an object from your laptop to your phone is simply giving it to yourself.
+**Your own devices.** A player can have any number of devices, each with its own keys, so moving an object from your laptop to your phone is simply giving it to yourself (or restoring it from a backup).
 
 **Realm-owned objects** are the same choices made by a realm's code: a realm can lend weapons to visitors while they are inside, stop answering when they leave, or give one away outright.
 
-**Safety of received code.** Running client-side code, or received server-side code, means running someone else's code. The browser already keeps web page code away from the rest of the machine, and that is the main protection. Running each object in its own separate worker (a background thread in the page) also stops one object from interfering with another. A player's agent can read any code before running it.
+**Safety of received code.** Running any object means running someone else's code. The browser already keeps web page code away from the rest of the machine, and that is the main protection. The app runs each object in its own sealed-off sandbox so one object cannot interfere with another or read keys (see "Isolation needs care" below). A player's agent can read any code before running it.
 
-## Seeing each other (first priority)
+## How it fits together (first priority)
 
-- Each viewer's own device draws the scene. The realm sends what is in the space and where; each object supplies its own look.
-- A realm may restrict looks (in a realm of ghosts everyone is translucent), and a viewer may simplify anything (everyone as a colored shape).
+Five pieces. Everything is an object except the app, which is the platform's own open software.
+
+| Piece | What it is | Who owns it | Where it runs |
+|---|---|---|---|
+| **The app** | The page you open; runs everything else | Nobody (open software) | Your browser |
+| **Character** | Your persistent identity, look and feel | You | Anywhere; you operate it |
+| **Realm** | The game: rules, map, referee | Its creator | Anywhere; referee by key |
+| **In-realm form** | What your character becomes in that realm | The realm, lent to you | Anywhere; realm referees |
+| **Renderer** | Turns the realm's state into a picture | Its author; you pick it | Your browser |
+
+**The app** holds your keys and saved data, keeps each piece of foreign code in its own sandbox, opens links, hands the realm your character's general API and receives your in-realm form, and owns the menu that is always there (find more realms, change renderer, edit character, leave). It is not called "player", since that word means the person.
+
+**Renderers: state is separate from the picture.** A realm never draws anything itself; it publishes its state as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and anyone can write another that reads the same data: a naturally 2D maze shown as glowing 3D corridors, plain state made to look fantastic. The game cannot tell the difference.
+
+- **A renderer is an object,** with a code hash, so renderers can be shared, remixed and put on allow lists.
+- **A renderer can only look.** It receives state and draws; moves go through the app to the realm.
+- **Clicks and taps on the picture:** the renderer turns "clicked here on screen" into realm terms ("clicked cell 4,7") and hands it to the app.
+
+**Input for any object, handed out by the app.** Mouse, keyboard, touch, controller, camera and microphone are available to any object that wants them, which opens up custom controls suited to a kind of play, gesture-controlled creatures, voice spells and face-tracked looks. The app, not the swappable renderer, is the gatekeeper:
+
+- Camera and microphone are ask-first, per object ("The lantern wants to use your camera. Allow?").
+- Keyboard and mouse go only to the objects the player is currently interacting with, so no object can record a passphrase typed elsewhere.
+
+**One click, start to finish:**
+
+1. Open the link; the app loads (from any mirror).
+2. The app finds the player's character, or makes one in about a second (random name and look, editable later).
+3. The app fetches the realm's code and default renderer and sandboxes them, then connects to the realm's referee if it has one.
+4. The realm reads the character and lends the player an in-realm form.
+5. The player presses keys, the realm updates its state, the renderer draws it.
+6. On leaving, the character keeps whatever the realm signed for it, and the menu shows where to go next.
+
+**Looks and platform:**
+
+- A realm may restrict looks (in a realm of ghosts everyone is translucent), and a player's renderer may simplify anything (everyone as a colored shape).
 - **Look format:** start with a tiny set of 3D primitives (boxes, spheres, cylinders, colors, grouped together), which an AI agent can write by hand in seconds. Allow standard 3D model files (glTF, the common web format for 3D models) later.
 - **Platform:** the browser. It can draw 3D (with a library such as three.js), connect peers directly (WebRTC), and run received code in a sandbox, and anyone can join by opening a page. A player's realm and objects run in their own browser tab.
 
+## Where things are saved
+
+| What | Where |
+|---|---|
+| Character (keys, name, look, feel, its own code) | Player's browser; a character file and/or encrypted backup |
+| What a character has earned | Signed statements, kept with the character |
+| Realm state | The referee's device; encrypted copies on storage nodes |
+| Code (realms, renderers, adapters, assets) | Found by hash, cached; any holder can serve it |
+| Settings (renderer choice) | Player's browser |
+
+**Saving a character, two ways:**
+
+1. **Save as file** (always available). Encrypted, locked with a passphrase, holding everything unique to the character. A default character is a few KB (shared code such as the default character code is referenced by hash), small enough to email or turn into a QR code. A customized one, with its own code, models and sounds, can be tens of KB to several MB. The file can include shared code too, so restoring never depends on the network.
+2. **Automatic backup** (optional convenience). Encrypted, unlocked with a passkey (the fingerprint or face login phones and computers already sync), stored on storage nodes. Restoring on a new device takes one tap, with no password or account. Aimed at players who never think about saving.
+
+Both mean a key leaves its device as an encrypted backup, which freedom allows with a clear warning. A file is simpler and depends on no one; the backup exists because people lose files, files go stale, and passphrases get forgotten.
+
+**Unused things fade away.** Data lives only while someone keeps a copy:
+
+- Each device keeps its own objects plus a cache of recently used things, cleared when space runs low.
+- Storage nodes keep data for a set period (for example 90 days) unless the owner's device renews it, with a size limit per key.
+- Announcements expire unless renewed.
+- Identical assets are stored once, since they are named by their hash.
+
+**Keeping what matters:** owners keep their own things; fans, hosts or creators can pin (promise to keep) anything; anyone may run an archive that keeps everything; and objects carry their unique parts with them, pointing only to widely used shared ones. Forgotten worlds are truly lost unless someone cared to keep them, which fits "ruins and sealed doors".
+
 ## The game container: browser, with limits to design around
 
-A browser tab can act as the server for the objects it owns: peers reach it over direct browser-to-browser connections (WebRTC), set up with help from one of the small public servers. Limits found so far:
+A browser tab can act as a referee for the objects it owns. Browsers cannot accept incoming connections, but they can connect directly to each other (WebRTC, as video calls use): both connect out to a small meeting server, learn their public addresses, swap them through it, and send to each other at the same moment so each home router treats the incoming packets as replies ("hole punching"). When that fails, traffic goes through a relay. Limits found so far:
 
 - **Only alive while the tab is open.** Phones suspend background tabs almost at once; desktops slow down background timers but keep receiving messages. Anything meant to stay up (a public realm, a lent object used by many) needs an always-on host.
 - **Direct connections sometimes fail.** Some home routers and most mobile carriers block direct peer connections, so traffic must be relayed through a server, which costs that server bandwidth.
 - **A home connection can host only so many visitors.** Tens of visitors in a busy realm is realistic; hundreds is not, from one browser on home internet. This limit applies to any player-hosted design, not only the browser.
-- **Storage can be wiped.** Clearing site data deletes the private keys, and with them ownership of every object on that device. Backup (exporting keys) conflicts with the "key never leaves its device" default; freedom suggests allowing it with a clear warning.
+- **Storage can be wiped.** Clearing site data deletes the private keys, and with them ownership of every object on that device. Fixed by the character file and automatic backup in "Where things are saved".
 - **Isolation needs care.** Code in ordinary workers shares the page's storage and could read its keys. Foreign code must run in sandboxed frames with their own blank origin (a browser security boundary) to be kept away from keys and other objects.
 
 **Local files from a browser.**
@@ -201,9 +284,9 @@ A browser tab can act as the server for the objects it owns: peers reach it over
 - Nostr: independent relays that store signed messages, each with its own limits.
 - Holepunch/Hypercore: peer-to-peer append-only logs that friends can keep copies of ("seeding").
 
-Applied here: the same small server program could offer optional roles, each switched on by its operator: **finder** (announcements, who is online), **relay** (pass traffic for peers who cannot connect directly), and **storage** (keep signed, encrypted data blobs, with a size limit per key). An object's saved state is encrypted with its owner's key, so storage nodes cannot read it, and signed, so they cannot fake it. Objects keep copies on several storage nodes, like seeding. An encrypted key backup (unlocked by a passphrase) can live there too, which fixes the wiped-browser problem.
+Applied here: the same small server program could offer optional roles, each switched on by its operator: **finder** (announcements, who is online), **relay** (pass traffic for peers who cannot connect directly), and **storage** (keep signed, encrypted data blobs, with a size limit per key). An object's saved state is encrypted with its owner's key, so storage nodes cannot read it, and signed, so they cannot fake it. Objects keep copies on several storage nodes, like seeding. Encrypted character backups live there too (see "Where things are saved").
 
-**Direction:** object code is plain JavaScript that runs unchanged in the browser and in a headless runtime (Deno or Node) on any always-on machine. The browser is where players look and play; the headless runner is how an object or realm stays up while its owner sleeps. A desktop app wrapper is possible later but not needed.
+**Direction:** object code is plain JavaScript that runs unchanged in the browser and in a headless runtime (Deno or Node) on any always-on machine. The browser is where players look and play; the headless runner is how an authorized host keeps an object or realm up while its owner sleeps. A desktop app wrapper is possible later but not needed.
 
 ## The server: a small program anyone can run
 
@@ -217,7 +300,7 @@ Goal: simple enough that anyone can clone this repository and run their own serv
 
 ## Offline, safety, and law
 
-- Offline realms freeze. Friends can agree to host copies. Being online becomes part of the story: ruins, sealed doors, sleeping gods.
+- A realm with no referee online loses its official state, though its public code still runs. Friends or paid hosts can host it by the owner's signed permission, and single-player realms need no host at all. Being online becomes part of the story: ruins, sealed doors, sleeping gods.
 - Safety has no central moderator, so it lives on each person's side: your agent examines a realm's code and warns you, your client filters what you see, and you keep block lists and share them if you like.
 - Law: like the web, the protocol cannot enforce law centrally. Each person is responsible for what their own objects and realms do. The project docs must say this honestly.
 
@@ -235,8 +318,8 @@ EveryGame is a tool for making original worlds. The project must never suggest, 
 ## First version
 
 1. **Server.** Announcements, online list, message passing, and serving the web page.
-2. **Browser runtime.** Makes key pairs, loads the player's own realm and object code, connects to peers, draws the 3D scene.
-3. **Protocol draft.** Object API format, examining an object, calling functions (client side and server side), entering and leaving, the realm's scene updates, giving an object.
+2. **The app.** Makes key pairs and characters, fetches and sandboxes object code, hands out input by permission, connects to peers, runs the chosen renderer, saves and restores characters.
+3. **Protocol draft.** Object API format, examining an object, signed commands and results, encrypted parts, hosting permissions, entering and leaving, the realm's state updates, giving an object.
 4. **Agent guide.** An instructions file that any AI coding agent reads to build realms and objects for its player. The most important deliverable: players will not read specs, their agents will. It includes the "Original work only" rules above.
 5. **Demo content.** A sword-fighting arena (admits only objects that can take damage and die, lends swords to visitors while inside) and a calm garden (honor system). One fighter body and one wanderer body. Show a refused entry, an agent adding what was missing, a fight, an ejection for refusing to die, and a sword being given away.
 
@@ -244,8 +327,7 @@ Success test: two people on two machines, each with their own AI agent, each bui
 
 ## Open questions
 
-
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
-- Fast action (sword fights) needs quick responses. Is the realm-as-referee delay acceptable for a first demo, or should the realm run small pieces of visitors' code locally in a sandbox?
+- Which multiplayer mode for the first demo: the host keeping full state, or lockstep?
 - Server language: TypeScript (one language for the whole project) or Python with `uv` (your usual tooling)?
 - Name: keep "EveryGame", or call it "Infinite Worlds Unlimited"?
