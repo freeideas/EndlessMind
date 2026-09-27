@@ -173,12 +173,23 @@ Goal: simple enough that anyone can clone this repository and run their own serv
 - Safety has no central moderator, so it lives on each person's side: your agent examines a realm's code and warns you, your client filters what you see, and you keep block lists and share them if you like.
 - Law: like the web, the protocol cannot enforce law centrally. Each person is responsible for what their own objects and realms do. The project docs must say this honestly.
 
+## Original work only
+
+EveryGame is a tool for making original worlds. The project must never suggest, show or encourage copying anyone else's game, characters, names, art, music or other protected work, in its docs, examples, demos, code or promotion.
+
+- **Examples are technical and original.** Example worlds use invented names and generic kinds of game (a large city, a world made of blocks, a maze chase). They explain how the system works, not how to recreate an existing product. See [EXAMPLE-CITY.md](EXAMPLE-CITY.md), [EXAMPLE-BLOCK-WORLD.md](EXAMPLE-BLOCK-WORLD.md) and [EXAMPLE-MAZE-CHASE.md](EXAMPLE-MAZE-CHASE.md).
+- **The agent guide steers agents toward original work.** It tells AI agents to build original designs, and to decline to copy another product's names, characters, art, music, logos or level designs, suggesting an original alternative instead.
+- **Each builder is responsible for what they build.** Realms and objects are made and hosted by their builders, on their own devices. The docs say plainly that builders must hold the rights to what they publish.
+- **The reference server supports takedowns.** It has a contact field for rights complaints and can honor takedown lists, so each operator can handle complaints about what their server stores or lists.
+- **The project runs no official network.** The project provides software. People who run servers and directories are responsible for operating them.
+- **Get legal advice before a public launch,** especially on trademarks and on the duties of server operators.
+
 ## First version
 
 1. **Server.** Announcements, online list, message passing, and serving the web page.
 2. **Browser runtime.** Makes key pairs, loads the player's own realm and object code, connects to peers, draws the 3D scene.
 3. **Protocol draft.** Object API format, examining an object, calling functions (client side and server side), entering and leaving, the realm's scene updates, giving an object.
-4. **Agent guide.** An instructions file that any AI coding agent reads to build realms and objects for its player. The most important deliverable: players will not read specs, their agents will.
+4. **Agent guide.** An instructions file that any AI coding agent reads to build realms and objects for its player. The most important deliverable: players will not read specs, their agents will. It includes the "Original work only" rules above.
 5. **Demo content.** A sword-fighting arena (admits only objects that can take damage and die, lends swords to visitors while inside) and a calm garden (honor system). One fighter body and one wanderer body. Show a refused entry, an agent adding what was missing, a fight, an ejection for refusing to die, and a sword being given away.
 
 Success test: two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.
