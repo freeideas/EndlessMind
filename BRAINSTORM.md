@@ -36,7 +36,7 @@ A massively multiplayer world where both the code and the running of that code a
 - **Every realm leads to more realms.** From inside any realm, a player can always find other realms.
 - **License: MIT.** A copyleft license such as the GPL stops copying of the code but not rebuilding of the same features, so it protects little and slows growth. A permissive license spreads fastest.
 - **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
-- **Custom renderers and controls are a headline feature.** Anyone can write their own renderer (make plain state look fantastic, show a 2D game in 3D) and their own controls suited to a kind of play. See "How it fits together".
+- **Custom renderers and controls are a headline feature.** Anyone can write their own renderer (make plain state look fantastic, show a 2D game in 3D) and their own controls suited to a kind of play (custom keyboard actions, joysticks, brain-computer interfaces). Renderers are objects, traded like any other. See "How it fits together".
 - **There is no cheating, only rules.** Players are free to do anything their own software can do. Whatever a realm's rules and referee allow is fair play; a realm that wants something prevented must design it so (see "Hidden information").
 - **Unused things fade away.** Nothing is stored forever by default; data lives only while someone keeps a copy. See "Where things are saved".
 
@@ -211,14 +211,17 @@ Five pieces. Everything is an object except the app, which is the platform's own
 
 **Renderers: state is separate from the picture.** A realm never draws anything itself; it publishes its state as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and anyone can write another that reads the same data: a naturally 2D maze shown as glowing 3D corridors, plain state made to look fantastic. The game cannot tell the difference.
 
-- **A renderer is an object,** with a code hash, so renderers can be shared, remixed and put on allow lists.
-- **A renderer can only look.** It receives state and draws; moves go through the app to the realm.
-- **Clicks and taps on the picture:** the renderer turns "clicked here on screen" into realm terms ("clicked cell 4,7") and hands it to the app.
+- **A renderer is an object,** with a code hash, so renderers can be shared, traded, remixed and put on allow lists, on the same torrent-like network as everything else. It is separate from the app page, which only runs whichever renderer the player picks.
+- **A renderer is also a controller.** Besides drawing, it can offer its own controls: fancy keyboard layouts, combo actions, joystick and controller support, motion or gesture control, and any device the browser can reach (gamepads, USB and Bluetooth devices, MIDI instruments, and brain-computer interfaces through those or a small local bridge program). It turns whatever the player does into realm terms ("move left", "cast at cell 4,7") and hands that to the app, which sends it to the realm.
+- **The realm still decides.** A renderer's actions are only requests; the realm's rules and referee judge them like any other move. A renderer that fires ten perfect moves a second is fair play unless the realm's rules say otherwise ("There is no cheating, only rules").
+- **A renderer sees only what the player is sent,** so no renderer can reveal hidden information. That is what lets players trade renderers freely without realms needing to approve them.
+- **Shared state layouts let one renderer draw many realms.** A renderer written for one realm's state works only there. Realms that describe their state in the default layout (positions plus the simple 3D look format below) can all be drawn by any renderer that understands it, so one fancy renderer can serve thousands of realms. A default, not a requirement.
+- **The app helps people find renderers.** Its menu shows renderers others use with this realm and renderers that understand this realm's state, so switching is one tap.
 
-**Input for any object, handed out by the app.** Mouse, keyboard, touch, controller, camera and microphone are available to any object that wants them, which opens up custom controls suited to a kind of play, gesture-controlled creatures, voice spells and face-tracked looks. The app, not the swappable renderer, is the gatekeeper:
+**Input for any object, handed out by the app.** Mouse, keyboard, touch, controller, camera, microphone and other devices are available to any object that wants them, renderers included, which opens up custom controls suited to a kind of play, gesture-controlled creatures, voice spells and face-tracked looks. The app is the gatekeeper:
 
-- Camera and microphone are ask-first, per object ("The lantern wants to use your camera. Allow?").
-- Keyboard and mouse go only to the objects the player is currently interacting with, so no object can record a passphrase typed elsewhere.
+- Camera, microphone and special devices (USB, Bluetooth, brain-computer interfaces) are ask-first, per object ("The lantern wants to use your camera. Allow?").
+- Keyboard and mouse go only to the objects the player is currently interacting with (normally the active renderer), so no object can record a passphrase typed elsewhere.
 
 **One click, start to finish:**
 
