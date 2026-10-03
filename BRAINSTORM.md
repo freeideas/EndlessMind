@@ -8,7 +8,8 @@ A massively multiplayer world where both the code and the running of that code a
 
 ## Decisions so far
 
-- **Freedom almost always wins over safety.** Anything should be possible. The browser is the safety floor: code running in a web page cannot do much catastrophic harm to a player's machine, so the project adds few protections of its own.
+- **Freedom almost always wins over safety.** Anything should be possible. The sandbox is the safety floor: foreign code only ever runs sandboxed (in a web page, or in a JavaScript or WebAssembly sandbox inside another app), where it cannot do much catastrophic harm to a player's machine, so the project adds few protections of its own.
+- **The browser is the front door, not a requirement.** Every realm link opens in a browser with one click, but the app is an open protocol with a reference browser version, not the only way in. Other apps (an Unreal, Godot or Unity game, a native desktop app, the headless host runner) can join the same realms. See "Other apps and game engines".
 - **There is only one kind of thing: the object.** An object is a key pair plus some code. Players can make as many as they like, and any object can contain any number of any other objects. Bodies, realms, and swords differ only in the code written for them. All limits are set by code, never by the platform.
 - **Visuals come first**, or nearly first. Seeing it is a key part of the idea, so the first demo is visual, not text.
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
@@ -193,7 +194,7 @@ No rarity. Any player can make any object they want, so "rare" is an odd idea he
 
 **Realm-owned objects** are the same choices made by a realm's code: a realm can lend weapons to visitors while they are inside, stop answering when they leave, or give one away outright.
 
-**Safety of received code.** Running any object means running someone else's code. The browser already keeps web page code away from the rest of the machine, and that is the main protection. The app runs each object in its own sealed-off sandbox so one object cannot interfere with another or read keys (see "Isolation needs care" below). A player's agent can read any code before running it.
+**Safety of received code.** Running any object means running someone else's code. The sandbox it runs in (the browser's, or a JavaScript or WebAssembly sandbox in another app) keeps it away from the rest of the machine, and that is the main protection. The app runs each object in its own sealed-off sandbox so one object cannot interfere with another or read keys (see "Isolation needs care" below). A player's agent can read any code before running it.
 
 ## How it fits together (first priority)
 
@@ -236,7 +237,7 @@ Five pieces. Everything is an object except the app, which is the platform's own
 
 - A realm may restrict looks (in a realm of ghosts everyone is translucent), and a player's renderer may simplify anything (everyone as a colored shape).
 - **Look format:** start with a tiny set of 3D primitives (boxes, spheres, cylinders, colors, grouped together), which an AI agent can write by hand in seconds. Allow standard 3D model files (glTF, the common web format for 3D models) later.
-- **Platform:** the browser. It can draw 3D (with a library such as three.js), connect peers directly (WebRTC), and run received code in a sandbox, and anyone can join by opening a page. A player's realm and objects run in their own browser tab.
+- **Platform:** the browser first (the front door; other apps may join too, see "Other apps and game engines"). It can draw 3D (with a library such as three.js), connect peers directly (WebRTC), and run received code in a sandbox, and anyone can join by opening a page. A player's realm and objects run in their own browser tab.
 
 ## Where things are saved
 
@@ -289,7 +290,31 @@ A browser tab can act as a referee for the objects it owns. Browsers cannot acce
 
 Applied here: the same small server program could offer optional roles, each switched on by its operator: **finder** (announcements, who is online), **relay** (pass traffic for peers who cannot connect directly), and **storage** (keep signed, encrypted data blobs, with a size limit per key). An object's saved state is encrypted with its owner's key, so storage nodes cannot read it, and signed, so they cannot fake it. Objects keep copies on several storage nodes, like seeding. Encrypted character backups live there too (see "Where things are saved").
 
-**Direction:** object code is plain JavaScript that runs unchanged in the browser and in a headless runtime (Deno or Node) on any always-on machine. The browser is where players look and play; the headless runner is how an authorized host keeps an object or realm up while its owner sleeps. A desktop app wrapper is possible later but not needed.
+**Direction:** object code is plain JavaScript or WebAssembly that runs unchanged in the browser, in a headless runtime (Deno or Node) on any always-on machine, and inside other apps. The browser is where most players look and play; the headless runner is how an authorized host keeps an object or realm up while its owner sleeps.
+
+## Other apps and game engines
+
+Many builders will want to use game engines such as Unreal, Godot or Unity. The browser stays the front door, but nothing depends on it.
+
+- **Object code must stay portable:** JavaScript or WebAssembly (compiled code that runs at near-native speed in browsers and elsewhere). C++, C#, Rust and others compile to WebAssembly, so builders are not limited to JavaScript. This is what keeps every realm playable from a browser link.
+- **Renderers and clients may be native.** An Unreal, Godot or Unity app can join any realm and draw it with full engine graphics, since it speaks the same protocol. The realm cannot tell the difference, like any other renderer.
+- **Native code is never passed around as an object.** A native client is installed deliberately by the player, like any app. Objects stay JavaScript or WebAssembly, so the sandbox remains the safety floor.
+- **Each app does the browser's jobs too:** keeps private keys on the device (in the operating system's secure key store), runs each foreign object in its own sandbox, and asks first before giving any object camera, microphone or device access.
+- **A realm that requires a native app may exist** (freedom first); the browser app then says which app it needs.
+- **Engine-made 3D models** come in as glTF files (the common web format for 3D models), which all these engines export.
+- **Unreal in a browser:** Unreal no longer runs in web pages, but its Pixel Streaming can run it on a server and stream video to the page, at the realm owner's cost.
+
+**Why this is easy in each engine.** Everything a native client needs already exists as an embeddable library with a C interface (usable from all three engines):
+
+| Need | Library | Unreal (C++) | Godot | Unity (C#) |
+|---|---|---|---|---|
+| Talk to servers | WebSocket | Built in | Built in | Built in or package |
+| Direct connections | WebRTC | libdatachannel | Plugin | Unity WebRTC |
+| Signatures | libsodium | Yes | Plugin | Yes |
+| Run JavaScript | QuickJS, V8 | PuerTS | GodotJS | PuerTS, Jint |
+| Run WebAssembly | Wasmtime | Yes | godot-wasm | Wasmtime .NET |
+
+The plan: write one small core library (protocol, signatures, sandbox) once, with a C interface, and wrap it thinly for each engine, so supporting a new engine is a thin wrapper rather than a rewrite. A native client can start with WebSocket only, through the server's relay, and add direct connections later.
 
 ## The server: a small program anyone can run
 
