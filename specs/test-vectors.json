@@ -93,6 +93,23 @@
     },
     "release": "sha256-jybgvnsmhgrsvnevg5uu54w4htyfeul5fthb22emdd7klflkia5a"
   },
+  "experience": {
+    "experience": {
+      "v": "emind/0",
+      "id": "dddddddddddddddddddddddddd",
+      "from": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
+      "to": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
+      "kind": "emind.experience",
+      "body": {
+        "says": "pulled the sword from the stone"
+      },
+      "time": 1790000000000,
+      "sig": "ed25519-34jdogrbmioxwfvls6skw4kx3p2s74rdmkabhupl2do6vfc6nzjgwmmq232yrs67y3bapbjsz5nayndrwa3eukfl4sii7oeokyrpwcq"
+    },
+    "audience": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ned25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
+    "proofSignedBytesUtf8": "emind-show\ned25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ned25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\ned25519-34jdogrbmioxwfvls6skw4kx3p2s74rdmkabhupl2do6vfc6nzjgwmmq232yrs67y3bapbjsz5nayndrwa3eukfl4sii7oeokyrpwcq",
+    "proof": "ed25519-tbabjbm6gbp6o3refcynnn3eq5pu76lblzfa7d7ardrudh6zuuzuk74cv2f45q2uuysxtoagjsk5y46kmhk7gl2phwvqpdfojhswiba"
+  },
   "realmKey": {
     "secret": "tvq3dhpp7vngbouejl2jf3bmyrcetrljpmzgsglqhowaghfop5qa",
     "realm": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

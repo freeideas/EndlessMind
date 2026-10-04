@@ -43,8 +43,13 @@ function startRules(send, listen) {
         driver = await directRules(rules, storage, report);
         driver.onViews((views, checks) => send({type:"views", views, checks}));
         driver.onRemove((player, reason) => send({type:"remove", player, reason}));
+        driver.onRecord((player, says, days) => new Promise((resolve, reject) => {
+          const storageId = ++nextStorageId;
+          waiting.set(storageId, {resolve, reject});
+          send({type:"record", storageId, player, says, days});
+        }));
         value = {rate: driver.ticksPerSecond, repeatable: driver.repeatable};
-      } else if (m.type === "enter") value = await driver.enter(m.player, m.character);
+      } else if (m.type === "enter") value = await driver.enter(m.player, m.character, m.experiences);
       else if (m.type === "replay") value = driver.replay(m.check, m.me, m.adopt);
       else if (m.type === "resync") driver.resync(m.player);
       else if (m.type === "act") driver.act(m.player, m.action);
@@ -158,9 +163,17 @@ export async function startRules(container, code, storage, signal) {
   let onViews = () => {};
   /** @type {(player: string, reason: string) => void} */
   let onRemove = () => {};
+  /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
+  let onRecord = () => Promise.resolve(null);
   f.listen((m) => {
     if (m.type === "views") onViews(m.views, m.checks);
     if (m.type === "remove") onRemove(m.player, m.reason);
+    if (m.type === "record") {
+      Promise.resolve().then(() => onRecord(m.player, m.says, m.days)).then(
+        (value) => f.post({ type: "stored", storageId: m.storageId, value }),
+        (error) => f.post({ type: "stored", storageId: m.storageId, error: String(error) }),
+      );
+    }
     if (m.type === "storage") {
       (async () => {
         if (typeof m.key !== "string") throw new Error("Storage keys must be strings.");
@@ -187,9 +200,13 @@ export async function startRules(container, code, storage, signal) {
       replay(check, me, adopt) {
         return f.call({ type: "replay", check, me, adopt });
       },
-      /** @param {string} player @param {unknown} character */
-      enter(player, character) {
-        return f.call({ type: "enter", player, character });
+      /** @param {string} player @param {unknown} character @param {unknown[]} [experiences] */
+      enter(player, character, experiences) {
+        return f.call({ type: "enter", player, character, experiences });
+      },
+      /** @param {(player: string, says: unknown, days?: number) => Promise<unknown>} fn */
+      onRecord(fn) {
+        onRecord = fn;
       },
       /** @param {string} player @param {unknown} action */
       act(player, action) {

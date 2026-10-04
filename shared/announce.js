@@ -22,6 +22,8 @@ import { open, seal } from "./envelope.js";
  * @property {string} [renderer]  file name of the default browser renderer; left out when the
  *                                realm cannot be played in a browser
  * @property {RealmApp} [app]     the realm's own app, for realms made with an engine
+ * @property {string[]} [asks]  addresses of realms whose signed experiences this realm would like to be
+ *                              shown; the app offers what the player holds from them, if the player agrees
  * @property {string[]} needs   permissions the realm asks the player's app for; none are
  *                              defined in version 0, so this is empty for now
  */
@@ -46,6 +48,7 @@ import { open, seal } from "./envelope.js";
  * @property {string} [renderer]  default browser renderer file
  * @property {string[]} [files]   other public files
  * @property {RealmApp} [app]
+ * @property {string[]} [asks]    realms whose signed experiences this realm would like to be shown
  * @property {string[]} [needs]   permissions asked for (none exist yet)
  */
 
@@ -65,6 +68,9 @@ export function manifestBody(source, hashes) {
   if (!isTagList(tags)) throw new Error("realm.json may list at most 32 tags, each 1 to 40 characters.");
   if (!source.main) throw new Error("realm.json must point to the realm's rules file (main).");
   if (!source.renderer && !source.app) throw new Error("realm.json must point to a renderer file, or name the realm's own app.");
+  if (source.asks && !(Array.isArray(source.asks) && source.asks.length <= 16 && source.asks.every(isAddress))) {
+    throw new Error("realm.json's asks may list at most 16 realm addresses.");
+  }
   if (source.app && !isApp(source.app)) throw new Error("realm.json's app needs a name and an https address (url).");
   const main = source.privateRules ? undefined : source.main;
   for (const name of [main, source.renderer]) {
@@ -78,6 +84,7 @@ export function manifestBody(source, hashes) {
     ...(main ? { main } : {}),
     ...(source.renderer ? { renderer: source.renderer } : {}),
     ...(source.app ? { app: { name: source.app.name, url: source.app.url } } : {}),
+    ...(source.asks?.length ? { asks: source.asks } : {}),
     needs: source.needs ?? [],
   };
 }
@@ -231,5 +238,6 @@ export function isManifestBody(body) {
   for (const name of [m.main, m.renderer]) {
     if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return false;
   }
+  if (m.asks !== undefined && !(Array.isArray(m.asks) && m.asks.length <= 16 && m.asks.every(isAddress))) return false;
   return m.app === undefined || isApp(m.app);
 }

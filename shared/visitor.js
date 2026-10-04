@@ -16,12 +16,15 @@ export function relayUrl(server) {
  * one server does not end it.
  * @param {{server?: string, servers?: string[], address: string, keys: CryptoKeyPair, release: string,
  * character: unknown, onView: (view: any) => void, status: (text: string) => void, signal?: AbortSignal,
- * patienceMs?: number, onCheck?: (check: unknown, view: unknown, hasView: boolean, first: boolean) => void}} options
+ * patienceMs?: number, onCheck?: (check: unknown, view: unknown, hasView: boolean, first: boolean) => void,
+ * shown?: unknown[], onExperience?: (signed: unknown) => void}} options
  *   `address` is whoever referees; `patienceMs` is how long silence is borne; `onCheck` receives what a
- *   referee of repeatable rules sends with each view (see shared/check.js)
+ *   referee of repeatable rules sends with each view (see shared/check.js); `shown` are experiences the
+ *   player chose to show this realm, and `onExperience` receives ones the realm signs for the player
+ *   (see shared/experience.js)
  */
 export async function visit(
-  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck },
+  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onExperience },
 ) {
   const me = await addressOf(keys.publicKey);
   // Offered to the referee so the session can be private (see "Private sessions" in shared/crypto.js).
@@ -76,7 +79,7 @@ export async function visit(
     else old?.close();
   }
   function enter() {
-    return send("emind.enter", { request, release, character, ...(exchange ? { key: exchange.publicText } : {}) });
+    return send("emind.enter", { request, release, character, ...(exchange ? { key: exchange.publicText } : {}), ...(shown?.length ? { shown } : {}) });
   }
   const message = (/** @type {Event} */ event) => {
     incoming = incoming.then(() => handle(/** @type {CustomEvent} */ (event).detail)).catch(() => {});
@@ -123,6 +126,7 @@ export async function visit(
       lastHeard = Date.now();
       const hasView = Object.hasOwn(inner, "view");
       if (hasView) onView(inner.view);
+      for (const signed of Array.isArray(inner.experiences) ? inner.experiences : []) onExperience?.(signed);
       onCheck?.(inner.check, inner.view, hasView, first);
     }
   }

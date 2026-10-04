@@ -24,6 +24,10 @@ export async function buildVectors() {
     main: "rules.js", renderer: "rules.js", needs: [],
   }, { id: "bbbbbbbbbbbbbbbbbbbbbbbbbb", time: 1790000000000 });
 
+  // An experience the key signs about itself, and the proof of showing it to a realm (the all-zero address).
+  const experience = await seal(keys, address, "emind.experience", { says: "pulled the sword from the stone" }, { id: "dddddddddddddddddddddddddd", time: 1790000000000 });
+  const audience = `${to}\n${address}`;
+
   const canonicalInputs = ['{"b":1,"a":[true,null,{"d":2,"c":"x"}]}', '{"n":[1e30,4.50,0.002,-0,1e-7]}', '{"\\u20ac":1,"\\r":2,"\\ud83d\\ude00":3,"1":4}'];
   return {
     about: "emind protocol version 0 (draft) test vectors. See specs/PROTOCOL.md, \"Version 0 formats\". Strings in base32 are lowercase RFC 4648 without padding.",
@@ -43,6 +47,12 @@ export async function buildVectors() {
     },
     envelope: { envelope, signedBytesUtf8: "emind-envelope\n" + canonicalJson(unsigned) },
     release: { manifest, release: await releaseOf(manifest) },
+    experience: {
+      experience,
+      audience,
+      proofSignedBytesUtf8: `emind-show\n${audience}\n${experience.sig}`,
+      proof: await sign(keys.privateKey, "show", `${audience}\n${experience.sig}`),
+    },
     realmKey: {
       secret: toBase32(fromHex(seedHex)),
       realm: to,

@@ -159,7 +159,7 @@ export async function startHost(options) {
   let ref;
   try {
     await relay.connect();
-    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay,
+    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay, realm: address, pass,
       announce: () => everywhere(true), status: log, onStop:() => relay.close() });
   } catch (e) { rules.stop(); relay.close(); throw e; }
   const link = `${origins[0]}/#emind:${address}?via=${origins.map(encodeURIComponent).join(",")}`;

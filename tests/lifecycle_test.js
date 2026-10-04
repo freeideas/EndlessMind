@@ -106,6 +106,7 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
     const request = "a".repeat(26);
     message("emind.enter", { request, release: "release" });
     message("emind.enter", { request, release: "release" });
+    await delay();
     assertEquals(entries, 1);
     finish({ ok: true });
     await delay();

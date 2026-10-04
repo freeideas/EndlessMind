@@ -5,6 +5,7 @@ import { bundleFiles, checkKeyFormat, encodeFile, KEY_FORMAT } from "../shared/b
 import { myCharacter } from "./character.js";
 import { ownedRealm, ownedRealms } from "./realms.js";
 import * as store from "./store.js";
+import { record, restore } from "./experiences.js";
 
 /** @param {{files?: boolean, storage?: boolean}} [options] */
 export async function saveKeys(options = {}) {
@@ -35,7 +36,9 @@ export async function saveKeys(options = {}) {
       ...(options.storage ? { storage: await store.savedState(realm.address) } : {}),
     });
   }
-  return JSON.stringify({ format: KEY_FORMAT, character, realms }, null, 1);
+  // The character's record of signed experiences goes with its secret: they are useless to anyone else.
+  const experiences = (await record()).flatMap((r) => r.list);
+  return JSON.stringify({ format: KEY_FORMAT, character, experiences, realms }, null, 1);
 }
 
 /** Loading is local; publishing and hosting remain explicit actions. @param {string} text */
@@ -92,5 +95,6 @@ export async function loadKeys(text) {
       },
     });
   }
+  if (file.character) await restore(file.experiences);
   return { character: Boolean(file.character), realms: prepared.length };
 }

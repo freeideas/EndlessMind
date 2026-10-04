@@ -8,6 +8,7 @@ import { exampleFiles, ownedRealms, publish, publishOwned, search, serverOrigin 
 import { play, startHosting, startRoom } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
 import { askToPersist, get, put } from "./store.js";
+import { record } from "./experiences.js";
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -138,6 +139,19 @@ async function showOwned() {
   if (!list.children.length) list.append(el("li", {}, ["None yet."]));
 }
 
+/** The player's record: what realms have signed about this character. */
+async function showRecord() {
+  const list = $("record");
+  const all = (await record()).filter((r) => r.list.length);
+  list.replaceChildren(...all.flatMap((r) => r.list.map((signed) => {
+    const body = /** @type {any} */ (signed.body);
+    const says = typeof body.says === "string" ? body.says : JSON.stringify(body.says);
+    const until = body.expires ? `, until ${new Date(body.expires).toLocaleDateString()}` : "";
+    return el("li", {}, [el("span", {}, [says]), el("span", { class: "tags" }, [`from ${r.realm.slice(0, 16)}...${until}`])]);
+  })));
+  if (!all.length) list.append(el("li", {}, ["Nothing yet. Realms can sign what you do in them, and you choose where to show it."]));
+}
+
 async function showHome() {
   $("realm").hidden = true;
   $("home").hidden = false;
@@ -151,7 +165,7 @@ async function showHome() {
   /** @type {HTMLInputElement} */ ($("char-name")).value = character.info.name;
   /** @type {HTMLInputElement} */ ($("char-desc")).value = character.info.description;
   /** @type {HTMLInputElement} */ ($("char-color")).value = toHexColor(character.info.color);
-  await Promise.all([showSearch(), showOwned()]);
+  await Promise.all([showSearch(), showOwned(), showRecord()]);
 }
 
 /** @type {Awaited<ReturnType<typeof play>> | null} */
@@ -208,7 +222,16 @@ async function showRealm(address, release, via = []) {
   const stage = $("stage");
   stage.replaceChildren();
   try {
-    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal });
+    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal,
+      // Asked once for each realm, and remembered.
+      mayShow: async (name, count, realms) => {
+        let answer = await get("show:" + address);
+        if (answer === undefined) {
+          answer = confirm(`${name} asks to see what you have done in ${realms} other realm(s): ${count} signed experience(s) from your record. Showing them tells it which player you are in those realms. Show them?`);
+          await put("show:" + address, answer);
+        }
+        return answer;
+      } });
     $("realm-name").textContent = opened.name;
     ({ server, servers } = opened);
     // Public rules need no referee: anyone may run their own copy, or referee a room for friends.
