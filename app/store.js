@@ -45,14 +45,27 @@ export function put(key, value) {
   return run("readwrite", (s) => s.put(value, key));
 }
 
-/** A realm's optional JSON storage. @param {string} address */
-export function realmStorage(address) {
+/**
+ * A realm's optional JSON storage.
+ * @param {string} address
+ * @param {boolean} [bounded]  for rules the player did not choose to host (a realm played alone): at most
+ *   64 values of 256 KB each, so a stranger's rules cannot fill the storage the player's keys live in
+ */
+export function realmStorage(address, bounded = false) {
   const prefix = `state:${address}:`;
   return {
     /** @param {string} key */
     async get(key) { return (await get(prefix + key))?.value; },
     /** @param {string} key @param {unknown} value */
-    put(key, value) { return put(prefix + key, { key, value: JSON.parse(JSON.stringify(value)) }); },
+    async put(key, value) {
+      const text = JSON.stringify(value);
+      if (bounded) {
+        if (text.length > 256 * 1024 || key.length > 200) throw new Error("Too large to save for a realm played alone.");
+        const kept = await list(prefix);
+        if (kept.length >= 64 && !kept.some((entry) => entry.key === key)) throw new Error("A realm played alone may save at most 64 values.");
+      }
+      return put(prefix + key, { key, value: JSON.parse(text) });
+    },
   };
 }
 

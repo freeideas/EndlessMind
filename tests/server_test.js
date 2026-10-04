@@ -7,7 +7,7 @@ import { seal } from "../shared/envelope.js";
 /** @param {(base: string) => Promise<void>} body */
 async function withServer(body) {
   const dataDir = await Deno.makeTempDir();
-  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir });
+  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir, sweepMs: 20 });
   try {
     await body(`http://127.0.0.1:${s.port}`);
   } finally {
@@ -70,7 +70,7 @@ Deno.test("blobs are stored only under their true hash, and only while a realm l
     // When the announcement expires, the next sweep deletes the file.
     await new Promise((r) => setTimeout(r, 350));
     await announceFiles(base, {});
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 100));
     const gone = await fetch(`${base}/blob/${hash}`);
     assertEquals(gone.status, 404);
     await gone.body?.cancel();
@@ -86,6 +86,12 @@ Deno.test("a release with no key is kept under its hash, listed, and may bring i
     assertEquals((await fetch(`${base}/blob/${body.files["r.js"]}`, { method: "PUT", body: rules })).status, 200);
     const list = await (await fetch(`${base}/announce?tag=alone`)).json();
     assertEquals(list.realms.map((/** @type {any} */ r) => [r.address, r.online]), [[posted.release, true]]);
+    // Announcing the same files under a key must not hide the release from the list.
+    const squatter = await generateKeyPair();
+    const squat = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify(await makeAnnouncement(squatter, await makeManifest(squatter, body))) });
+    await squat.body?.cancel();
+    const both = await (await fetch(`${base}/announce?tag=alone`)).json();
+    assert(both.realms.some((/** @type {any} */ r) => r.address === posted.release), "the release was hidden");
     const secret = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify({ ...body, main: undefined }) });
     assertEquals(secret.status, 400, "a release nobody can run is refused");
     await secret.body?.cancel();

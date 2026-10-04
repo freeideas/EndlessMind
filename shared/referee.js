@@ -166,6 +166,9 @@ export async function referee(
             if (!stopped && players.get(env.from) === session) rules.act(env.from, action);
           }).catch(() => {});
         }
+      } else if (env.kind === "emind.ping") {
+        // Answered, so a visitor can tell a quiet realm (no views to send) from a dead referee.
+        send(env.from, "emind.pong", { session: p.session });
       } else if (env.kind === "emind.leave") {
         players.delete(env.from);
         rules.leave(env.from);

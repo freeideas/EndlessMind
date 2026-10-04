@@ -185,7 +185,10 @@ export class Relays extends EventTarget {
         this.dispatchEvent(new CustomEvent("message", { detail: envelope }));
       });
       relay.addEventListener("replaced", (event) => {
-        this.dispatchEvent(new CustomEvent("replaced", { detail: /** @type {CustomEvent} */ (event).detail }));
+        // One server saying another holder took over costs only that server. The referee is told it was
+        // replaced when no server is left, so no single server can stop a realm everywhere.
+        const address = /** @type {CustomEvent} */ (event).detail;
+        if (!this.relays.some((r) => r.keys.has(address))) this.dispatchEvent(new CustomEvent("replaced", { detail: address }));
       });
     }
   }

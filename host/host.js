@@ -129,7 +129,8 @@ export async function startHost(options) {
   }
   /** @param {URL} server @param {string} path @param {string} method @param {BodyInit} content @param {string} what */
   async function put(server, path, method, content, what) {
-    const reply = await fetch(new URL(path, server), { method, body: content });
+    // A server that takes the connection and then says nothing must not hold up the others.
+    const reply = await fetch(new URL(path, server), { method, body: content, signal: AbortSignal.timeout(20_000) });
     if (!reply.ok) throw new Error(`${what} failed on ${server.origin}: ${(await reply.json()).error}`);
     await reply.body?.cancel();
   }
@@ -223,6 +224,11 @@ async function writeKeyFile(path, raw, oldEntry, entry) {
  * @param {{ realmDir?: string, keysFile: string, address?: string }} options @param {string} destination @param {number} days
  */
 export async function writePass(options, destination, days) {
+  // Writing the pass over the key file would destroy the realm's own key for good.
+  const same = await Promise.all([options.keysFile, destination].map((f) => Deno.realPath(f).catch(() => f)));
+  if (same[0] === same[1]) throw new Error("Give the pass a file of its own, not the key file.");
+  const there = await Deno.readTextFile(destination).then(JSON.parse, () => null);
+  if (there?.realms?.some((/** @type {any} */ r) => !r.pass)) throw new Error(`${destination} holds a realm's own key. Give the pass a file of its own.`);
   const { manifest, secret, files, keyFile } = await loadRealm(options);
   if (!secret) throw new Error("Only the realm's own key can make a pass, and this file does not hold it.");
   const made = await makePass(await keyPairFromSecret(secret), days * 24 * 60 * 60 * 1000);

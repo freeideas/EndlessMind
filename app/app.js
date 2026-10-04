@@ -93,7 +93,7 @@ async function showSearch(tag) {
   list.replaceChildren(...(realms.length ? realms : []).map((r) =>
     el("li", {}, [
       el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
-      el("a", { href: realmLink(r.address) }, [r.name]),
+      el("a", { href: realmLink(r.address) }, [r.alone ? `${r.name} (play alone)` : r.name]),
       el("span", { class: "tags" }, [r.tags.join(", ")]),
     ])
   ));

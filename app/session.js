@@ -147,7 +147,7 @@ async function playAlone(release, character, container, ui) {
   postRelease(body, server).catch(() => {});
   const me = await addressOf((await keyPairForRealm(character.secret, release)).publicKey);
   ui.signal.throwIfAborted();
-  const rules = await startRules(container, rulesCode, realmStorage(release), ui.signal);
+  const rules = await startRules(container, rulesCode, realmStorage(release, true), ui.signal);
   /** @type {ReturnType<typeof setInterval> | undefined} */
   let timer;
   /** @type {Awaited<ReturnType<typeof startRenderer>> | undefined} */

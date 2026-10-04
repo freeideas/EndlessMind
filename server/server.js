@@ -51,6 +51,7 @@ const CONTENT_TYPES = {
  * @property {number} [messagesPerSecond]
  * @property {number} [bytesPerSecond]
  * @property {number} [maxRealmBytes]
+ * @property {number} [sweepMs]  how long after a change unlisted files are deleted
  * @property {string[]} [origins]  the addresses this server goes by, e.g. "https://example.org"
  */
 
@@ -82,8 +83,6 @@ export async function startServer(options = {}) {
 
   /** Latest announcement per realm address. @type {Map<string, any>} */
   const announcements = new Map();
-  /** The release each announcement names. @type {Map<string, string>} */
-  const announced = new Map();
   /** For each realm: who referees it, and when its own key last spoke. @type {Map<string, { referee: string, authority: number }>} */
   const spoken = new Map();
   /**
@@ -97,8 +96,7 @@ export async function startServer(options = {}) {
       const checked = await checkAnnouncement(value);
       if (!checked) continue;
       announcements.set(checked.realm, checked.announcement);
-      announced.set(checked.realm, await releaseOfBody(checked.manifest));
-      spoken.set(checked.realm, checked);
+      spoken.set(checked.realm, { referee: checked.referee, authority: checked.authority });
     }
     for (const r of saved.releases ?? []) {
       if (isManifestBody(r?.body) && r.expires > Date.now()) releases.set(await releaseOfBody(r.body), r);
@@ -129,13 +127,19 @@ export async function startServer(options = {}) {
     return false;
   }
 
-  /** Forget what has expired, and delete files nothing lists any more. */
-  function sweep() {
+  /** Forget what has expired. Cheap, so it can run on any request. */
+  function expire() {
     const now = Date.now();
-    for (const [address, a] of announcements) {
-      if (a.body.expires < now) { announcements.delete(address); announced.delete(address); spoken.delete(address); }
-    }
+    // What a realm's key last said is remembered past its announcement, so an older pass stays refused.
+    for (const [address, a] of announcements) if (a.body.expires < now) announcements.delete(address);
     for (const [hash, r] of releases) if (r.expires < now) releases.delete(hash);
+    while (spoken.size > 10_000) spoken.delete(/** @type {string} */ (spoken.keys().next().value));
+  }
+
+  /** Delete files nothing lists any more. This walks everything stored, so it runs seldom. */
+  function sweep() {
+    sweepTimer = undefined;
+    expire();
     const keep = new Set(releases.keys());
     for (const files of roots()) for (const h of Object.values(files)) keep.add(h);
     blobWriting = blobWriting.then(async () => {
@@ -147,6 +151,12 @@ export async function startServer(options = {}) {
     }).catch(() => {});
   }
   const sweeper = setInterval(sweep, 60 * 60 * 1000);
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let sweepTimer;
+  /** Sweep a little later, however many requests ask: no single request pays for it. */
+  function sweepSoon() {
+    sweepTimer ??= setTimeout(sweep, options.sweepMs ?? 60_000);
+  }
 
   /** @param {string} hash @param {Uint8Array<ArrayBuffer>} bytes @returns {Promise<boolean>} false when a quota is full */
   async function storeBlob(hash, bytes) {
@@ -218,12 +228,20 @@ export async function startServer(options = {}) {
     if (!names) {
       const port = /** @type {Deno.NetAddr} */ (server.addr).port;
       names = new Set((options.origins ?? []).map((o) => new URL(o.includes("://") ? o : `http://${o}`).host));
-      const local = ["localhost", "127.0.0.1", "[::1]"];
-      if (options.hostname && options.hostname !== "0.0.0.0") local.push(options.hostname);
-      try {
-        for (const nic of Deno.networkInterfaces()) if (nic.family === "IPv4") local.push(nic.address);
-      } catch { /* not allowed to look: local names only */ }
-      for (const name of local) names.add(`${name}:${port}`);
+      // Told its names, the server goes by those alone. Left to itself it goes by this computer's local
+      // names, which many computers share, so a server open to strangers should be told (--origin).
+      if (!names.size) {
+        const local = ["localhost", "127.0.0.1", "[::1]"];
+        if (options.hostname && options.hostname !== "0.0.0.0") local.push(options.hostname);
+        try {
+          for (const nic of Deno.networkInterfaces()) if (nic.family === "IPv4") local.push(nic.address);
+        } catch { /* not allowed to look: local names only */ }
+        for (const name of local) {
+          names.add(`${name}:${port}`);
+          // Clients leave out the usual port of plain and secure web addresses.
+          if (port === 80 || port === 443) names.add(name);
+        }
+      }
     }
     return names.has(host);
   }
@@ -319,13 +337,13 @@ export async function startServer(options = {}) {
       const text = new TextDecoder().decode(body);
       const value = parseStrictJson(text);
       if (value === undefined) return json({ error: "not acceptable JSON" }, 400);
-      sweep();
-      const full = announcements.size + releases.size >= limits.announcements;
+      // Realms with a key and releases without one have separate room, so neither can crowd out the other.
       if (isManifestBody(value) && !("sig" in value)) {
         // A key-free release: the manifest body itself, kept as a file under its hash.
         if (!value.main) return json({ error: "a release without a key needs public rules (main)" }, 400);
         const bytes = utf8(canonicalJson(value)), release = await hashOf(bytes);
-        if (!releases.has(release) && full) return json({ error: "Announcement quota reached" }, 507);
+        expire();
+        if (!releases.has(release) && releases.size >= limits.announcements) return json({ error: "Announcement quota reached" }, 507);
         releases.set(release, { body: value, expires: Date.now() + ANNOUNCEMENT_LIFETIME_MS });
         if (!await storeBlob(release, bytes)) {
           releases.delete(release);
@@ -338,15 +356,16 @@ export async function startServer(options = {}) {
       if (!checked) return json({ error: "invalid announcement" }, 400);
       const from = checked.realm, existing = announcements.get(from), before = spoken.get(from);
       // The realm's own key decides: an announcement under an older pass cannot replace one under a newer.
-      if (existing && before && (before.authority > checked.authority ||
-        (before.authority === checked.authority && existing.time > checked.announcement.time))) {
+      if (before && (before.authority > checked.authority ||
+        (before.authority === checked.authority && existing && existing.time > checked.announcement.time))) {
         return json({ error: "older than the one kept" }, 409);
       }
-      if (!existing && full) return json({ error: "Announcement quota reached" }, 507);
+      expire();
+      if (!announcements.has(from) && announcements.size >= limits.announcements) return json({ error: "Announcement quota reached" }, 507);
       announcements.set(from, checked.announcement);
-      announced.set(from, await releaseOfBody(checked.manifest));
-      spoken.set(from, checked);
-      sweep();
+      spoken.delete(from);
+      spoken.set(from, { referee: checked.referee, authority: checked.authority });
+      sweepSoon();
       await saveAnnouncements();
       return json({ ok: true });
     }
@@ -360,13 +379,13 @@ export async function startServer(options = {}) {
     }
     // Listing, optionally by tag. Realms with a referee online come first.
     const tag = url.searchParams.get("tag")?.toLowerCase();
-    const named = new Set(announced.values());
     const list = [...announcements]
       .filter(([, a]) => a.body.expires >= now)
       .map(([address, a]) => ({ address, name: a.body.name, tags: a.body.tags, online: isOnline(address), time: a.time }))
-      // A key-free release needs no referee, so it always counts as online. One an announced realm names is listed once.
-      .concat([...releases].filter(([hash, r]) => r.expires >= now && !named.has(hash)).map(([hash, r]) => (
-        { address: hash, name: r.body.name, tags: r.body.tags, online: true, time: r.expires - ANNOUNCEMENT_LIFETIME_MS }
+      // A key-free release needs no referee, so it always counts as online. It is listed beside any realm
+      // that announces the same files: were it hidden then, anyone could hide it by announcing them.
+      .concat([...releases].filter(([, r]) => r.expires >= now).map(([hash, r]) => (
+        { address: hash, name: r.body.name, tags: r.body.tags, online: true, alone: true, time: r.expires - ANNOUNCEMENT_LIFETIME_MS }
       )))
       .filter((r) => !tag || r.tags.some((/** @type {string} */ t) => t.toLowerCase() === tag))
       .sort((a, b) => Number(b.online) - Number(a.online) || b.time - a.time)
@@ -474,6 +493,7 @@ export async function startServer(options = {}) {
     port: /** @type {Deno.NetAddr} */ (server.addr).port,
     async shutdown() {
       clearInterval(sweeper);
+      clearTimeout(sweepTimer);
       for (const socket of sockets) socket.close();
       await server.shutdown();
       await saving;

@@ -51,8 +51,9 @@ export async function visit(
     relay = new Relay(relayUrl(servers[at]));
     relay.addEventListener("message", message);
     relay.addEventListener("replaced", replaced);
-    await relay.connect();
+    // The key is given first, so a connection that fails now and comes back later still speaks for it.
     await relay.addKey(keys);
+    await relay.connect();
   }
   function forget() {
     request = randomId();
@@ -98,6 +99,8 @@ export async function visit(
       instance = b.instance;
       lastHeard = Date.now();
       status(`You are in ${b.name}.`);
+    } else if (env.kind === "emind.pong" && session && b.session === session) {
+      lastHeard = Date.now();
     } else if (env.kind === "emind.refused" && b.request === request) {
       status(`The realm refused you: ${b.reason || "no reason given"}`);
       stop();

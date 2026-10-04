@@ -381,3 +381,54 @@ Deno.test("a visitor that offers a key gets a private session the relay cannot r
     ref.stop();
   }
 });
+
+Deno.test("one server cannot stop a realm that is on several, and a quiet realm still answers", async () => {
+  const { Relays } = await import("../shared/relay.js");
+  const { addressOf } = await import("../shared/crypto.js");
+  const dir = await Deno.makeTempDir();
+  const a = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/a` });
+  const b = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/b` });
+  const urls = [a, b].map((s) => `ws://127.0.0.1:${s.port}/ws`);
+  const relay = new Relays(urls);
+  try {
+    const { keys } = await newPortableKey();
+    const address = await addressOf(keys.publicKey);
+    await relay.connect();
+    let stopped = false;
+    const ref = await referee({
+      address, keys, name: "Quiet", release: "release", relay, announce: async () => {}, status: () => {},
+      onStop: () => stopped = true,
+      rules: {
+        ticksPerSecond: 20, enter: () => Promise.resolve({ ok: true }), act() {}, leave() {}, step() {}, onViews() {},
+        onRemove() {}, stop() {},
+      },
+    });
+    // A server claims another holder took over (here, by a second connection proving the key on it).
+    const { Relay } = await import("../shared/relay.js");
+    const other = new Relay(urls[0]);
+    await other.connect();
+    await other.addKey(keys);
+    for (let i = 0; i < 10; i++) await delay();
+    assert(!stopped, "losing one server must not stop the referee on the others");
+
+    // The realm never sends a view, yet a visitor on the remaining server is not left guessing.
+    const { visit } = await import("../shared/visitor.js");
+    let statuses = 0;
+    const visitor = await visit({
+      server: `http://127.0.0.1:${b.port}`, address, keys: (await newPortableKey()).keys, release: "release",
+      character: {}, onView: () => {}, status: () => statuses++, patienceMs: 300,
+    });
+    await new Promise((r) => setTimeout(r, 1000));
+    assertEquals(statuses, 2, "a quiet realm made the visitor start over (waiting, then one welcome, is all)");
+    visitor.stop();
+    other.close();
+    ref.stop();
+    await delay();
+  } finally {
+    relay.close();
+    await delay();
+    await a.shutdown();
+    await b.shutdown();
+    await Deno.remove(dir, { recursive: true });
+  }
+});

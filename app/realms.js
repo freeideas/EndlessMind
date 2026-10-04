@@ -21,6 +21,15 @@ import * as store from "./store.js";
  * @property {Record<string, Uint8Array<ArrayBuffer>>} [files] absent in older browser records
  */
 
+/**
+ * A server that takes the connection and then says nothing must not hold up the next one to try.
+ * @param {AbortSignal} [signal]
+ */
+function patient(signal) {
+  const limit = AbortSignal.timeout(15_000);
+  return signal && AbortSignal.any ? AbortSignal.any([signal, limit]) : signal ?? limit;
+}
+
 /** @param {string} value */
 export function serverOrigin(value) {
   const url = new URL(value.includes("://") ? value : `${location.protocol}//${value}`);
@@ -115,7 +124,7 @@ export function ownedRealm(address) {
 /** @param {string} address @param {string} [server] @param {AbortSignal} [signal] */
 export async function lookUp(address, server = location.origin, signal) {
   const response = await fetch(new URL(`/announce/${encodeURIComponent(address)}`, server), {
-    signal,
+    signal: patient(signal),
   });
   if (!response.ok) return null;
   const reply = /** @type {any} */ (parseStrictJson(await response.text()));
@@ -133,7 +142,7 @@ export async function lookUp(address, server = location.origin, signal) {
 
 /** @param {string} hash @param {string} [server] @param {AbortSignal} [signal] */
 export async function fetchBytes(hash, server = location.origin, signal) {
-  const response = await fetch(new URL(`/blob/${hash}`, server), { signal });
+  const response = await fetch(new URL(`/blob/${hash}`, server), { signal: patient(signal) });
   if (!response.ok) throw new Error("A file of this realm is missing on the server.");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (await hashOf(bytes) !== hash) {
@@ -152,7 +161,7 @@ export async function search(tag, server = location.origin) {
   if (tag) url.searchParams.set("tag", tag);
   const response = await fetch(url);
   if (!response.ok) return [];
-  return /** @type {{address: string, name: string, tags: string[], online: boolean}[]} */ ((await response
+  return /** @type {{address: string, name: string, tags: string[], online: boolean, alone?: boolean}[]} */ ((await response
     .json()).realms);
 }
 
