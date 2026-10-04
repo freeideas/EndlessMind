@@ -1,72 +1,93 @@
-// Publishing realms and fetching them back, checking every hash and signature.
-
-import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody, releaseOf } from "../shared/announce.js";
+// A local realm is the original. Helper servers receive copies of its public files.
+import {
+  checkAnnouncement,
+  makeAnnouncement,
+  makeManifest,
+  manifestBody,
+  releaseOf,
+} from "../shared/announce.js";
 import { addressOf, hashOf, newPortableKey } from "../shared/crypto.js";
 import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import * as store from "./store.js";
 
 /** @typedef {import("../shared/announce.js").RealmSource} RealmSource */
-
 /**
- * A realm this browser holds the key for.
  * @typedef {object} OwnedRealm
  * @property {string} address
  * @property {string} name
  * @property {CryptoKeyPair} keys
- * @property {string} secret  the key's secret, so the realm can be saved and hosted elsewhere
+ * @property {string} secret
  * @property {import("../shared/envelope.js").Envelope} manifest
+ * @property {Record<string, Uint8Array<ArrayBuffer>>} [files] absent in older browser records
  */
 
-/**
- * Publish a realm from its files: make its key, upload the files by hash,
- * sign its manifest and announce it.
- * @param {Map<string, Uint8Array<ArrayBuffer>>} files file name to contents, including realm.json
- * @returns {Promise<OwnedRealm>}
- */
-export async function publish(files) {
+/** @param {string} value */
+export function serverOrigin(value) {
+  const url = new URL(value.includes("://") ? value : `${location.protocol}//${value}`);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+    throw new Error("Use an http or https server address.");
+  }
+  return url.origin;
+}
+
+/** Save locally before any upload. @param {Map<string, Uint8Array<ArrayBuffer>>} files @param {string} [server] */
+export async function publish(files, server = location.origin) {
   const sourceBytes = files.get("realm.json");
   if (!sourceBytes) throw new Error("A realm needs a realm.json file.");
-  /** @type {RealmSource} */
-  const source = JSON.parse(fromUtf8(sourceBytes));
+  const source = /** @type {RealmSource} */ (JSON.parse(fromUtf8(sourceBytes)));
   if (source.privateRules) {
-    throw new Error("This realm keeps its rules private, so a browser tab cannot referee it. Host it with: deno task host (see specs/RUNNING.md).");
+    throw new Error("Private rules need the host program. See specs/RUNNING.md.");
   }
-  // Checks the description before anything is uploaded.
-  manifestBody(source, Object.fromEntries([...files.keys()].map((name) => [name, "-"])));
-
-  /** @type {Record<string, string>} */
-  const hashes = {};
-  for (const [name, bytes] of files) {
-    if (name === "realm.json") continue;
-    hashes[name] = await upload(name, bytes);
-  }
-
+  const publicFiles = Object.fromEntries([...files].filter(([name]) => name !== "realm.json"));
+  const hashes = Object.fromEntries(
+    await Promise.all(
+      Object.entries(publicFiles).map(async ([name, bytes]) => [name, await hashOf(bytes)]),
+    ),
+  );
+  const body = manifestBody(source, hashes);
   const { keys, secret } = await newPortableKey();
   const address = await addressOf(keys.publicKey);
-  const manifest = await makeManifest(keys, manifestBody(source, hashes));
-  /** @type {OwnedRealm} */
-  const realm = { address, name: source.name, keys, secret, manifest };
-  await announce(realm);
+  const manifest = await makeManifest(keys, body);
+  const realm = { address, name: source.name, keys, secret, manifest, files: publicFiles };
   await store.put("realm:" + address, realm);
+  await publishOwned(realm, server);
   return realm;
 }
 
-/**
- * Store one file on the server under its hash.
- * @param {string} name @param {Uint8Array<ArrayBuffer>} bytes
- * @returns {Promise<string>} the hash
- */
-export async function upload(name, bytes) {
+/** @param {OwnedRealm} realm @param {string} [server] */
+export async function publishOwned(realm, server = location.origin) {
+  // Older records may still need one retrieval. Persist each recovered file.
+  for (
+    const [name, hash] of Object.entries(
+      /** @type {import("../shared/announce.js").ManifestBody} */ (realm.manifest.body).files,
+    )
+  ) {
+    if (!realm.files?.[name]) {
+      realm.files = { ...realm.files, [name]: await fetchBytes(hash, server) };
+      await store.put("realm:" + realm.address, realm);
+    }
+    if (await upload(name, realm.files[name], server) !== hash) {
+      throw new Error(`Changed local file: ${name}`);
+    }
+  }
+  await announce(realm, server);
+}
+
+/** @param {string} name @param {Uint8Array<ArrayBuffer>} bytes @param {string} [server] */
+export async function upload(name, bytes, server = location.origin) {
   const hash = await hashOf(bytes);
-  const response = await fetch(`/blob/${hash}`, { method: "PUT", body: bytes });
+  const response = await fetch(new URL(`/blob/${hash}`, server), { method: "PUT", body: bytes });
   if (!response.ok) throw new Error(`Upload of ${name} failed: ${(await response.json()).error}`);
   return hash;
 }
 
-/** Announce (or renew) a realm this browser holds the key for. @param {OwnedRealm} realm */
-export async function announce(realm) {
+/** @param {OwnedRealm} realm @param {string} [server] */
+export async function announce(realm, server = location.origin) {
   const announcement = await makeAnnouncement(realm.keys, realm.manifest);
-  const response = await fetch("/announce", { method: "POST", body: JSON.stringify(announcement) });
+  const response = await fetch(new URL("/announce", server), {
+    method: "POST",
+    body: JSON.stringify(announcement),
+  });
   if (!response.ok) throw new Error(`Announcing failed: ${(await response.json()).error}`);
 }
 
@@ -74,62 +95,61 @@ export async function announce(realm) {
 export function ownedRealms() {
   return store.list("realm:");
 }
-
 /** @param {string} address @returns {Promise<OwnedRealm | undefined>} */
 export function ownedRealm(address) {
   return store.get("realm:" + address);
 }
 
-/**
- * Look a realm up by its address and check its announcement.
- * @param {string} address
- */
-export async function lookUp(address) {
-  const response = await fetch(`/announce/${encodeURIComponent(address)}`);
+/** @param {string} address @param {string} [server] @param {AbortSignal} [signal] */
+export async function lookUp(address, server = location.origin, signal) {
+  const response = await fetch(new URL(`/announce/${encodeURIComponent(address)}`, server), {
+    signal,
+  });
   if (!response.ok) return null;
   const reply = /** @type {any} */ (parseStrictJson(await response.text()));
   if (!reply) return null;
-  const { announcement, online } = reply;
-  const checked = await checkAnnouncement(announcement);
+  const checked = await checkAnnouncement(reply.announcement);
   if (!checked || checked.announcement.from !== address) return null;
-  const manifestEnv = /** @type {any} */ (checked.announcement.body).manifest;
-  return { manifest: checked.manifest, online: Boolean(online), release: await releaseOf(manifestEnv) };
+  return {
+    manifest: checked.manifest,
+    online: Boolean(reply.online),
+    release: await releaseOf(reply.announcement.body.manifest),
+  };
 }
 
-/**
- * Fetch one of a realm's files and check it against its hash.
- * @param {string} hash
- * @returns {Promise<string>}
- */
-export async function fetchFile(hash) {
-  const response = await fetch(`/blob/${hash}`);
+/** @param {string} hash @param {string} [server] @param {AbortSignal} [signal] */
+export async function fetchBytes(hash, server = location.origin, signal) {
+  const response = await fetch(new URL(`/blob/${hash}`, server), { signal });
   if (!response.ok) throw new Error("A file of this realm is missing on the server.");
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if ((await hashOf(bytes)) !== hash) throw new Error("A file of this realm does not match its hash.");
-  return fromUtf8(bytes);
+  if (await hashOf(bytes) !== hash) {
+    throw new Error("A file of this realm does not match its hash.");
+  }
+  return bytes;
+}
+/** @param {string} hash @param {string} [server] @param {AbortSignal} [signal] */
+export async function fetchFile(hash, server = location.origin, signal) {
+  return fromUtf8(await fetchBytes(hash, server, signal));
 }
 
-/** @param {string} [tag] */
-export async function search(tag) {
-  const response = await fetch("/announce" + (tag ? `?tag=${encodeURIComponent(tag)}` : ""));
+/** @param {string} [tag] @param {string} [server] */
+export async function search(tag, server = location.origin) {
+  const url = new URL("/announce", server);
+  if (tag) url.searchParams.set("tag", tag);
+  const response = await fetch(url);
   if (!response.ok) return [];
-  return /** @type {{address: string, name: string, tags: string[], online: boolean}[]} */ (
-    (await response.json()).realms
-  );
+  return /** @type {{address: string, name: string, tags: string[], online: boolean}[]} */ ((await response
+    .json()).realms);
 }
 
-/** Load an example realm's files from this server. @param {string} folder */
+/** @param {string} folder */
 export async function exampleFiles(folder) {
   const base = `/examples/${folder}/`;
   const sourceBytes = new Uint8Array(await (await fetch(base + "realm.json")).arrayBuffer());
-  /** @type {RealmSource & {files?: string[]}} */
-  const source = JSON.parse(fromUtf8(sourceBytes));
-  const names = new Set([source.main, source.renderer, ...(source.files ?? [])]);
-  /** @type {Map<string, Uint8Array<ArrayBuffer>>} */
+  const source = /** @type {RealmSource} */ (JSON.parse(fromUtf8(sourceBytes)));
   const files = new Map([["realm.json", sourceBytes]]);
-  for (const name of names) {
-    if (!name) continue;
-    files.set(name, new Uint8Array(await (await fetch(base + name)).arrayBuffer()));
+  for (const name of new Set([source.main, source.renderer, ...(source.files ?? [])])) {
+    if (name) files.set(name, new Uint8Array(await (await fetch(base + name)).arrayBuffer()));
   }
   return files;
 }

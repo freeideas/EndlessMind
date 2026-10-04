@@ -1,0 +1,237 @@
+import { assert, assertEquals } from "jsr:@std/assert@1";
+import { hashOf, newPortableKey } from "../shared/crypto.js";
+import { makeManifest, releaseOf } from "../shared/announce.js";
+import { bundleFiles, decodeFile, encodeFile, KEY_FORMAT } from "../shared/bundle.js";
+import { fileStorage } from "../host/storage.js";
+import { referee } from "../shared/referee.js";
+import { exportBackup, startHost } from "../host/host.js";
+import { startServer } from "../server/server.js";
+
+const delay = () => new Promise((r) => setTimeout(r, 20));
+
+Deno.test("release identity survives republication; backups preserve every byte", async () => {
+  const { keys } = await newPortableKey();
+  const bytes = Uint8Array.from({ length: 256 }, (_, i) => i);
+  const body = { name: "Bytes", tags: [], needs: [], files: { "image.png": await hashOf(bytes) } };
+  const first = await makeManifest(keys, body), second = await makeManifest(keys, body);
+  assertEquals(await releaseOf(first), await releaseOf(second));
+  assert(
+    await releaseOf(first) !==
+      await releaseOf(await makeManifest(keys, { ...body, name: "Changed" })),
+  );
+  assertEquals(decodeFile(encodeFile(bytes)), bytes);
+  assertEquals(
+    (await bundleFiles({ format: KEY_FORMAT }, {
+      manifest: first,
+      files: { "image.png": encodeFile(bytes) },
+    }))["image.png"],
+    bytes,
+  );
+});
+
+Deno.test("realm storage commits concurrent writes and can be reopened", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const store = await fileStorage(`${dir}/state.json`);
+    await Promise.all([store.put("plants", [1, 2]), store.put("visits", 3)]);
+    assertEquals(await (await fileStorage(`${dir}/state.json`)).snapshot(), {
+      plants: [1, 2],
+      visits: 3,
+    });
+    const value = /** @type {number[]} */ (await store.get("plants"));
+    value.push(9);
+    assertEquals(await store.get("plants"), [1, 2]);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("referee deduplicates pending entry and rejects stale sessions and actions", async () => {
+  class TestRelay extends EventTarget {
+    /** @type {any[]} */ sent = [];
+    async addKey() {}
+    release() {}
+    /** @param {unknown} _keys @param {string} to @param {string} kind @param {unknown} body */
+    async send(_keys, to, kind, body) {
+      this.sent.push({ to, kind, body });
+    }
+  }
+  const relay = new TestRelay();
+  let entries = 0, actions = 0, stopped = false;
+  /** @type {(value: {ok:boolean}) => void} */
+  let finish = () => {};
+  const pending = new Promise((resolve) => finish = resolve);
+  /** @type {(views: Record<string, unknown>) => void} */
+  let views = () => {};
+  /** @type {import('../shared/referee.js').RulesDriver} */
+  const rules = {
+    ticksPerSecond: 1,
+    enter() {
+      entries++;
+      return /** @type {Promise<{ok:boolean}>} */ (pending);
+    },
+    act() {
+      actions++;
+    },
+    leave() {},
+    step() {},
+    onViews(fn) {
+      views = fn;
+    },
+    stop() {
+      stopped = true;
+    },
+  };
+  const { keys } = await newPortableKey();
+  const ref = await referee({
+    address: "realm",
+    keys,
+    name: "Test",
+    release: "release",
+    rules,
+    relay: /** @type {any} */ (relay),
+    announce: async () => {},
+    status: () => {},
+  });
+  const message = (/** @type {string} */ kind, /** @type {unknown} */ body) =>
+    relay.dispatchEvent(
+      new CustomEvent("message", { detail: { from: "player", to: "realm", kind, body } }),
+    );
+  try {
+    const request = "a".repeat(26);
+    message("emind.enter", { request, release: "release" });
+    message("emind.enter", { request, release: "release" });
+    assertEquals(entries, 1);
+    finish({ ok: true });
+    await delay();
+    const session = relay.sent[0].body.session;
+    assertEquals(relay.sent[1].body.session, session);
+    message("emind.act", { session: "old", seq: 1, action: {} });
+    message("emind.act", { session, seq: 2, action: {} });
+    message("emind.act", { session, seq: 1, action: {} });
+    assertEquals(actions, 1);
+    views({ player: { n: 1 } });
+    views({ player: { n: 2 } });
+    assertEquals(relay.sent.filter((m) => m.kind === "emind.state").map((m) => m.body.seq), [1, 2]);
+    message("emind.leave", { session: "old" });
+    message("emind.act", { session, seq: 3, action: {} });
+    assertEquals(actions, 2);
+    ref.stop();
+    assert(stopped);
+    message("emind.act", { session, seq: 4, action: {} });
+    assertEquals(actions, 2);
+  } finally {
+    ref.stop();
+  }
+});
+
+Deno.test("host restores realm storage and exports portable data with binary files", async () => {
+  const dir = await Deno.makeTempDir();
+  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/server` });
+  try {
+    await Deno.mkdir(`${dir}/realm`);
+    await Deno.writeTextFile(
+      `${dir}/realm/realm.json`,
+      JSON.stringify({
+        name: "Persistent",
+        main: "rules.js",
+        renderer: "renderer.js",
+        files: ["image.png"],
+      }),
+    );
+    await Deno.writeTextFile(
+      `${dir}/realm/rules.js`,
+      `export default { async init({storage}) { await storage.put('starts', (await storage.get('starts') ?? 0) + 1); return {}; }, view() {return {};} };`,
+    );
+    await Deno.writeTextFile(`${dir}/realm/renderer.js`, "export default {start(){}}");
+    const bytes = new Uint8Array([137, 80, 78, 71, 255, 0]);
+    await Deno.writeFile(`${dir}/realm/image.png`, bytes);
+    const options = {
+      server: `http://127.0.0.1:${s.port}`,
+      realmDir: `${dir}/realm`,
+      keysFile: `${dir}/keys.json`,
+      log: () => {},
+    };
+    const first = await startHost(options);
+    first.stop();
+    const again = await startHost(options);
+    again.stop();
+    await delay();
+    await exportBackup(options.keysFile, `${dir}/backup.json`);
+    const backup = JSON.parse(await Deno.readTextFile(`${dir}/backup.json`));
+    assertEquals(backup.realms[0].storage.starts, 2);
+    assertEquals(decodeFile(backup.realms[0].files["image.png"]), bytes);
+    const moved = await startHost({
+      ...options,
+      realmDir: undefined,
+      keysFile: `${dir}/backup.json`,
+    });
+    moved.stop();
+    await delay();
+    const storage = await fileStorage(`${dir}/backup.json.${moved.address}.state.json`);
+    assertEquals(await storage.get("starts"), 3);
+  } finally {
+    await s.shutdown();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("visitor accepts only its session and increasing view numbers", async () => {
+  const { Relay } = await import("../shared/relay.js");
+  const { visit, relayUrl } = await import("../shared/visitor.js");
+  const dir = await Deno.makeTempDir();
+  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: dir });
+  const base = `http://127.0.0.1:${s.port}`;
+  const host = new Relay(relayUrl(base));
+  let visitor;
+  try {
+    const owner = await newPortableKey(), player = await newPortableKey();
+    await host.connect();
+    const realm = await host.addKey(owner.keys);
+    let target = "";
+    /** @type {(value?: unknown) => void} */
+    let welcomed = () => {};
+    const ready = new Promise((r) => welcomed = r);
+    host.addEventListener("message", (event) => {
+      const e = /** @type {CustomEvent} */ (event).detail;
+      if (e.kind === "emind.enter") {
+        target = e.from;
+        host.send(owner.keys, target, "emind.welcome", {
+          request: e.body.request,
+          session: "fresh",
+          instance: "host",
+          release: "version",
+          name: "Test",
+        }).then(welcomed);
+      }
+    });
+    /** @type {unknown[]} */
+    const views = [];
+    visitor = await visit({
+      server: base,
+      address: realm,
+      keys: player.keys,
+      release: "version",
+      character: {},
+      onView: (v) => views.push(v),
+      status: () => {},
+    });
+    await ready;
+    await delay();
+    await host.send(owner.keys, target, "emind.state", { session: "fresh", seq: 2, view: "new" });
+    await host.send(owner.keys, target, "emind.state", { session: "fresh", seq: 1, view: "old" });
+    await host.send(owner.keys, target, "emind.state", {
+      session: "previous",
+      seq: 99,
+      view: "other session",
+    });
+    await delay();
+    assertEquals(views, ["new"]);
+  } finally {
+    visitor?.stop();
+    host.close();
+    await delay();
+    await s.shutdown();
+    await Deno.remove(dir, { recursive: true });
+  }
+});

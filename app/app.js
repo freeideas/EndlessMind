@@ -4,11 +4,10 @@
 // any realm's control.
 
 import { myCharacter, updateCharacter } from "./character.js";
-import { Relay } from "../shared/relay.js";
-import { exampleFiles, ownedRealm, ownedRealms, publish, search } from "./realms.js";
-import { play } from "./session.js";
+import { exampleFiles, ownedRealms, publish, publishOwned, search, serverOrigin } from "./realms.js";
+import { play, startHosting } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
-import { askToPersist } from "./store.js";
+import { askToPersist, get, put } from "./store.js";
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -37,8 +36,8 @@ function el(tag, attrs = {}, children = []) {
  * where it is, so the link carries a hint: the server it is announced on.
  * @param {string} address @param {string} [release] @param {string} [origin]
  */
-function realmLink(address, release, origin = location.origin) {
-  return `${origin}/#emind:${address}?via=${new URL(origin).host}` + (release ? `&release=${release}` : "");
+function realmLink(address, release, origin = selectedServer) {
+  return `${location.origin}/#emind:${address}?via=${encodeURIComponent(origin)}` + (release ? `&release=${release}` : "");
 }
 
 /** @param {string} text */
@@ -72,8 +71,12 @@ if (!ed25519Works) {
 
 askToPersist();
 const character = await myCharacter();
-const relay = new Relay((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-relay.connect().catch(() => status("Cannot reach the server. Retrying..."));
+let selectedServer = await get("server") ?? location.origin;
+/** @type {Map<string, {server: string, stop: () => void}>} */
+const hosts = new Map();
+const starting = new Set();
+/** @type {AbortController | undefined} */
+let visiting;
 
 function showMe() {
   const me = $("me");
@@ -83,11 +86,13 @@ function showMe() {
 /** @param {string} [tag] */
 async function showSearch(tag) {
   const list = $("search-results");
-  const realms = await search(tag);
+  let realms;
+  try { realms = await search(tag, selectedServer); }
+  catch { list.replaceChildren(el("li", {}, ["Cannot reach this helper server. Your keys and realms are still here."])); return; }
   list.replaceChildren(...(realms.length ? realms : []).map((r) =>
     el("li", {}, [
       el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
-      el("a", { href: `#emind:${r.address}` }, [r.name]),
+      el("a", { href: realmLink(r.address) }, [r.name]),
       el("span", { class: "tags" }, [r.tags.join(", ")]),
     ])
   ));
@@ -99,8 +104,27 @@ async function showOwned() {
   const realms = await ownedRealms();
   list.replaceChildren(...realms.map((r) => {
     const copyButton = el("button", {}, ["Copy link"]);
-    copyButton.onclick = () => copy(realmLink(r.address));
-    return el("li", {}, [el("a", { href: `#emind:${r.address}` }, [r.name]), copyButton]);
+    const targetServer = hosts.get(r.address)?.server ?? selectedServer;
+    copyButton.onclick = () => copy(realmLink(r.address, undefined, targetServer));
+    const hostButton = /** @type {HTMLButtonElement} */ (el("button", {class:"host-toggle"}, [hosts.has(r.address) ? "Stop hosting" : "Start hosting"]));
+    hostButton.disabled = starting.has(r.address) || !/** @type {any} */ (r.manifest.body).main;
+    hostButton.onclick = async () => {
+      if (hosts.has(r.address)) { hosts.get(r.address)?.stop(); return; }
+      starting.add(r.address); hostButton.disabled = true;
+      try {
+        const server = selectedServer;
+        const host = await startHosting(r, server, $("hosts"), status, () => { hosts.delete(r.address); showOwned(); });
+        hosts.set(r.address, { ...host, server });
+        status(`Hosting ${r.name}. You can visit other realms while this tab stays open.`, 8000);
+      } catch (e) { status(String(e), 8000); }
+      finally { starting.delete(r.address); await showOwned(); }
+    };
+    const publishButton = el("button", {class:"republish"}, ["Publish here"]);
+    publishButton.onclick = async () => {
+      try { await publishOwned(r, selectedServer); status(`Published ${r.name}.`); await showSearch(); }
+      catch (e) { status(String(e), 8000); }
+    };
+    return el("li", {"data-address":r.address}, [el("a", { href: realmLink(r.address, undefined, targetServer) }, [r.name]), hostButton, publishButton, copyButton]);
   }));
   if (!realms.length) list.append(el("li", {}, ["None yet."]));
 }
@@ -112,6 +136,7 @@ async function showHome() {
   $("copy-version-link").hidden = true;
   $("more-realms").hidden = true;
   $("realm-name").textContent = "";
+  /** @type {HTMLInputElement} */ ($("server-address")).value = selectedServer;
   /** @type {HTMLInputElement} */ ($("char-name")).value = character.info.name;
   /** @type {HTMLInputElement} */ ($("char-desc")).value = character.info.description;
   /** @type {HTMLInputElement} */ ($("char-color")).value = toHexColor(character.info.color);
@@ -123,25 +148,27 @@ let current = null;
 
 /** @param {string} address @param {string} [release] @param {string[]} [via] servers the link hints at */
 async function showRealm(address, release, via = []) {
+  const controller = new AbortController();
+  visiting = controller;
+  const server = via[0] ? serverOrigin(via[0]) : selectedServer;
   $("home").hidden = true;
   $("realm").hidden = false;
   $("copy-link").hidden = false;
   $("copy-version-link").hidden = false;
   $("more-realms").hidden = false;
   $("realm-name").textContent = "";
-  $("copy-link").onclick = () => copy(realmLink(address));
-  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release));
+  $("copy-link").onclick = () => copy(realmLink(address, undefined, server));
+  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, server));
   const stage = $("stage");
   stage.replaceChildren();
   try {
-    await relay.ready;
-    const owned = await ownedRealm(address);
-    current = await play(address, character, relay, stage, { status, owned, release });
+    current = await play(address, character, stage, { status, server, release, signal:controller.signal });
     $("realm-name").textContent = current.name;
   } catch (error) {
+    if (controller.signal.aborted) return;
     const message = el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]);
     if (/** @type {any} */ (error).code === "release-changed") {
-      message.append(" ", el("a", { href: `#emind:${address}` }, ["Open the current version"]));
+      message.append(" ", el("a", { href: realmLink(address, undefined, server) }, ["Open the current version"]));
     }
     const app = /** @type {any} */ (error).app;
     if (app) {
@@ -149,22 +176,25 @@ async function showRealm(address, release, via = []) {
       message.append(` It is played in its own app, ${app.name}: `, el("a", { href: app.url, rel: "noopener" }, [app.url]),
         ". A program you install runs outside any sandbox and can do anything on your computer, so get it only if you trust this realm's maker.");
     }
-    if (/** @type {any} */ (error).code === "not-here") {
-      for (const host of via) {
-        if (host === location.host || !/^[a-z0-9.-]+(:\d+)?$/.test(host)) continue;
-        message.append(" ", el("a", { href: realmLink(address, release, `${location.protocol}//${host}`) }, [`Open it on ${host}`]));
-      }
+    for (const hint of via.slice(1)) {
+      try { const origin = serverOrigin(hint); message.append(" ", el("a", {href:realmLink(address, release, origin)}, [`Try ${origin}`])); }
+      catch { /* ignore malformed optional hints */ }
     }
     stage.replaceChildren(message);
   }
 }
 
 async function route() {
+  visiting?.abort();
   current?.stop();
   current = null;
-  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?(.*))?$/);
+  let hash = location.hash.slice(1);
+  if (!hash.startsWith("emind:") && !hash.startsWith("web+emind:")) {
+    try { hash = decodeURIComponent(hash); } catch { hash = ""; }
+  }
+  const match = hash.match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?(.*))?$/);
   const query = new URLSearchParams(match?.[2] ?? "");
-  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? []);
+  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? []).catch(e => status(String(e)));
   else await showHome();
 }
 
@@ -193,14 +223,32 @@ $("search-form").onsubmit = (e) => {
   showSearch(/** @type {HTMLInputElement} */ ($("search-tag")).value.trim() || undefined);
 };
 
+$("server-form").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    selectedServer = serverOrigin(/** @type {HTMLInputElement} */ ($("server-address")).value.trim());
+    await put("server", selectedServer);
+    await showHome();
+  } catch (error) { status(String(error)); }
+};
+
+$("open-link-form").onsubmit = (e) => {
+  e.preventDefault();
+  const text = /** @type {HTMLInputElement} */ ($("realm-link")).value.trim();
+  const hash = text.includes("#") ? text.slice(text.indexOf("#") + 1) : text;
+  if (/^(?:web\+)?emind:/.test(hash)) location.hash = hash;
+  else status("Paste an Endless Mind realm link.");
+};
+
 /** @param {Map<string, Uint8Array<ArrayBuffer>>} files */
 async function publishAndOpen(files) {
   try {
     status("Publishing...");
-    const realm = await publish(files);
-    status(`Published ${realm.name}. Share the link so others can join.`, 8000);
-    location.hash = `emind:${realm.address}`;
+    const realm = await publish(files, selectedServer);
+    await showHome();
+    status(`Published ${realm.name}. Choose Start hosting in Your realms, then open its link to visit.`, 10000);
   } catch (error) {
+    await showOwned();
     status(String(/** @type {Error} */ (error).message ?? error), 8000);
   }
 }
@@ -227,6 +275,15 @@ $("save-keys").onclick = async () => {
   }
 };
 
+$("save-backup").onclick = async () => {
+  try {
+    const url = URL.createObjectURL(new Blob([await saveKeys({files:true,storage:true})], {type:"application/json"}));
+    el("a", {href:url,download:"endless-mind-backup.json"}).click();
+    URL.revokeObjectURL(url);
+    status("Saved keys, locally held files, and realm storage.");
+  } catch (e) { status(String(e)); }
+};
+
 $("load-keys").onchange = async (e) => {
   const input = /** @type {HTMLInputElement} */ (e.target);
   const file = input.files?.[0];
@@ -234,9 +291,12 @@ $("load-keys").onchange = async (e) => {
   if (!file) return;
   if (!confirm("Loading a key file replaces the character in this browser with the one in the file. Continue?")) return;
   try {
+    visiting?.abort(); current?.stop(); current = null;
+    for (const host of [...hosts.values()]) host.stop();
     const loaded = await loadKeys(await file.text());
     if (loaded.character) Object.assign(character, await myCharacter());
     showMe();
+    location.hash = "";
     await showHome();
     status(`Loaded ${loaded.character ? "your character and " : ""}${loaded.realms} realm(s).`, 8000);
   } catch (error) {

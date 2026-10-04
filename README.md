@@ -4,13 +4,13 @@ A worldwide network for anything AI can make: games, places, shops, tools, whole
 
 AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, and anyone can use it from a link.
 
-**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game is playable while a browser tab holding its key is open, or while its maker runs the host program (a small program that keeps it up without a browser). Games written in JavaScript play in the browser; programs made with game engines can join by speaking the protocol, but nothing for any engine has been built. It has been tested with several browsers on one computer, not yet by strangers on the open internet. Expect rough edges and frequent changes.
+**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game is playable while a browser tab explicitly hosting it is open, or while its maker runs the host program (a small program that keeps it up without a browser). Games written in JavaScript play in the browser; programs made with game engines can join by speaking the protocol, but nothing for any engine has been built. It has been tested with several browsers on one computer, not yet by strangers on the open internet. Expect rough edges and frequent changes.
 
 ## Playing
 
-Open a game's link. That is all: it runs in your web browser, with nothing to install and no account to make. (Everything here applies equally to anything else people make, not only games.)
+Open a game's link in an app you trust. Use **Open here** to paste a link into your usual app without moving your keys. A link's server hint selects the helper server, while the app and its keys stay put: it runs in your web browser, with nothing to install and no account to make. (Everything here applies equally to anything else people make, not only games.)
 
-- The first time, the app makes you a **character** (a name and a look you can change). Your character is yours: it is a secret key that lives in your browser, and you take it from game to game. Choose **Save my keys** to keep a copy you can load on another device; clearing your browser's data for the site deletes it otherwise. Anyone who gets that file can be you, so keep it like a password.
+- The first time, the app makes you a **character** (a name and a look you can change). Your character is yours: it is a secret key that lives in your browser, and you take it from game to game. Choose **Save my keys** for an offline key copy, or **Save full backup** to include locally held realm files and saved data; clearing your browser's data for the site deletes it otherwise. Anyone who gets that file can be you, so keep it like a password.
 - The app's menu always offers a way to find more games, so no game can trap you.
 
 ## Creating
@@ -19,9 +19,9 @@ You do not need to be a programmer. You need an AI coding agent (a program such 
 
 1. Open your agent in an empty folder.
 2. Tell it: "Read the Endless Mind agent guide at https://github.com/freeideas/EndlessMind/blob/main/specs/AGENT-GUIDE.md, then make me something." Then describe your game, for example: "A top-down maze where lantern spirits chase players who collect glowing seeds."
-3. Your agent writes the game's files. Open a helper server's page (see below), choose **Publish from files**, and pick those files. You get a link to share. Keep that browser tab open: it holds the game's key and is its referee while others play. Save your keys to move the game to another device or server later; the link stays the same apart from its server hint.
+3. Your agent writes the game's files. Open a helper server's page (see below), choose **Publish from files**, and pick those files. The app first saves the key and original files locally, then uploads copies. Under **Your realms**, choose **Start hosting**, then open the realm to visit it and copy its link. Opening alone never starts hosting. Keep the hosting tab open; you can browse other realms within it. Use **Save full backup** to move its files and any data its rules saved to another device. To use another helper server, change **Helper server**, then choose **Publish here** or **Start hosting**.
 
-To see how it works first, choose **Publish the maze chase example** instead.
+To see how it works first, choose **Publish the maze chase example**, then **Start hosting** and open its link.
 
 To keep a game up without a browser tab, or to let it do things a browser's sandbox forbids (such as having an AI model answer players), run it with the host program on a computer you control: `deno task host --server <server address> --realm <the game's folder>`. [specs/RUNNING.md](specs/RUNNING.md) explains it.
 
@@ -29,7 +29,7 @@ What runs on players' devices is always public, and a game's rules usually are t
 
 ## Running a helper server
 
-Helper servers let players find each other, pass messages along, and keep copies of game files. Anyone can run one, none is in charge, and a group of friends needs only one. A server can read the messages it passes along, and the server you load the app from could take your keys, so use servers you trust. To run one on your own computer:
+Helper servers let players find each other, pass messages along, and keep copies of game files. Anyone can run one, none is in charge, and a group of friends needs only one. A helper server can read messages it passes along. The source of the app itself can take the keys that app holds, so choose a trusted app and keep using it when visiting other helper servers. To run one on your own computer:
 
 1. Install Deno (a program that runs JavaScript): `brew install deno` on macOS or Linux, or `winget install DenoLand.Deno` on Windows.
 2. Get this repository: `git clone https://github.com/freeideas/EndlessMind.git`, then `cd EndlessMind`.

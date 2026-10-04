@@ -5,9 +5,9 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import well from "../examples/listening-well/rules.js";
 import { startHost } from "../host/host.js";
 import { startServer } from "../server/server.js";
-import { checkAnnouncement } from "../shared/announce.js";
+import { checkAnnouncement, releaseOf } from "../shared/announce.js";
 import { addressOf, generateKeyPair } from "../shared/crypto.js";
-import { Relay } from "../shared/relay.js";
+import { visit as connectVisitor } from "../shared/visitor.js";
 
 /** @param {(base: string, dir: string) => Promise<void>} body */
 async function withServer(body) {
@@ -24,20 +24,15 @@ async function withServer(body) {
 /** A visitor with no browser: enter, then collect views. @param {string} base @param {string} realm */
 async function visit(base, realm) {
   const keys = await generateKeyPair();
-  const relay = new Relay(base.replace("http", "ws") + "/ws");
-  await relay.connect();
-  await relay.addKey(keys);
   /** @type {any[]} */
   const views = [];
-  relay.addEventListener("message", (e) => {
-    const env = /** @type {CustomEvent} */ (e).detail;
-    if (env.from === realm && env.kind === "emind.state") views.push(env.body.view);
-  });
-  await relay.send(keys, realm, "emind.enter", { character: { name: "Tester", color: "red" } });
+  const announcement = (await (await fetch(`${base}/announce/${realm}`)).json()).announcement;
+  const session = await connectVisitor({server:base,address:realm,keys,release:await releaseOf(announcement.body.manifest),
+    character:{name:"Tester",color:"red"}, onView:v => views.push(v),status:() => {}});
   return {
     address: await addressOf(keys.publicKey),
     /** @param {unknown} action */
-    act: (action) => relay.send(keys, realm, "emind.act", { action }),
+    act: (action) => session.act(action),
     /** @param {(view: any) => boolean} test */
     async until(test) {
       for (let i = 0; i < 100; i++) {
@@ -47,7 +42,7 @@ async function visit(base, realm) {
       }
       throw new Error("no such view arrived");
     },
-    close: () => relay.close(),
+    close: session.stop,
   };
 }
 

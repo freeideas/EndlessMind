@@ -41,7 +41,7 @@ rules.tick(s);
 console.log(rules.view(s, "a"));
 ```
 
-To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The publishing tab holds the realm's key and becomes the referee; open the link in another browser or device to join. See [RUNNING.md](RUNNING.md).
+To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The app saves the key and original files locally, then publishes copies. Choose **Start hosting** under **Your realms**, then open its link to visit. Opening alone never starts hosting. Hosting continues while the owner browses within the tab. See [RUNNING.md](RUNNING.md).
 
 For private rules, `await` the calls in your test instead. To try them, run the server, then from the Endless Mind repository run `deno task host --server http://localhost:8000 --realm <the realm's folder>` and open the link it prints in a browser.
 
@@ -49,6 +49,10 @@ For private rules, `await` the calls in your test instead. To try them, run the 
 
 Tell the player:
 
-- how to publish (the steps above) and that the tab they publish from is the referee, so it must stay open for others to play; or, for private rules or always-on hosting, the host program command, which must keep running, runs the rules with no sandbox on their machine, and publishes a new version under the same link each time it starts;
-- that the realm's key lives in that browser (with the host program, in a key file under `keys/` in the Endless Mind repository) unless they save it with "Save my keys" (and anyone with that file controls the realm); loading the key file elsewhere lets them host the same realm, with the same link apart from its server hint, from another device or server, while publishing again makes a new realm with a new link;
+- how to publish (the steps above) and that they must explicitly choose **Start hosting** and keep that tab open for others to play; or, for private rules or always-on hosting, the host program command, which must keep running, runs the rules with no sandbox on their machine, and publishes a new version under the same link each time it starts;
+- that the realm's key lives in that browser (with the host program, in a key file under `keys/` in the Endless Mind repository) unless they save it with "Save my keys" (and anyone with that file controls the realm); **Save full backup** also carries local files and committed storage; importing is local, and **Publish here** or **Start hosting** publishes that same realm to the chosen helper server. Publishing a fresh folder creates a new realm;
 - that everything they publish is public and anyone can remix it, except rules kept private, and that the app tells visitors when a realm's rules are private.
+
+## Optional persistence
+
+`init({ seed, storage })` can await `storage.get(key)` to restore JSON data. Rules call `storage.put(key, value)` to save it. Each realm has its own storage area; only its rules receive this interface. Creators choose save timing, schemas, migration and concurrency. A successful individual write commits its value; the platform does not automatically preserve game state or guarantee transactions across several values. Both browser and host rules may await storage, but only host rules have general network access. See [RUNTIME.md](RUNTIME.md).

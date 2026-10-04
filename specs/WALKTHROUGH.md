@@ -29,16 +29,16 @@ A working version lives in this repository under `examples/maze-chase/`. Walls, 
 1. A new key pair is created in the creator's browser. That key is the realm's identity.
 2. Each file gets its hash (fingerprint).
 3. The realm's key signs a manifest (a list of contents): name, tags and the file hashes.
-4. The files are uploaded to the server by hash, and the realm is announced there.
+4. The key, manifest and original file bytes are saved locally. Copies of the files are uploaded by hash, and the realm is announced on the chosen helper server.
 5. The creator gets a link: `https://endlessmind.example/#emind:<realm address>?via=endlessmind.example`. The key names the realm; the `via` part says which server it is announced on.
 
-**Refereeing:** the tab holding the realm's key is its referee while it stays open. With "Save my keys" the creator can save that key and load it into the app on another device or another server, and referee the same realm from there. To keep it up with no browser at all, the creator gives the key file, or the realm's folder, to the host program (`deno task host`) on an always-on machine. A realm whose rules are private is always refereed this way (see [RUNNING.md](RUNNING.md)).
+**Refereeing:** the creator chooses **Start hosting** under **Your realms**, then opens its link to visit through the same session path as everyone else. Hosting continues while the creator browses other realms inside the tab. **Save full backup** carries the key, original files and committed realm data to another trusted app; loading it does not automatically publish or host. To keep it up with no browser at all, the creator gives the key file, or the realm's folder, to the host program (`deno task host`) on an always-on machine. A realm whose rules are private is always refereed this way (see [RUNNING.md](RUNNING.md)).
 
 ## 3. A friend plays
 
 The friend taps the link on their phone.
 
-1. **The app loads** from the server: one web page, no install.
+1. **The trusted app opens the link:** one web page, no install. A player with an existing app can paste the link into **Open here**. Its server hint changes the connection, without moving the character secret.
 2. **They get a character.** The app makes one with a random name and look, which the friend can change.
 3. **The app fetches the realm's files** by hash from the server, checks each hash, and runs the renderer in a sandbox.
 4. **The app asks the referee to let them in,** through the server's relay.
@@ -49,5 +49,5 @@ The friend taps the link on their phone.
 ## Where things live afterward
 
 - **The friend's character:** its secret is in their phone's browser, or in a key file if they saved one.
-- **The realm's code:** on the server and in every visitor's cache, found by hash. (A realm with private rules uploads only its renderer.)
+- **The realm's code:** original bytes in the creator's app, with public copies on the helper server, found by hash. (A realm with private rules uploads only its renderer.)
 - **The realm's official state:** with whoever holds the realm's key and is refereeing (here, the creator's open tab, or a host program).

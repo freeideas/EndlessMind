@@ -43,6 +43,11 @@ const CONTENT_TYPES = {
  * @property {string} [cert]  PEM text
  * @property {string} [key]   PEM text
  * @property {(addr: Deno.NetAddr) => void} [onListen]
+ * @property {number} [maxStoredBytes]
+ * @property {number} [maxFiles]
+ * @property {number} [maxAnnouncements]
+ * @property {number} [maxConnections]
+ * @property {number} [messagesPerSecond]
  */
 
 /** @param {ServerOptions} options */
@@ -51,6 +56,23 @@ export async function startServer(options = {}) {
   const blobDir = `${dataDir}/blobs`;
   const announcementsFile = `${dataDir}/announcements.json`;
   await Deno.mkdir(blobDir, { recursive: true });
+  const limits = {
+    bytes: options.maxStoredBytes ?? 256 * 1024 * 1024,
+    files: options.maxFiles ?? 10_000,
+    announcements: options.maxAnnouncements ?? 1000,
+    connections: options.maxConnections ?? 256,
+    messages: options.messagesPerSecond ?? 1000,
+  };
+  const sockets = new Set();
+  const blobs = new Map();
+  let storedBytes = 0, activeWrites = 0;
+  for await (const file of Deno.readDir(blobDir)) {
+    if (file.isFile && isHash(file.name)) {
+      const size = (await Deno.stat(`${blobDir}/${file.name}`)).size;
+      blobs.set(file.name, size); storedBytes += size;
+    }
+  }
+  let blobWriting = Promise.resolve();
 
   /** Latest announcement per realm address. @type {Map<string, any>} */
   const announcements = new Map();
@@ -62,10 +84,20 @@ export async function startServer(options = {}) {
     }
   } catch { /* first run, or unreadable file: start empty */ }
 
-  let saving = Promise.resolve();
+  let saving = Promise.resolve(), dirty = false, writing = false;
   function saveAnnouncements() {
-    const text = JSON.stringify([...announcements.values()]);
-    saving = saving.then(() => Deno.writeTextFile(announcementsFile, text)).catch(console.error);
+    dirty = true;
+    if (!writing) {
+      writing = true;
+      saving = (async () => {
+        while (dirty) {
+          dirty = false;
+          await Deno.writeTextFile(announcementsFile + ".tmp", JSON.stringify([...announcements.values()]));
+          await Deno.rename(announcementsFile + ".tmp", announcementsFile);
+        }
+      })().finally(() => writing = false);
+    }
+    return saving;
   }
 
   /**
@@ -83,6 +115,7 @@ export async function startServer(options = {}) {
 
   /** @param {WebSocket} socket @param {unknown} message */
   function sendTo(socket, message) {
+    if (socket.bufferedAmount > 2 * MAX_BLOB_BYTES) { socket.close(1008, "Receiver too slow"); return; }
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   }
 
@@ -91,6 +124,8 @@ export async function startServer(options = {}) {
    * @param {string} host  this server's name as the client used it, e.g. "example.org:8000"
    */
   function handleSocket(socket, host) {
+    sockets.add(socket);
+    let windowStart = Date.now(), messages = 0;
     /** Addresses this socket has proved. @type {Set<string>} */
     const mine = new Set();
     /** Challenges sent, by address. @type {Map<string, string>} */
@@ -99,6 +134,8 @@ export async function startServer(options = {}) {
     socket.onopen = () => sendTo(socket, { type: "welcome", versions: [PROTOCOL_VERSION] });
 
     socket.onmessage = async (event) => {
+      if (Date.now() - windowStart >= 1000) { windowStart = Date.now(); messages = 0; }
+      if (++messages > limits.messages) { socket.close(1008, "Traffic limit"); return; }
       if (typeof event.data !== "string" || event.data.length > MAX_MESSAGE_BYTES) return;
       const msg = /** @type {any} */ (parseStrictJson(event.data));
       if (!msg || typeof msg !== "object") return;
@@ -108,6 +145,7 @@ export async function startServer(options = {}) {
       // dishonest server cannot pass the signature on to claim the address
       // elsewhere. Then messages for that address come here.
       if (msg.type === "claim" && isAddress(msg.address)) {
+        if (challenges.size + mine.size >= 64) { socket.close(1008, "Address limit"); return; }
         const nonce = crypto.randomUUID();
         challenges.set(msg.address, nonce);
         sendTo(socket, { type: "challenge", address: msg.address, nonce });
@@ -115,6 +153,7 @@ export async function startServer(options = {}) {
         const nonce = challenges.get(msg.address);
         challenges.delete(msg.address);
         if (await verify(msg.address, "claim", `${host}\n${nonce}`, msg.sig)) {
+          if (socket.readyState !== WebSocket.OPEN) return;
           mine.add(msg.address);
           const earlier = claims.get(msg.address);
           if (earlier && earlier !== socket) sendTo(earlier, { type: "replaced", address: msg.address });
@@ -131,7 +170,7 @@ export async function startServer(options = {}) {
         // Relay. The server checks only that the sender claimed the "from"
         // address; receivers check the signature themselves.
         const env = msg.envelope;
-        if (!env || !mine.has(env.from) || !isAddress(env.to)) {
+        if (!env || claims.get(env.from) !== socket || !isAddress(env.to)) {
           sendTo(socket, { type: "error", error: "cannot send", ref: msg.ref });
           return;
         }
@@ -145,6 +184,7 @@ export async function startServer(options = {}) {
     };
 
     socket.onclose = () => {
+      sockets.delete(socket);
       for (const address of mine) {
         if (claims.get(address) === socket) claims.delete(address);
       }
@@ -166,8 +206,10 @@ export async function startServer(options = {}) {
       if (existing && existing.time > checked.announcement.time) {
         return json({ error: "older than the one kept" }, 409);
       }
+      for (const [address, a] of announcements) if (a.body.expires < Date.now()) announcements.delete(address);
+      if (!announcements.has(checked.announcement.from) && announcements.size >= limits.announcements) return json({error:"Announcement quota reached"}, 507);
       announcements.set(checked.announcement.from, checked.announcement);
-      saveAnnouncements();
+      await saveAnnouncements();
       return json({ ok: true });
     }
 
@@ -197,7 +239,20 @@ export async function startServer(options = {}) {
       const bytes = await readLimited(request, MAX_BLOB_BYTES);
       if (!bytes) return json({ error: "too large" }, 413);
       if ((await hashOf(bytes)) !== hash) return json({ error: "hash does not match" }, 400);
-      await Deno.writeFile(path, bytes);
+      let accepted = false;
+      const write = blobWriting.then(async () => {
+        if (blobs.has(hash)) { accepted = true; return; }
+        if (storedBytes + bytes.length > limits.bytes || blobs.size >= limits.files) return;
+        const temp = path + ".tmp";
+        try {
+          await Deno.writeFile(temp, bytes);
+          await Deno.rename(temp, path);
+        } finally { await Deno.remove(temp).catch(() => {}); }
+        blobs.set(hash, bytes.length); storedBytes += bytes.length; accepted = true;
+      });
+      blobWriting = write.catch(() => {});
+      await write;
+      if (!accepted) return json({error:"File storage quota reached"}, 507);
       return json({ ok: true });
     }
     try {
@@ -246,6 +301,7 @@ export async function startServer(options = {}) {
     const url = new URL(request.url);
     if (url.pathname === "/ws") {
       if (request.headers.get("upgrade") !== "websocket") return new Response("WebSocket only", { status: 400 });
+      if (sockets.size >= limits.connections) return json({error:"Connection quota reached"}, 503);
       const host = request.headers.get("host") ?? url.host;
       const { socket, response } = Deno.upgradeWebSocket(request);
       handleSocket(socket, host);
@@ -264,13 +320,30 @@ export async function startServer(options = {}) {
     onListen: options.onListen ?? (() => {}),
   };
   if (options.cert && options.key) Object.assign(serveOptions, { cert: options.cert, key: options.key });
-  const server = Deno.serve(serveOptions, handle);
+  const server = Deno.serve(serveOptions, async (request) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/ws") return handle(request);
+    const api = url.pathname === "/announce" || url.pathname.startsWith("/announce/") || url.pathname.startsWith("/blob/");
+    if (!api) return handle(request);
+    const cors = {"access-control-allow-origin":"*", "access-control-allow-methods":"GET, HEAD, POST, PUT, OPTIONS", "access-control-allow-headers":"content-type"};
+    if (request.method === "OPTIONS") return new Response(null, {status:204, headers:cors});
+    const writes = request.method === "POST" || request.method === "PUT";
+    if (writes && activeWrites >= 16) return new Response(JSON.stringify({error:"Too many uploads"}), {status:429,headers:cors});
+    if (writes) activeWrites++;
+    try {
+      const response = await handle(request);
+      for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+      return response;
+    } finally { if (writes) activeWrites--; }
+  });
   return {
     server,
     port: /** @type {Deno.NetAddr} */ (server.addr).port,
     async shutdown() {
+      for (const socket of sockets) socket.close();
       await server.shutdown();
       await saving;
+      await blobWriting;
     },
   };
 }
@@ -326,6 +399,11 @@ if (import.meta.main) {
     port,
     hostname: args.hostname,
     dataDir: args.data,
+    maxStoredBytes: args["max-storage-mb"] ? Number(args["max-storage-mb"]) * 1024 * 1024 : undefined,
+    maxFiles: args["max-files"] ? Number(args["max-files"]) : undefined,
+    maxAnnouncements: args["max-announcements"] ? Number(args["max-announcements"]) : undefined,
+    maxConnections: args["max-connections"] ? Number(args["max-connections"]) : undefined,
+    messagesPerSecond: args["messages-per-second"] ? Number(args["messages-per-second"]) : undefined,
     cert: tls ? await Deno.readTextFile(args.cert) : undefined,
     key: tls ? await Deno.readTextFile(args.key) : undefined,
     onListen() {

@@ -23,16 +23,21 @@ export class Relay extends EventTarget {
     this.ready = null;
     this.closedByUs = false;
     this.replays = new ReplayGuard();
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    this.reconnectTimer = undefined;
   }
 
   /** Connect (or reconnect) and re-claim every address. */
   connect() {
+    if (this.closedByUs) return Promise.reject(new Error("Connection closed"));
     this.ready = new Promise((resolve, reject) => {
       const socket = new WebSocket(this.url);
       this.socket = socket;
+      const deadline = setTimeout(() => { reject(new Error("Connection timed out")); socket.close(); }, 10_000);
       socket.onopen = async () => {
         try {
           await Promise.all([...this.keys.values()].map((k) => this.#claim(k)));
+          clearTimeout(deadline);
           resolve();
         } catch (e) {
           reject(e);
@@ -41,10 +46,12 @@ export class Relay extends EventTarget {
       socket.onerror = () => reject(new Error("cannot reach the server"));
       socket.onmessage = (event) => this.#onMessage(event.data);
       socket.onclose = () => {
+        clearTimeout(deadline);
+        reject(new Error("The connection closed"));
         for (const claim of this.pendingClaims.values()) claim.fail(new Error("the connection to the server closed"));
         this.pendingClaims.clear();
         this.dispatchEvent(new Event("close"));
-        if (!this.closedByUs) setTimeout(() => this.connect().catch(() => {}), 2000);
+        if (!this.closedByUs) this.reconnectTimer = setTimeout(() => this.connect().catch(() => {}), 2000);
       };
     });
     return this.ready;
@@ -52,6 +59,7 @@ export class Relay extends EventTarget {
 
   close() {
     this.closedByUs = true;
+    clearTimeout(this.reconnectTimer);
     this.socket?.close();
   }
 
@@ -66,9 +74,16 @@ export class Relay extends EventTarget {
   /** @param {CryptoKeyPair} keyPair */
   async #claim(keyPair) {
     const address = await addressOf(keyPair.publicKey);
-    const done = new Promise((resolve, reject) =>
-      this.pendingClaims.set(address, { done: () => resolve(undefined), fail: reject })
-    );
+    const done = new Promise((resolve, reject) => {
+      const deadline = setTimeout(() => {
+        this.pendingClaims.delete(address);
+        reject(new Error("Address claim timed out"));
+      }, 10_000);
+      this.pendingClaims.set(address, {
+        done: () => { clearTimeout(deadline); resolve(undefined); },
+        fail: (e) => { clearTimeout(deadline); reject(e); },
+      });
+    });
     this.#raw({ type: "claim", address });
     await done;
   }
@@ -104,6 +119,9 @@ export class Relay extends EventTarget {
       this.#raw({ type: "prove", address: msg.address, sig });
     } else if (msg.type === "claimed") {
       this.pendingClaims.get(msg.address)?.done();
+      this.pendingClaims.delete(msg.address);
+    } else if (msg.type === "error" && msg.address) {
+      this.pendingClaims.get(msg.address)?.fail(new Error(msg.error));
       this.pendingClaims.delete(msg.address);
     } else if (msg.type === "replaced") {
       // Another holder of this key claimed it after us: the most recent claim wins.

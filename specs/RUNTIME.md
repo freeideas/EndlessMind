@@ -1,6 +1,6 @@
 # Runtime interface, version 0 (draft)
 
-What a realm's code and a renderer's code look like, and what they can and cannot do inside their sandboxes. This is the "runtime interface" part of the core in [PROTOCOL.md](PROTOCOL.md). Version 0 is a draft and may change. It supports JavaScript only, one file each for rules and renderer, and no saved state.
+What a realm's code and a renderer's code look like, and what they can and cannot do inside their sandboxes. This is an optional reference runtime alongside the core in [PROTOCOL.md](PROTOCOL.md). Other engines can speak the session extension below without implementing these JavaScript callbacks. Version 0 is a draft and may change. It supports one self-contained module each for rules and renderer, plus optional realm-local storage.
 
 The reference implementation is [app/sandbox.js](../app/sandbox.js) and [app/session.js](../app/session.js) in the browser, [shared/referee.js](../shared/referee.js) (the referee loop) and [host/host.js](../host/host.js) (the host program, which referees without a browser). The examples are [examples/maze-chase/](../examples/maze-chase/) (public rules) and [examples/listening-well/](../examples/listening-well/) (private rules that ask an AI model).
 
@@ -31,7 +31,7 @@ A realm is published from a folder of files:
 - `files` lists other public files the host program uploads with the realm. The browser app uploads every file chosen.
 - `needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
 
-Publishing makes a new key pair for the realm in the publishing app, uploads each public file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<server>/#emind:<address>?via=<server>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)). The host program does the same from the realm's folder, keeping the key in a key file, so starting it again publishes the folder's current version under the same address (see [RUNNING.md](RUNNING.md)).
+Publishing makes a new key pair and saves the original files locally before uploading each public file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<trusted-app>/#emind:<address>?via=<encoded-server-origin>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)). The host program does the same from the realm's folder, keeping the key in a key file, so starting it again publishes the folder's current version under the same address (see [RUNNING.md](RUNNING.md)).
 
 **Version 0 limit:** each module must be self-contained, with no `import` of other files. Inline anything you need (including libraries) into the file itself.
 
@@ -43,7 +43,7 @@ The rules run on the referee: in a hidden sandbox when a browser tab holding the
 export default {
   ticksPerSecond: 10,                 // how often tick() runs, 1 to 60
 
-  init({ seed }) { return state; },   // make the starting state; seed is a random integer
+  init({ seed, storage }) { return state; },   // make the starting state; seed is a random integer
   enter(state, player, character) {   // a player asks to come in
     return true;                      // true lets them in; a string refuses, giving the reason
   },
@@ -58,8 +58,8 @@ export default {
 - **`character`** is the character's general description, sent by the visitor's app. The default layout is `{ name, color, description }`, but any field may be missing or strange. Treat it as untrusted input: use what you understand, clean it up, ignore the rest.
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick.
-- **State** is kept by the referee while it runs and is not saved: when the referee stops, the state is gone. Keep it plain data (objects, arrays, strings, numbers, booleans).
-- **Waiting, and the outside world.** Under the host program the rules run with no sandbox, so `enter`, `act` and `tick` may return promises and may use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. In a browser's sandbox these functions must finish at once, with no network; a promise returned from `enter` there counts as a refusal. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
+- **State** lives in the referee process. Rules choose what to preserve using `storage.get(key)` and `storage.put(key, value)`, both asynchronous. Keys are strings, values are JSON data, and a missing key reads as `undefined`. Only this realm's rules receive its storage; renderers do not. A completed write replaces one value atomically. Browser storage uses IndexedDB transactions; host storage replaces a JSON file beside its key file. This is not a multi-key transaction or an automatic snapshot of the running state. Rules own save timing, schema changes, and correctness. Full backups include committed storage; clearing site data can still erase browser storage.
+- **Waiting, and the outside world.** `init`, `enter`, `act` and `tick` may return promises in both hosting modes. The host program has no sandbox, so rules there can also use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. Actions and entry may overlap other work; the runtime does not serialize state mutations or manage transactions. Rules are responsible for that. Browser rules can await their provided storage but still have no general network access. Startup and entry errors reject their pending calls. Closing a visit cancels pending calls and removes its frame; the runtime imposes no execution deadline on realm code and does not interrupt endless loops. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
 
 ## The renderer module
 
@@ -84,7 +84,7 @@ Input (keyboard, mouse, touch, gamepad) arrives inside the sandbox as usual once
 In the browser app, renderers and public rules run in frames with their own blank origin and a strict content security policy:
 
 - No network: no `fetch`, WebSocket or loading scripts, images or fonts from elsewhere. Embed assets as `data:` URLs or draw them.
-- No access to the app's storage, keys or other frames.
+- No direct access to the app's storage, keys or other frames. Rules receive only the realm-local storage interface described above.
 - No navigating the page, and no navigating its own frame to a web address: the app page's content security policy (`frame-src 'none'`) forbids it, since that would give the code the network. Known limit: browsers offer no dependable way to switch off WebRTC (direct connections) inside a frame, so code may still be able to send data out that way.
 
 This is the safety floor: players can open any realm without trusting its author. Known limit: code stuck in an endless loop can freeze the page in some browsers; nothing meters or stops it yet.
@@ -93,14 +93,33 @@ This is the safety floor: players can open any realm without trusting its author
 
 These are the "entering and leaving" extension (prefix `emind.`), carried in signed envelopes (see [PROTOCOL.md](PROTOCOL.md)). The app handles them; realm code never sees them.
 
-| Kind          | From → to       | Body            | Meaning                      |
-| ------------- | --------------- | --------------- | ---------------------------- |
-| `emind.enter`   | visitor → realm | `{ character }` | Please let me in             |
-| `emind.welcome` | realm → visitor | `{ name }`      | You are in                   |
-| `emind.refused` | realm → visitor | `{ reason }`    | You are not let in           |
-| `emind.act`     | visitor → realm | `{ action }`    | A move                       |
-| `emind.state`   | realm → visitor | `{ view }`      | What you can see now         |
-| `emind.ping`    | visitor → realm | `{}`            | Still here (every 5 seconds) |
-| `emind.leave`   | visitor → realm | `{}`            | Goodbye                      |
+- `emind.enter`, visitor to realm: `{ request, release, character }`. The visitor chooses a random request ID (16 to 64 characters), repeating it while waiting. A new visit or reconnection after silence chooses a fresh one. `release` is the expected manifest-body hash.
+- `emind.welcome`, realm to visitor: `{ request, session, instance, release, name }`. The referee creates a random instance ID on startup and a fresh session ID for this visitor's new request. Welcome must echo the expected request and release. Once accepted, a different session or instance cannot replace it without a fresh handshake.
+- `emind.refused`, realm to visitor: `{ request, reason }`. Ends that visit attempt. A release mismatch is refused.
+- `emind.act`, visitor to realm: `{ session, seq, action }`. Sequence numbers are positive safe integers that increase within this session; older or repeated actions are dropped.
+- `emind.state`, realm to visitor: `{ session, seq, view }`. An independently increasing positive sequence number orders views. Only the accepted session's newer views are displayed.
+- `emind.ping`, visitor to realm: `{ session }`, every five seconds.
+- `emind.leave`, visitor to realm: `{ session }`, ending this session.
 
-Every message is signed by its sender, and each side checks the signature and that it came from the expected address before acting on it. A visitor that receives no `emind.state` for 15 seconds sends `emind.enter` again, so play resumes after a referee restarts or moves to another device. Messages travel through a server's relay, signed but not encrypted to the receiver (see "Relay" in [PROTOCOL.md](PROTOCOL.md)).
+Every message is signed and checked against the expected sender and receiver. Referees ignore messages for other sessions. Repeated entry requests do not run a pending `enter` twice. Visitors receiving no view for 15 seconds begin a fresh handshake; referees remove visitors unheard from for 20 seconds. The owner joins through this same path. Navigation cancels unfinished startup and disposes the visitor's frame, connection, timers and listeners; hosting is a separate lifetime.
+
+Messages are signed but not encrypted to the receiver. Session IDs distinguish running copies; they do not establish a worldwide winner between two holders of the same realm key. This draft session extension replaces the earlier unscoped messages. Update both visitors and referees together; keys and source modules remain usable.
+
+## Saving data
+
+For example, rules can restore a counter during initialization and save it after an action. The realm chooses how overlapping actions are handled:
+
+```js
+let storage;
+export default {
+  async init(options) {
+    storage = options.storage;
+    return { count: await storage.get("count") ?? 0 };
+  },
+  act(state) {
+    state.count++;
+    storage.put("count", state.count).catch(console.error);
+  },
+  view(state) { return { count: state.count }; },
+};
+```

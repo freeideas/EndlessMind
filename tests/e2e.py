@@ -15,6 +15,7 @@ run for firefox or webkit downloads that browser (uv run --with playwright
 playwright install firefox webkit).
 """
 
+import json
 import os
 import re
 import socket
@@ -45,7 +46,7 @@ def wait_for(predicate, timeout=15.0, what="condition"):
     raise AssertionError(f"timed out waiting for {what}")
 
 
-def run(browser_name: str, base: str, well_link: str) -> None:
+def run(browser_name: str, base: str, remote: str, well_link: str) -> None:
     with sync_playwright() as p:
         launcher = getattr(p, browser_name)
         browser = launcher.launch(channel="chrome") if browser_name == "chromium" else launcher.launch()
@@ -59,6 +60,7 @@ def run(browser_name: str, base: str, well_link: str) -> None:
         try:
             steps(host, guest, base, browser_name)
             well(guest, well_link)
+            regressions(browser, base, remote)
         except Exception:
             print("errors:", errors)
             print("host status:", host.evaluate("document.getElementById('status')?.textContent"), "| guest:", guest.evaluate("document.getElementById('status')?.textContent"))
@@ -73,7 +75,10 @@ def steps(host, guest, base, browser_name):
         host.goto(base + "/")
         host.wait_for_selector("body[data-ready]")
         host.click("#publish-example")
-        wait_for(lambda: "#emind:" in host.evaluate("location.href"), what="publish")
+        host.locator('#owned .host-toggle').wait_for()
+        host.click('#owned .host-toggle')
+        wait_for(lambda: host.locator('#owned .host-toggle').inner_text() == 'Stop hosting', what='explicit hosting')
+        host.click('#owned a')
         link = host.evaluate("location.href")
         wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.players?.length") == 1, what="host view")
 
@@ -119,20 +124,36 @@ def steps(host, guest, base, browser_name):
         assert not leaks, f"sandboxed code reached the network: {leaks}"
 
         # The host reloads (a new referee that knows no one); the guest must get back in by itself.
+        host.goto(base + '/#')
+        # Browsing home does not stop the referee.
+        guest.evaluate('globalThis.endlessmindLastView = null')
+        wait_for(lambda: guest.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='hosting while owner browses')
         host.reload()
+        host.wait_for_selector('body[data-ready]')
+        host.click('#owned .host-toggle')
+        wait_for(lambda: host.locator('#owned .host-toggle').inner_text() == 'Stop hosting', what='hosting after reload')
+        host.click('#owned a')
         time.sleep(1)
         guest.evaluate("globalThis.endlessmindLastView = null")
         wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest rejoining after host reload")
 
         # The realm's key is the realm: another browser loads the saved keys and takes over hosting.
-        keys = host.evaluate("import('/keyfile.js').then((m) => m.saveKeys())")
+        keys = host.evaluate("import('/keyfile.js').then((m) => m.saveKeys({files:true,storage:true}))")
         mover = host.context.browser.new_context().new_page()
         mover.goto(base + "/")
         mover.wait_for_selector("body[data-ready]")
         loaded = mover.evaluate("(text) => import('/keyfile.js').then((m) => m.loadKeys(text))", keys)
         assert loaded == {"character": True, "realms": 1}, loaded
-        mover.goto(link)
         mover.reload()
+        mover.wait_for_selector('body[data-ready]')
+        mover.goto(link)
+        # Merely opening a realm whose key we hold must not take over hosting.
+        wait_for(lambda: mover.evaluate('globalThis.endlessmindLastView?.players?.length') == 2, what='owner visiting existing host')
+        assert 'somewhere else' not in host.locator('#status').inner_text()
+        mover.goto(base + '/#')
+        mover.click('#owned .host-toggle')
+        wait_for(lambda: mover.locator('#owned .host-toggle').inner_text() == 'Stop hosting', what='explicit takeover')
+        mover.click('#owned a')
         wait_for(lambda: mover.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest joining the moved realm")
         wait_for(lambda: "somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
 
@@ -148,18 +169,126 @@ def well(page, link):
     assert "is anyone down there?" in answer, answer
 
 
+def regressions(browser, base, remote):
+    page = browser.new_context().new_page()
+    page.goto(base)
+    page.wait_for_selector('body[data-ready]')
+    secret = page.evaluate("import('/character.js').then(m => m.myCharacter()).then(c => c.secret)")
+    page.fill('#server-address', remote)
+    page.click('#server-form button')
+    wait_for(lambda: page.evaluate("import('/store.js').then(m => m.get('server'))") == remote)
+    address = page.evaluate('''async (remote) => {
+      const { publish } = await import('/realms.js');
+      const enc = new TextEncoder();
+      const files = new Map([
+        ['realm.json', enc.encode(JSON.stringify({name:'Saved counter',main:'rules.js',renderer:'renderer.js'}))],
+        ['rules.js', enc.encode(`let storage; export default {
+          async init(o) { storage=o.storage; return {count:await storage.get('count') ?? 0}; },
+          async act(s) { s.count++; await storage.put('count',s.count); },
+          view(s) { return {count:s.count}; }
+        };`)],
+        ['renderer.js', enc.encode(`export default {start(root,game) {
+          root.innerHTML='<button>Count</button><output></output>';
+          root.querySelector('button').onclick=()=>game.act({});
+          game.onView(v=>root.querySelector('output').textContent=v.count);
+        }};`)],
+        ['asset.bin', new Uint8Array([0,137,255,128])]
+      ]);
+      return (await publish(files,remote)).address;
+    }''', remote)
+    page.reload()
+    page.wait_for_selector('body[data-ready]')
+    page.click('#owned .host-toggle')
+    wait_for(lambda: page.locator('#owned .host-toggle').inner_text() == 'Stop hosting')
+    page.click('#owned a')
+    wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 0)
+    page.frame_locator('iframe.renderer').locator('button').click()
+    wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
+    wait_for(lambda: page.evaluate("a => import('/store.js').then(m => m.realmStorage(a).get('count'))", address) == 1)
+    assert page.url.startswith(base), 'visiting another server moved the app origin'
+    assert secret == page.evaluate("import('/character.js').then(m => m.myCharacter()).then(c => c.secret)")
+    page.goto(base + '/#')
+    page.click('#owned .host-toggle')
+    wait_for(lambda: page.locator('#owned .host-toggle').inner_text() == 'Start hosting')
+
+    # Neither export touches the helper server, and binary bytes survive import.
+    page.route('**/blob/**', lambda route: route.abort())
+    keys = page.evaluate("import('/keyfile.js').then(m => m.saveKeys())")
+    backup = page.evaluate("import('/keyfile.js').then(m => m.saveKeys({files:true,storage:true}))")
+    assert 'files' not in json.loads(keys)['realms'][0]
+    page.unroute('**/blob/**')
+    moved = browser.new_context().new_page()
+    moved.goto(base)
+    moved.wait_for_selector('body[data-ready]')
+    moved.evaluate("text => import('/keyfile.js').then(m => m.loadKeys(text))", keys)
+    assert moved.evaluate("import('/keyfile.js').then(m => m.saveKeys({files:true})).then(() => false, () => true)"), 'a full backup must not silently omit missing files'
+    moved.evaluate("text => import('/keyfile.js').then(m => m.loadKeys(text))", backup)
+    assert moved.evaluate("a => import('/realms.js').then(m => m.ownedRealm(a)).then(r => [...r.files['asset.bin']])", address) == [0,137,255,128]
+    assert moved.evaluate("a => import('/store.js').then(m => m.realmStorage(a).get('count'))", address) == 1
+
+    # The owner can republish and host after the announcement has expired.
+    page.evaluate('''async ({address,remote}) => {
+      const r=await (await import('/realms.js')).ownedRealm(address);
+      const a=await (await import('/shared/envelope.js')).seal(r.keys,null,'announce',
+        {manifest:r.manifest,name:r.name,tags:[],expires:Date.now()+100});
+      await fetch(remote+'/announce',{method:'POST',body:JSON.stringify(a)});
+    }''', {'address': address, 'remote': remote})
+    page.wait_for_timeout(150)
+    assert page.evaluate("async ({address,remote}) => (await fetch(remote+'/announce/'+address)).status", {'address': address, 'remote': remote}) == 404
+    page.click('#owned .host-toggle')
+    wait_for(lambda: page.locator('#owned .host-toggle').inner_text() == 'Stop hosting')
+    page.click('#owned a')
+    wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
+    link = page.url
+    page.goto(base + '/#')
+    page.click('#owned .host-toggle')
+    wait_for(lambda: page.locator('#owned .host-toggle').inner_text() == 'Start hosting')
+
+    # A cancelled load cannot install a hidden renderer or visitor.
+    result = page.evaluate('''async link => {
+      const original=globalThis.fetch;
+      globalThis.fetch=async (...args) => {
+        if (String(args[0]).includes('/announce/')) await new Promise(r=>setTimeout(r,300));
+        return original(...args);
+      };
+      location.hash=new URL(link).hash;
+      setTimeout(()=>location.hash='',50);
+      await new Promise(r=>setTimeout(r,700));
+      globalThis.fetch=original;
+      return {home:!document.querySelector('#home').hidden,frames:document.querySelectorAll('iframe.renderer').length};
+    }''', link)
+    assert result == {'home': True, 'frames': 0}, result
+    rejected = page.evaluate('''async () => {
+      const box=document.body.appendChild(document.createElement('div'));
+      try { await (await import('/sandbox.js')).startRules(box,'broken syntax',{get:async()=>{},put:async()=>{}}); return false; }
+      catch { return box.children.length===0; }
+      finally {box.remove();}
+    }''')
+    assert rejected, 'broken rules did not reject and clean up'
+    page.context.close()
+    moved.context.close()
+
+
 def main() -> None:
     browsers = sys.argv[1:] or ["chromium"]
     port = free_port()
+    remote_port = free_port()
     with tempfile.TemporaryDirectory() as data:
         server = subprocess.Popen(
             ["deno", "run", "--allow-net", f"--allow-read=.,{data}", f"--allow-write={data}",
              "server/server.js", "--port", str(port), "--hostname", "127.0.0.1", "--data", data],
             cwd=ROOT, stdout=subprocess.DEVNULL,
         )
+        remote_server = subprocess.Popen(
+            ['deno', 'run', '--allow-net', '--allow-read', f'--allow-write={data}',
+             'server/server.js', '--port', str(remote_port), '--hostname', '127.0.0.1', '--data', str(Path(data, 'remote'))],
+            cwd=ROOT, stdout=subprocess.DEVNULL,
+        )
         try:
             base = f"http://localhost:{port}"
+            remote = f"http://localhost:{remote_port}"
             wait_for(lambda: socket.socket().connect_ex(("127.0.0.1", port)) == 0, what="server")
+            wait_for(lambda: socket.socket().connect_ex(('127.0.0.1', remote_port)) == 0, what='remote server')
             # The host program, with no model key, so the well only echoes.
             env = {k: v for k, v in os.environ.items() if k != "OPENROUTER_API_KEY"}
             well_host = subprocess.Popen(
@@ -170,13 +299,15 @@ def main() -> None:
             try:
                 well_link = re.search(r"http\S+", well_host.stdout.readline()).group(0)
                 for name in browsers:
-                    run(name, base, well_link)
+                    run(name, base, remote, well_link)
             finally:
                 well_host.terminate()
                 well_host.wait()
         finally:
             server.terminate()
             server.wait()
+            remote_server.terminate()
+            remote_server.wait()
 
 
 if __name__ == "__main__":

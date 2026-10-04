@@ -57,14 +57,16 @@
       "to": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "kind": "emind.act",
       "body": {
+        "session": "cccccccccccccccccccccccccc",
+        "seq": 1,
         "action": {
           "dir": "up"
         }
       },
       "time": 1790000000000,
-      "sig": "ed25519-7eqfwyaqbjitigid74qffjw624nfbne24ni6ey4462pognwdys4fgh6lcslttamym3ffh6af6mlzx52lh27iolq33h3h367gg5ogwai"
+      "sig": "ed25519-fnwy2ltjhgro76kn4symyyq44vljqyn7dqgei5iin5c2xdutjsfpuwlbzq2qsloxul2rffhxzmcwzd3uqlae7onwv7zzzz2u7c5feai"
     },
-    "signedBytesUtf8": "emind-envelope\n{\"body\":{\"action\":{\"dir\":\"up\"}},\"from\":\"ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\",\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"emind.act\",\"time\":1790000000000,\"to\":\"ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"v\":\"emind/0\"}"
+    "signedBytesUtf8": "emind-envelope\n{\"body\":{\"action\":{\"dir\":\"up\"},\"seq\":1,\"session\":\"cccccccccccccccccccccccccc\"},\"from\":\"ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\",\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"emind.act\",\"time\":1790000000000,\"to\":\"ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"v\":\"emind/0\"}"
   },
   "release": {
     "manifest": {
@@ -89,7 +91,7 @@
       "time": 1790000000000,
       "sig": "ed25519-7slm57yxehztz35c62jrs7funalw73t7dxpfywnk7bfys4kfo4wnhcn37imvdp2wz5haujygbchr5vnuah3gnh4rljgb6bf32tl22ci"
     },
-    "release": "sha256-o67k5uis6yqwlnd4h3g6voi4c666qsua4pouaxdd57ho55yxznpa"
+    "release": "sha256-jybgvnsmhgrsvnevg5uu54w4htyfeul5fthb22emdd7klflkia5a"
   },
   "realmKey": {
     "secret": "tvq3dhpp7vngbouejl2jf3bmyrcetrljpmzgsglqhowaghfop5qa",

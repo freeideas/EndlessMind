@@ -91,12 +91,12 @@ function isApp(app) {
  */
 
 /**
- * A release is one exact signed manifest. Its hash pins that version, so a
+ * A release is the stable manifest body. Its hash pins that version, so a
  * link can say "this realm, exactly as it was" (`emind:<address>?release=<hash>`).
  * @param {import("./envelope.js").Envelope} manifest
  */
 export function releaseOf(manifest) {
-  return hashOf(canonicalJson(manifest));
+  return hashOf(canonicalJson(manifest.body));
 }
 
 /** One week: announcements expire unless renewed ("unused things fade away"). */

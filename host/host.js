@@ -14,16 +14,17 @@
 // With --realm, the realm's files are read from that folder each time, so
 // starting again publishes the folder's current version under the same key.
 // Without it, the realm comes from the key file alone (one written by this
-// program, or by "Save my keys" in the browser app). The rules run directly,
+// program, or by "Save full backup" in the browser app). The rules run directly,
 // not in a sandbox: host only realms you wrote or trust.
 
-import { makeAnnouncement, makeManifest, manifestBody } from "../shared/announce.js";
+import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody, releaseOf } from "../shared/announce.js";
 import { addressOf, hashOf, keyPairFromSecret, newPortableKey } from "../shared/crypto.js";
-import { utf8 } from "../shared/encoding.js";
 import { directRules, referee } from "../shared/referee.js";
 import { Relay } from "../shared/relay.js";
+import { KEY_FORMAT, bundleFiles, checkKeyFormat, encodeFile } from "../shared/bundle.js";
+import { fileStorage } from "./storage.js";
 
-const FORMAT = "emind-keys/0";
+const FORMAT = KEY_FORMAT;
 
 /**
  * @typedef {object} HostOptions
@@ -45,7 +46,7 @@ export async function startHost(options) {
   /** @type {CryptoKeyPair} */
   let keys;
   let rulesModule;
-  /** Public files, by name. @type {Record<string, string>} */
+  /** Public files, by name. @type {Record<string, Uint8Array<ArrayBuffer>>} */
   const files = {};
 
   if (options.realmDir) {
@@ -57,7 +58,7 @@ export async function startHost(options) {
     const hashes = {};
     for (const name of names) {
       if (!name) continue;
-      files[name] = await Deno.readTextFile(new URL(name, dir));
+      files[name] = await Deno.readFile(new URL(name, dir));
       hashes[name] = await hashOf(files[name]);
     }
     const body = manifestBody(source, hashes);
@@ -67,7 +68,8 @@ export async function startHost(options) {
     keys = await keyPairFromSecret(secret);
     manifest = await makeManifest(keys, body);
     rulesModule = (await import(new URL(/** @type {string} */ (source.main), dir).href)).default;
-    await writeKeyFile(options.keysFile, keyFile.raw, saved?.entry, { secret, manifest, files });
+    await writeKeyFile(options.keysFile, keyFile.raw, saved?.entry, { secret, manifest,
+      files: Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)])), storage:saved?.entry.storage });
   } else {
     const saved = options.address ? keyFile.realms.find((r) => r.address === options.address) : keyFile.realms[0];
     if (!saved) throw new Error("The key file holds no such realm. Give --realm to host a realm from its folder.");
@@ -77,15 +79,17 @@ export async function startHost(options) {
     }
     keys = await keyPairFromSecret(saved.secret);
     manifest = saved.entry.manifest;
-    Object.assign(files, saved.entry.files);
-    rulesModule = (await import("data:text/javascript;base64," + btoa(String.fromCharCode(...utf8(files[main]))))).default;
+    Object.assign(files, await bundleFiles(keyFile.raw, saved.entry));
+    rulesModule = (await import("data:text/javascript;base64," + encodeFile(files[main]))).default;
   }
 
   const address = await addressOf(keys.publicKey);
   const body = /** @type {import("../shared/announce.js").ManifestBody} */ (manifest.body);
   for (const [name, hash] of Object.entries(body.files)) {
-    const reply = await fetch(new URL(`/blob/${hash}`, server), { method: "PUT", body: utf8(files[name]) });
+    if (!files[name] || await hashOf(files[name]) !== hash) throw new Error(`Missing or changed file: ${name}`);
+    const reply = await fetch(new URL(`/blob/${hash}`, server), { method: "PUT", body: files[name] });
     if (!reply.ok) throw new Error(`Upload of ${name} failed: ${(await reply.json()).error}`);
+    await reply.body?.cancel();
   }
   async function announce() {
     const announcement = await makeAnnouncement(keys, manifest);
@@ -95,10 +99,16 @@ export async function startHost(options) {
   }
   await announce();
 
+  const entry = keyFile.realms.find(r => r.address === address)?.entry;
+  const storage = await fileStorage(`${options.keysFile}.${address}.state.json`, entry?.storage);
+  const rules = await directRules(rulesModule, storage);
   const relay = new Relay(`${server.protocol === "https:" ? "wss" : "ws"}://${server.host}/ws`);
-  await relay.connect();
-  const ref = await referee({ address, keys, name: body.name, rules: await directRules(rulesModule), relay, announce, status: log });
-  const link = `${server.origin}/#emind:${address}?via=${server.host}`;
+  let ref;
+  try {
+    await relay.connect();
+    ref = await referee({ address, keys, name: body.name, release:await releaseOf(manifest), rules, relay, announce, status: log, onStop:() => relay.close() });
+  } catch (e) { rules.stop(); relay.close(); throw e; }
+  const link = `${server.origin}/#emind:${address}?via=${encodeURIComponent(server.origin)}`;
   log(`Hosting ${body.name}${body.main ? "" : " (private rules)"}: ${link}`);
   return {
     address,
@@ -122,12 +132,16 @@ async function readKeyFile(path) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
     return { raw: { format: FORMAT, realms: [] }, realms: [] };
   }
-  if (raw?.format !== FORMAT) throw new Error(`${path} is not an Endless Mind key file.`);
+  checkKeyFormat(raw?.format);
   const realms = [];
   for (const entry of Array.isArray(raw.realms) ? raw.realms : []) {
     const keys = await keyPairFromSecret(entry.secret);
+    if (!await checkAnnouncement(await makeAnnouncement(keys, entry.manifest))) throw new Error("A realm does not match its key.");
+    const files = await bundleFiles(raw, entry);
+    entry.files = Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)]));
     realms.push({ address: await addressOf(keys.publicKey), name: String(entry.manifest?.body?.name), secret: entry.secret, entry });
   }
+  raw.format = FORMAT;
   return { raw, realms };
 }
 
@@ -140,7 +154,30 @@ async function writeKeyFile(path, raw, oldEntry, entry) {
   const folder = path.replace(/[^/\\]*$/, "");
   if (folder) await Deno.mkdir(folder, { recursive: true });
   // Whoever can read this file holds the realm, so keep it to this user.
-  await Deno.writeTextFile(path, JSON.stringify({ ...raw, format: FORMAT, realms: [...realms, entry] }, null, 1), { mode: 0o600 });
+  const temp = `${path}.${crypto.randomUUID()}.tmp`;
+  try {
+    await Deno.writeTextFile(temp, JSON.stringify({ ...raw, format: FORMAT, realms: [...realms, entry] }, null, 1), { mode: 0o600 });
+    await Deno.rename(temp, path);
+  } finally { await Deno.remove(temp).catch(() => {}); }
+}
+
+/** Export keys, public files and the latest committed realm data. @param {string} keysFile @param {string} destination */
+export async function exportBackup(keysFile, destination) {
+  const {raw, realms} = await readKeyFile(keysFile);
+  for (const realm of realms) {
+    for (const name of Object.keys(realm.entry.manifest.body.files)) {
+      if (!Object.hasOwn(realm.entry.files, name)) throw new Error(`Cannot make a full backup: missing file ${name}.`);
+    }
+    const storage = await fileStorage(`${keysFile}.${realm.address}.state.json`, realm.entry.storage);
+    realm.entry.storage = await storage.snapshot();
+  }
+  const folder = destination.replace(/[^/\\]*$/, "");
+  if (folder) await Deno.mkdir(folder, {recursive:true});
+  const temp = `${destination}.${crypto.randomUUID()}.tmp`;
+  try {
+    await Deno.writeTextFile(temp, JSON.stringify(raw, null, 1), {mode:0o600});
+    await Deno.rename(temp, destination);
+  } finally { await Deno.remove(temp).catch(() => {}); }
 }
 
 if (import.meta.main) {
@@ -148,6 +185,10 @@ if (import.meta.main) {
   const args = {};
   for (let i = 0; i < Deno.args.length; i++) {
     if (Deno.args[i].startsWith("--")) args[Deno.args[i].slice(2)] = Deno.args[i + 1] ?? "";
+  }
+  if (args.backup && args.keys) {
+    await exportBackup(args.keys, args.backup);
+    Deno.exit(0);
   }
   if (!args.server || !(args.realm || args.keys)) {
     console.error("Usage: deno task host --server https://example.org --realm ./my-realm [--keys FILE] [--address ADDRESS]");

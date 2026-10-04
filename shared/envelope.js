@@ -35,7 +35,7 @@ export async function seal(keyPair, to, kind, body, fixed = {}) {
     from: await addressOf(keyPair.publicKey),
     to,
     kind,
-    body: body ?? null,
+    body: structuredClone(body ?? null),
     time: fixed.time ?? Date.now(),
   };
   return { ...unsigned, sig: await sign(keyPair.privateKey, "envelope", canonicalJson(unsigned)) };

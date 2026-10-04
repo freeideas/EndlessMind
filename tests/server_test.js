@@ -148,6 +148,8 @@ Deno.test("the most recent claim of an address wins, and an address can be relea
     const first = await connect(base, realm);
     const second = await connect(base, realm);
     assertEquals(await first.next(), { type: "replaced", address });
+    first.socket.send(JSON.stringify({type:"send",envelope:await seal(realm, await addressOf(visitorKeys.publicKey), "hello", {})}));
+    assertEquals((await first.next()).type, "error", "a replaced connection must lose permission to send");
 
     visitor.socket.send(JSON.stringify({ type: "send", envelope: await seal(visitorKeys, address, "hello", {}) }));
     assertEquals((await second.next()).type, "deliver");
@@ -175,3 +177,23 @@ Deno.test("uploads over the size limit are refused", () =>
     assertEquals(reply.status, 413);
     await reply.body?.cancel();
   }));
+
+Deno.test("server file quota is cumulative, deduplicated, and available to another app origin", async () => {
+  const dataDir = await Deno.makeTempDir();
+  const server = await startServer({port:0,hostname:"127.0.0.1",dataDir,maxStoredBytes:4});
+  const base = `http://127.0.0.1:${server.port}`;
+  try {
+    const hash = await hashOf("1234");
+    for (let i = 0; i < 2; i++) {
+      const reply = await fetch(`${base}/blob/${hash}`, {method:"PUT",body:"1234",headers:{origin:"https://another-app.example"}});
+      assertEquals(reply.status, 200);
+      assertEquals(reply.headers.get("access-control-allow-origin"), "*");
+      await reply.body?.cancel();
+    }
+    const full = await fetch(`${base}/blob/${await hashOf("5")}`, {method:"PUT",body:"5"});
+    assertEquals(full.status, 507); await full.body?.cancel();
+    const preflight = await fetch(`${base}/blob/${hash}`, {method:"OPTIONS"});
+    assertEquals(preflight.status, 204);
+    assert(preflight.headers.get("access-control-allow-methods")?.includes("PUT"));
+  } finally { await server.shutdown(); await Deno.remove(dataDir,{recursive:true}); }
+});

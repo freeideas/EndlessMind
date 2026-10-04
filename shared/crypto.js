@@ -122,6 +122,8 @@ function publicKeyFor(address) {
   if (!isAddress(address)) throw new Error("not an ed25519 address: " + address);
   let key = importedKeys.get(address);
   if (!key) {
+    // Helpers verify strangers' keys too; the cache must not grow forever.
+    if (importedKeys.size >= 1024) importedKeys.delete(/** @type {string} */ (importedKeys.keys().next().value));
     const raw = fromBase32(address.slice("ed25519-".length));
     key = crypto.subtle.importKey("raw", raw, ED25519, true, ["verify"]);
     importedKeys.set(address, key);

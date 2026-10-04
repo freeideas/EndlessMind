@@ -1,177 +1,191 @@
-// Refereeing a realm: the loop that lets visitors in, passes their moves to the
-// rules, and sends each one their view. Whoever holds the realm's key runs it:
-// the browser app (rules in a sandbox) or the host program (rules run directly).
-// The message kinds are the "entering and leaving" extension in specs/RUNTIME.md.
+// One referee and one session path for every visitor, including its owner.
+import { randomId } from "./encoding.js";
 
 /** @typedef {import("./relay.js").Relay} Relay */
 /** @typedef {import("./envelope.js").Envelope} Envelope */
-
+/** @typedef {{get: (key: string) => Promise<any>, put: (key: string, value: unknown) => Promise<unknown>}} RealmStorage */
 /**
- * The rules, however they are run.
  * @typedef {object} RulesDriver
  * @property {number} ticksPerSecond
- * @property {(player: string, character: unknown) => Promise<{ ok: boolean, reason?: string }>} enter
+ * @property {(player: string, character: unknown) => Promise<{ok: boolean, reason?: string}>} enter
  * @property {(player: string, action: unknown) => void} act
  * @property {(player: string) => void} leave
- * @property {() => void} step  one tick; the views follow through onViews
+ * @property {() => void} step
  * @property {(fn: (views: Record<string, unknown>) => void) => void} onViews
  * @property {() => void} stop
  */
 
-const VISITOR_TIMEOUT_MS = 20_000;
-const RENEW_ANNOUNCEMENT_MS = 60 * 60 * 1000;
-
 /**
- * @param {object} options
- * @param {string} options.address  the realm's address
- * @param {CryptoKeyPair} options.keys  the realm's key
- * @param {string} options.name
- * @param {RulesDriver} options.rules
- * @param {Relay} options.relay
- * @param {() => Promise<void>} options.announce  announce (or renew) the realm on the server
- * @param {(text: string) => void} options.status
+ * @param {{address: string, keys: CryptoKeyPair, name: string, release: string, rules: RulesDriver,
+ * relay: Relay, announce: () => Promise<void>, status: (text: string) => void, onStop?: () => void}} options
  */
-export async function referee({ address, keys, name, rules, relay, announce, status }) {
+export async function referee(
+  { address, keys, name, release, rules, relay, announce, status, onStop },
+) {
   await relay.addKey(keys);
-
-  /** Players inside, and how to reach each. @type {Map<string, {deliver: (view: unknown) => void, lastHeard: number, local: boolean}>} */
+  const instance = randomId();
+  let stopped = false;
+  /** @type {Map<string, {request: string, session: string, seq: number, actionSeq: number, lastHeard: number}>} */
   const players = new Map();
-
+  /** @type {Map<string, Promise<{ok: boolean, reason?: string}>>} */
+  const entering = new Map();
+  /** @param {string} to @param {string} kind @param {unknown} body */
+  const send = (to, kind, body) => relay.send(keys, to, kind, body).catch(console.error);
   rules.onViews((views) => {
-    for (const [player, view] of Object.entries(views)) players.get(player)?.deliver(view);
+    if (stopped) return;
+    for (const [player, view] of Object.entries(views)) {
+      const p = players.get(player);
+      if (p) send(player, "emind.state", { session: p.session, seq: ++p.seq, view });
+    }
   });
 
   /** @param {Event} event */
   async function onMessage(event) {
     const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
-    if (env.to !== address) return;
-    const body = /** @type {any} */ (env.body) ?? {};
-    const known = players.get(env.from);
-    if (known) known.lastHeard = Date.now();
-    if (env.kind === "emind.enter" && !known) {
-      const verdict = await rules.enter(env.from, body.character ?? {});
-      if (!verdict.ok) {
-        await relay.send(keys, env.from, "emind.refused", { reason: verdict.reason ?? "" });
+    if (stopped || env.to !== address) return;
+    const b = /** @type {any} */ (env.body) ?? {};
+    let p = players.get(env.from);
+    if (env.kind === "emind.enter") {
+      if (typeof b.request !== "string" || b.request.length < 16 || b.request.length > 64) return;
+      if (b.release !== release) {
+        send(env.from, "emind.refused", {
+          request: b.request,
+          reason: "The realm's version changed. Open its current link.",
+        });
         return;
       }
-      players.set(env.from, {
-        local: false,
-        lastHeard: Date.now(),
-        deliver: (view) => relay.send(keys, env.from, "emind.state", { view }),
+      // Repeated requests while enter waits must not run realm entry twice.
+      if (!p) {
+        let pending = entering.get(env.from);
+        if (!pending) {
+          pending = rules.enter(env.from, b.character ?? {}).catch((error) => ({
+            ok: false,
+            reason: String(error),
+          }));
+          entering.set(env.from, pending);
+        }
+        const verdict = await pending;
+        if (stopped) return;
+        entering.delete(env.from);
+        if (!verdict.ok) {
+          send(env.from, "emind.refused", { request: b.request, reason: verdict.reason ?? "" });
+          return;
+        }
+        p = players.get(env.from);
+      }
+      if (!p || p.request !== b.request) {
+        p = {
+          request: b.request,
+          session: randomId(),
+          seq: 0,
+          actionSeq: 0,
+          lastHeard: Date.now(),
+        };
+        players.set(env.from, p);
+      }
+      p.lastHeard = Date.now();
+      send(env.from, "emind.welcome", {
+        request: p.request,
+        session: p.session,
+        instance,
+        release,
+        name,
       });
-      await relay.send(keys, env.from, "emind.welcome", { name });
-      status(`${String(body.character?.name ?? "Someone").slice(0, 40)} came in.`);
-    } else if (env.kind === "emind.enter" && known) {
-      await relay.send(keys, env.from, "emind.welcome", { name });
-    } else if (env.kind === "emind.act" && known) {
-      rules.act(env.from, body.action);
-    } else if (env.kind === "emind.leave" && known) {
-      players.delete(env.from);
-      rules.leave(env.from);
+    } else if (p && b.session === p.session) {
+      p.lastHeard = Date.now();
+      if (env.kind === "emind.act" && Number.isSafeInteger(b.seq) && b.seq > p.actionSeq) {
+        p.actionSeq = b.seq;
+        rules.act(env.from, b.action);
+      } else if (env.kind === "emind.leave") {
+        players.delete(env.from);
+        rules.leave(env.from);
+      }
     }
   }
-  relay.addEventListener("message", onMessage);
-
-  /** A key can be carried anywhere; if another holder starts hosting, this copy stops. @param {Event} event */
-  function onReplaced(event) {
-    if (/** @type {CustomEvent<string>} */ (event).detail !== address) return;
-    halt();
-    status(`${name} is now being hosted from somewhere else, so this copy has stopped.`);
-  }
-  relay.addEventListener("replaced", onReplaced);
-
+  const listener = (/** @type {Event} */ e) => {
+    onMessage(e).catch(console.error);
+  };
+  relay.addEventListener("message", listener);
+  const replaced = (/** @type {Event} */ e) => {
+    if (/** @type {CustomEvent} */ (e).detail === address) {
+      stop();
+      status(`${name} is now being hosted from somewhere else, so this copy has stopped.`);
+    }
+  };
+  relay.addEventListener("replaced", replaced);
   const ticker = setInterval(() => {
-    const now = Date.now();
     for (const [player, p] of players) {
-      if (!p.local && now - p.lastHeard > VISITOR_TIMEOUT_MS) {
+      if (Date.now() - p.lastHeard > 20_000) {
         players.delete(player);
         rules.leave(player);
       }
     }
     rules.step();
   }, 1000 / rules.ticksPerSecond);
-
-  const renewer = setInterval(() => announce().catch(console.error), RENEW_ANNOUNCEMENT_MS);
-
-  function halt() {
+  const renewer = setInterval(() => announce().catch(console.error), 60 * 60 * 1000);
+  function stop() {
+    if (stopped) return;
+    stopped = true;
     clearInterval(ticker);
     clearInterval(renewer);
-    relay.removeEventListener("message", onMessage);
-    relay.removeEventListener("replaced", onReplaced);
+    relay.removeEventListener("message", listener);
+    relay.removeEventListener("replaced", replaced);
+    relay.release(address);
+    rules.stop();
+    players.clear();
+    onStop?.();
   }
-
-  return {
-    /**
-     * Let a player on this device in, without the network.
-     * @param {string} player @param {unknown} character @param {(view: unknown) => void} deliver
-     */
-    async addLocalPlayer(player, character, deliver) {
-      const verdict = await rules.enter(player, character);
-      if (verdict.ok) players.set(player, { local: true, lastHeard: Date.now(), deliver });
-      return verdict;
-    },
-    /** @param {string} player @param {unknown} action */
-    act(player, action) {
-      rules.act(player, action);
-    },
-    stop() {
-      halt();
-      relay.release(address);
-      rules.stop();
-    },
-  };
+  return { stop, instance };
 }
 
-/**
- * Run a rules module directly, with no sandbox: for the realm's own maker
- * running their own rules on their own machine. Here `enter`, `act` and `tick`
- * may take their time (return promises), for example to ask an AI model.
- * @param {any} rules  the module's default export (see specs/RUNTIME.md)
- * @returns {Promise<RulesDriver>}
- */
-export async function directRules(rules) {
-  const state = await rules.init({ seed: Math.floor(Math.random() * 2 ** 31) });
-  /** @type {Set<string>} */
+/** Host rules manage their own asynchronous work. @param {any} rules @param {RealmStorage} [storage] @returns {Promise<RulesDriver>} */
+export async function directRules(rules, storage) {
+  const state = await rules.init({ seed: Math.floor(Math.random() * 2 ** 31), storage });
   const players = new Set();
   /** @type {(views: Record<string, unknown>) => void} */
   let onViews = () => {};
   let stepping = false;
+  let stopped = false;
   /** @param {() => unknown} call */
-  const safely = (call) => (async () => await call())().catch((error) => console.error("[rules]", error));
+  const safely = (call) =>
+    (async () => await call())().catch((error) => console.error("[rules]", error));
   return {
     ticksPerSecond: Math.min(Math.max(Number(rules.ticksPerSecond) || 10, 1), 60),
     async enter(player, character) {
-      let verdict;
       try {
-        verdict = rules.enter ? await rules.enter(state, player, character) : true;
-      } catch (error) {
-        console.error("[rules]", error);
-        return { ok: false, reason: "The realm's rules failed." };
+        const verdict = rules.enter ? await rules.enter(state, player, character) : true;
+        const ok = verdict === true || verdict === undefined;
+        if (ok && !stopped) players.add(player);
+        return { ok, reason: typeof verdict === "string" ? verdict : undefined };
+      } catch (e) {
+        return { ok: false, reason: String(e) };
       }
-      const ok = verdict === true || verdict === undefined;
-      if (ok) players.add(player);
-      return { ok, reason: typeof verdict === "string" ? verdict : undefined };
     },
     act(player, action) {
-      if (players.has(player) && rules.act) safely(() => rules.act(state, player, action));
+      if (!stopped && players.has(player) && rules.act) {
+        safely(() => rules.act(state, player, action));
+      }
     },
     leave(player) {
       if (players.delete(player) && rules.leave) safely(() => rules.leave(state, player));
     },
     step() {
-      if (stepping) return;
+      if (stepping || stopped) return;
       stepping = true;
       safely(async () => {
         if (rules.tick) await rules.tick(state);
-        /** @type {Record<string, unknown>} */
-        const views = {};
-        for (const p of players) views[p] = rules.view(state, p);
-        onViews(views);
-      }).finally(() => (stepping = false));
+        const views = Object.fromEntries(
+          [...players].map((p) => [p, rules.view ? rules.view(state, p) : state]),
+        );
+        if (!stopped) onViews(views);
+      }).finally(() => stepping = false);
     },
     onViews(fn) {
       onViews = fn;
     },
-    stop() {},
+    stop() {
+      stopped = true;
+      players.clear();
+    },
   };
 }

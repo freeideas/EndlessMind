@@ -25,11 +25,13 @@ function db() {
  * @returns {Promise<T>}
  */
 async function run(mode, action) {
-  const store = (await db()).transaction(STORE, mode).objectStore(STORE);
+  const transaction = (await db()).transaction(STORE, mode);
+  const store = transaction.objectStore(STORE);
   return new Promise((resolve, reject) => {
     const request = action(store);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve(request.result);
+    transaction.onabort = () => reject(transaction.error ?? new Error("Storage write aborted"));
+    transaction.onerror = () => reject(transaction.error);
   });
 }
 
@@ -41,6 +43,22 @@ export function get(key) {
 /** @param {string} key @param {unknown} value */
 export function put(key, value) {
   return run("readwrite", (s) => s.put(value, key));
+}
+
+/** A realm's optional JSON storage. @param {string} address */
+export function realmStorage(address) {
+  const prefix = `state:${address}:`;
+  return {
+    /** @param {string} key */
+    async get(key) { return (await get(prefix + key))?.value; },
+    /** @param {string} key @param {unknown} value */
+    put(key, value) { return put(prefix + key, { key, value: JSON.parse(JSON.stringify(value)) }); },
+  };
+}
+
+/** @param {string} address */
+export async function savedState(address) {
+  return Object.fromEntries((await list(`state:${address}:`)).map((entry) => [entry.key, entry.value]));
 }
 
 /** @param {string} prefix @returns {Promise<any[]>} */

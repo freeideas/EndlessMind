@@ -17,7 +17,7 @@ export async function buildVectors() {
   const address = await addressOf(keys.publicKey);
   const to = "ed25519-" + toBase32(new Uint8Array(32));
 
-  const envelope = await seal(keys, to, "emind.act", { action: { dir: "up" } }, { id: "aaaaaaaaaaaaaaaaaaaaaaaaaa", time: 1790000000000 });
+  const envelope = await seal(keys, to, "emind.act", { session: "cccccccccccccccccccccccccc", seq: 1, action: { dir: "up" } }, { id: "aaaaaaaaaaaaaaaaaaaaaaaaaa", time: 1790000000000 });
   const { sig: _, ...unsigned } = envelope;
   const manifest = await seal(keys, null, "manifest", {
     name: "Vector Realm", description: "", tags: ["test"], files: { "rules.js": await hashOf("export default {}") },

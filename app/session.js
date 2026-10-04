@@ -1,140 +1,105 @@
-// Being in a realm: as its referee (this browser holds the realm's key and its
-// rules are public) or as a visitor. The referee loop itself is shared with the
-// host program (shared/referee.js); the message kinds are the "entering and
-// leaving" extension in specs/RUNTIME.md.
-
+// Opening a realm always visits. Hosting has a separate, explicit lifetime.
 import { addressOf, keyPairForRealm } from "../shared/crypto.js";
+import { releaseOf } from "../shared/announce.js";
+import { fromUtf8 } from "../shared/encoding.js";
+import { Relay } from "../shared/relay.js";
 import { referee } from "../shared/referee.js";
-import { announce, fetchFile, lookUp } from "./realms.js";
+import { relayUrl, visit } from "../shared/visitor.js";
+import { announce, fetchFile, lookUp, publishOwned } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
+import { realmStorage } from "./store.js";
 
-/** @typedef {import("../shared/relay.js").Relay} Relay */
-/** @typedef {import("./character.js").Character} Character */
-/** @typedef {import("./realms.js").OwnedRealm} OwnedRealm */
-/** @typedef {import("../shared/envelope.js").Envelope} Envelope */
-
-const PING_EVERY_MS = 5_000;
-const REFEREE_SILENT_MS = 15_000;
-
-/**
- * Play in a realm: as a local player if this browser referees it (it holds the
- * key and the rules are public), otherwise as a visitor through the relay.
- * @param {string} address realm address
- * @param {Character} character
- * @param {Relay} relay
- * @param {HTMLElement} container
- * @param {{ status: (text: string, ms?: number) => void, owned?: OwnedRealm, release?: string }} ui
- */
-export async function play(address, character, relay, container, ui) {
-  const found = await lookUp(address);
-  if (!found) {
-    throw Object.assign(new Error("No realm with this address is announced on this server."), { code: "not-here" });
+/** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
+ * @param {{server: string, status: (text: string) => void, release?: string, signal: AbortSignal}} ui */
+export async function play(address, character, container, ui) {
+  const found = await lookUp(address, ui.server, ui.signal);
+  if (!found) throw new Error("No realm with this address is announced on this server.");
+  if (ui.release && ui.release !== found.release) {
+    throw Object.assign(new Error("This link's version has changed."), { code: "release-changed" });
   }
   const { manifest } = found;
-  if (ui.release && ui.release !== found.release) {
-    throw Object.assign(new Error("This link is for an earlier version of this realm, which has changed since."), {
-      code: "release-changed",
-    });
-  }
-  if (manifest.needs.length) {
-    throw new Error(`This realm asks for permissions this app does not know: ${manifest.needs.join(", ")}.`);
-  }
+  if (manifest.needs.length) throw new Error(`Unknown permissions: ${manifest.needs.join(", ")}`);
   if (!manifest.renderer) {
-    throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), { app: manifest.app });
-  }
-  const rendererCode = await fetchFile(manifest.files[manifest.renderer]);
-
-  // Inside this realm the character acts under a key of its own, so realms cannot link a player across realms.
-  const myKeys = await keyPairForRealm(character.secret, address);
-  const me = await addressOf(myKeys.publicKey);
-
-  // A realm with private rules is refereed by its host program; here its key holder is a visitor like anyone.
-  const owned = ui.owned;
-  const ownManifest = /** @type {import("../shared/announce.js").ManifestBody | undefined} */ (owned?.manifest.body);
-  if (owned && ownManifest?.main) {
-    const rules = await startRules(container, await fetchFile(ownManifest.files[ownManifest.main]));
-    const ref = await referee({
-      address: owned.address,
-      keys: owned.keys,
-      name: ownManifest.name,
-      rules,
-      relay,
-      announce: () => announce(owned),
-      status: ui.status,
+    throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), {
+      app: manifest.app,
     });
-    announce(owned).catch(console.error);
-    const view = await startRenderer(container, rendererCode, me, character.info, (action) =>
-      ref.act(me, action));
-    const verdict = await ref.addLocalPlayer(me, character.info, (v) => (lastView(v), view.show(v)));
-    if (!verdict.ok) throw new Error(`The realm refused you: ${verdict.reason ?? "no reason given"}`);
-    ui.status(`You are hosting ${manifest.name}. Keep this tab open so others can play.`);
-    return { name: manifest.name, release: found.release, stop: () => (ref.stop(), view.stop()) };
   }
-
-  await relay.addKey(myKeys);
-  const view = await startRenderer(container, rendererCode, me, character.info, (action) =>
-    relay.send(myKeys, address, "emind.act", { action }));
-
-  let welcomed = false;
-  let lastHeard = Date.now();
-  /** @param {Event} event */
-  function onMessage(event) {
-    const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
-    if (env.from !== address || env.to !== me) return;
-    const body = /** @type {any} */ (env.body) ?? {};
-    lastHeard = Date.now();
-    if (env.kind === "emind.welcome" && !welcomed) {
-      welcomed = true;
-      ui.status(`You are in ${manifest.name}.` + (manifest.main ? "" : " Its rules are private: only its referee knows them."));
-    } else if (env.kind === "emind.refused") {
-      ui.status(`The realm refused you: ${body.reason || "no reason given"}`);
-    } else if (env.kind === "emind.state") {
-      welcomed = true;
-      lastView(body.view);
-      view.show(body.view);
-    }
+  const code = await fetchFile(manifest.files[manifest.renderer], ui.server, ui.signal);
+  const keys = await keyPairForRealm(character.secret, address);
+  const me = await addressOf(keys.publicKey);
+  ui.signal.throwIfAborted();
+  /** @type {Awaited<ReturnType<typeof visit>> | undefined} */
+  let session;
+  const renderer = await startRenderer(
+    container,
+    code,
+    me,
+    character.info,
+    (action) => session?.act(action),
+    ui.signal,
+  );
+  try {
+    session = await visit({
+      server: ui.server,
+      address,
+      keys,
+      release: found.release,
+      character: character.info,
+      signal: ui.signal,
+      status: (text) => ui.status(text + (manifest.main ? "" : " Its rules are private.")),
+      onView: (view) => {
+        /** @type {any} */ (globalThis).endlessmindLastView = view;
+        renderer.show(view);
+      },
+    });
+    ui.signal.throwIfAborted();
+    return {
+      name: manifest.name,
+      release: found.release,
+      stop() {
+        session?.stop();
+        renderer.stop();
+      },
+    };
+  } catch (e) {
+    session?.stop();
+    renderer.stop();
+    throw e;
   }
-  /** @param {Event} event */
-  function onUndeliverable(event) {
-    if (/** @type {CustomEvent<string>} */ (event).detail === address && !welcomed) {
-      ui.status("This realm's referee is not online right now. Waiting for it...");
-    }
-  }
-  relay.addEventListener("message", onMessage);
-  relay.addEventListener("undeliverable", onUndeliverable);
-  /** @param {Event} event */
-  function onReplaced(event) {
-    if (/** @type {CustomEvent<string>} */ (event).detail !== me) return;
-    clearInterval(pinger);
-    ui.status("Your character is now playing from another tab or device, so this one has stopped.", 60_000);
-  }
-  relay.addEventListener("replaced", onReplaced);
-
-  const enter = () => relay.send(myKeys, address, "emind.enter", { character: character.info });
-  await enter();
-  ui.status(found.online ? `Entering ${manifest.name}...` : "This realm's referee is not online right now. Waiting for it...");
-  const pinger = setInterval(() => {
-    // A referee that restarted or moved no longer knows us: ask to come in again.
-    if (welcomed && Date.now() - lastHeard > REFEREE_SILENT_MS) welcomed = false;
-    if (welcomed) relay.send(myKeys, address, "emind.ping", {});
-    else enter();
-  }, PING_EVERY_MS);
-
-  return {
-    name: manifest.name,
-    release: found.release,
-    stop() {
-      clearInterval(pinger);
-      relay.send(myKeys, address, "emind.leave", {});
-      relay.removeEventListener("message", onMessage);
-      relay.removeEventListener("undeliverable", onUndeliverable);
-      relay.removeEventListener("replaced", onReplaced);
-      view.stop();
-    },
-  };
 }
 
-/** Keep the latest view where tests and debugging tools can see it. @param {unknown} view */
-function lastView(view) {
-  /** @type {any} */ (globalThis).endlessmindLastView = view;
+/** @param {import('./realms.js').OwnedRealm} realm @param {string} server @param {HTMLElement} container
+ * @param {(text: string) => void} status @param {() => void} onStop */
+export async function startHosting(realm, server, container, status, onStop) {
+  const body = /** @type {import('../shared/announce.js').ManifestBody} */ (realm.manifest.body);
+  if (!body.main) throw new Error("Private rules need the host program.");
+  await publishOwned(realm, server);
+  const rules = await startRules(
+    container,
+    fromUtf8(/** @type {NonNullable<typeof realm.files>} */ (realm.files)[body.main]),
+    realmStorage(realm.address),
+  );
+  const relay = new Relay(relayUrl(server));
+  try {
+    await relay.connect();
+    const ref = await referee({
+      address: realm.address,
+      keys: realm.keys,
+      name: realm.name,
+      release: await releaseOf(realm.manifest),
+      rules,
+      relay,
+      announce: () => announce(realm, server),
+      status,
+      onStop: () => {
+        relay.close();
+        onStop();
+      },
+    });
+    return { stop: ref.stop };
+  } catch (e) {
+    rules.stop();
+    relay.close();
+    throw e;
+  }
 }

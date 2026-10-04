@@ -14,7 +14,7 @@ A technical example of how a player could make their own small game on the Endle
 ## Putting it online
 
 - The realm's `realm.json` gives it a few tags ("maze", "chase", "multiplayer"). Publishing announces it on the server under those tags, so it shows up in "Find realms".
-- While a browser tab holding the realm's key is open, or the host program runs it, the realm is online. Saving the key and loading it elsewhere moves the referee to another device or server.
+- Choose **Start hosting** to run its referee in this tab, or run the host program. Opening its link only visits. A full backup carries its key and files elsewhere; starting hosting there on the same helper server replaces the previous host.
 - The way in is a link, `https://<server>/#emind:<realm address>?via=<server>`. The key names the realm and the `via` hint says where it is announced. Anyone who opens it can join.
 
 A working version of this example is in this repository under `examples/maze-chase/`.
