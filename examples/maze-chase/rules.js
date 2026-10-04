@@ -124,6 +124,9 @@ function catches(s) {
 
 export default {
   ticksPerSecond: 7,
+  // The same moves in the same order always give the same maze (its random numbers come from the seed
+  // kept in the state), and nothing in the state is secret, so every player's app can check the referee.
+  repeatable: true,
 
   /** @param {{ seed: number }} options @returns {State} */
   init({ seed }) {

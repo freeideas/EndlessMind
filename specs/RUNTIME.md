@@ -42,6 +42,7 @@ The rules run on the referee: in a hidden sandbox when a browser tab holding the
 ```js
 export default {
   ticksPerSecond: 10,                 // how often tick() runs, 1 to 60
+  repeatable: false,                  // true lets every player's app check the referee (see below)
 
   init({ seed, storage, remove }) { return state; }, // make the starting state; seed is a random integer
   enter(state, player, character) {   // a player asks to come in
@@ -71,6 +72,18 @@ Rules that are public can be run in three ways, and the rules cannot tell which 
 - **As a lasting realm.** The maker's key referees, in a tab or under the host program, and `storage` lasts.
 
 Rules kept private run only the third way.
+
+## Checking the referee
+
+Public rules are normally a statement, not a proof: nobody can see what a referee really runs. Rules that set `repeatable: true` change that. They promise three things:
+
+- **The same moves in the same order always give the same state.** No `Math.random()`, no clock, no network, no `storage`, nothing kept outside `state`. Random numbers come from the `seed` given to `init`, kept in the state (the maze example does this).
+- **Every function is plain, not `async`**, and the state is plain JSON.
+- **Nothing in the state is secret**, because every player's app receives all of it.
+
+The referee then sends each player, with every view, the moves it applied since the last one (and, at the start of a session, a full copy of the state). The player's app runs its own copy of the public rules in a sandbox, applies the same moves, and compares the view its copy gives with the view the referee sent. A referee that strays from the rules in any way the player can see, or makes a move in the player's name, is caught at once, and the app warns the player. This holds in a room and in a lasting realm alike: the host still decides the order of moves and who gets in, but can no longer bend the rules.
+
+Leave `repeatable` out for rules that hide information (cards in a hand), use the outside world, or save data. Those are trusted the old way.
 
 ## The renderer module
 
@@ -108,7 +121,7 @@ These are the "entering and leaving" extension (prefix `emind.`), carried in sig
 - `emind.welcome`, realm to visitor: `{ request, session, instance, release, name }`. The referee creates a random instance ID on startup and a fresh session ID for this visitor's new request. Welcome must echo the expected request and release. Once accepted, a different session or instance cannot replace it without a fresh handshake.
 - `emind.refused`, realm to visitor: `{ request, reason }`. Ends that visit, whether it arrives in answer to `emind.enter` or later, when the rules remove a player. A release mismatch is refused.
 - `emind.act`, visitor to realm: `{ session, seq, action }`. Sequence numbers are positive safe integers that increase within this session; older or repeated actions are dropped. An app sends its messages in the order they were made and handles arriving ones in the order they came, so moves reach the rules in the order the player made them.
-- `emind.state`, realm to visitor: `{ session, seq, view }`. An independently increasing positive sequence number orders views. Only the accepted session's newer views are displayed.
+- `emind.state`, realm to visitor: `{ session, seq, view }`. An independently increasing positive sequence number orders views. Only the accepted session's newer views are displayed. A referee of repeatable rules adds `check`, and then sends a message on every tick even when there is no `view`: `{ start }`, a JSON text of `{ state, players }`, for the first message of a session, and after that `{ inputs }`, the moves applied since the last message, in order, each one of `["enter", player, character]`, `["act", player, action]`, `["leave", player]` or `["tick"]`. A visitor that finds a gap in `seq` begins a fresh handshake, since its copy has missed moves. In a private session `check` travels inside the box with `view`.
 - `emind.ping`, visitor to realm: `{ session }`, every five seconds.
 - `emind.leave`, visitor to realm: `{ session }`, ending this session.
 

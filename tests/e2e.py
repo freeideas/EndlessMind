@@ -67,7 +67,8 @@ def run(browser_name: str, base: str, remote: str, well_link: str) -> None:
             print("host status:", host.evaluate("document.getElementById('status')?.textContent"), "| guest:", guest.evaluate("document.getElementById('status')?.textContent"))
             raise
         browser.close()
-        bad = [e for e in errors if "favicon" not in e and "leak=" not in e]
+        # WebKit logs a fetch cut short by leaving the page as failing "access control checks".
+        bad = [e for e in errors if "favicon" not in e and "leak=" not in e and "due to access control checks" not in e]
         assert not bad, f"browser errors: {bad}"
         print(f"{browser_name}: ok")
 

@@ -5,6 +5,7 @@ import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import { Relay } from "../shared/relay.js";
 import { referee } from "../shared/referee.js";
 import { relayUrl, visit } from "../shared/visitor.js";
+import { makeChecker } from "../shared/check.js";
 import { announce, fetchBytes, fetchFile, lookUp, postRelease, publishOwned } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
 import { put, realmStorage } from "./store.js";
@@ -30,7 +31,7 @@ async function firstOf(servers, attempt, signal, nothing) {
 }
 
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
- * @param {{servers: string[], status: (text: string) => void, release?: string, signal: AbortSignal}} ui
+ * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal}} ui
  *   `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
@@ -55,15 +56,36 @@ export async function play(address, character, container, ui) {
   ui.signal.throwIfAborted();
   /** @type {Awaited<ReturnType<typeof visit>> | undefined} */
   let session;
+  /** @type {ReturnType<typeof makeChecker> | undefined} */
+  let checker;
+  /** @type {Awaited<ReturnType<typeof startRules>> | undefined} */
+  let copy;
   const renderer = await startRenderer(
     container,
     code,
     me,
     character.info,
-    (action) => session?.act(action),
+    (action) => {
+      checker?.sent(action);
+      session?.act(action);
+    },
     ui.signal,
   );
   try {
+    if (manifest.main) {
+      // Public rules that are repeatable can be checked: this app runs its own copy and compares.
+      const nothing = { get: () => Promise.resolve(undefined), put: () => Promise.resolve() };
+      const mine = copy = await startRules(container, await fetchFile(manifest.files[manifest.main], server, ui.signal), nothing, ui.signal);
+      if (mine.repeatable) {
+        checker = makeChecker((check, who) => mine.replay(check, who), me, (why) => {
+          console.error(`[check] The referee of ${manifest.name} ${why}.`);
+          ui.status(`Warning: this realm's referee ${why}. It is not following its public rules.`, 60_000);
+        });
+      } else {
+        mine.stop();
+        copy = undefined;
+      }
+    }
     session = await visit({
       servers,
       // Usually the realm itself; another key when the realm gave a referee a pass.
@@ -77,6 +99,7 @@ export async function play(address, character, container, ui) {
         /** @type {any} */ (globalThis).endlessmindLastView = view;
         renderer.show(view);
       },
+      onCheck: checker && ((check, view, hasView, first) => void checker?.state(check, view, hasView, first)),
     });
     ui.signal.throwIfAborted();
     if (!found.online && manifest.main) {
@@ -92,11 +115,13 @@ export async function play(address, character, container, ui) {
       stop() {
         session?.stop();
         renderer.stop();
+        copy?.stop();
       },
     };
   } catch (e) {
     session?.stop();
     renderer.stop();
+    copy?.stop();
     throw e;
   }
 }

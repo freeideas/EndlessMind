@@ -43,7 +43,7 @@ To play from phones and other devices, browsers need a secure (https) address. [
 - **Characters and games are keys.** Each has its own secret key, and whoever holds the key controls it, on any device and any server.
 - **Code that runs on your device is public and sandboxed** (kept away from your files and the network), found by its fingerprint (hash).
 - **A game's rules run with whoever holds its key,** who alone can referee it or speak for it. Rules are usually public, but a maker may keep them private, the way a website keeps its server's code private.
-- **Each game makes its own rules** and acts as the referee inside itself.
+- **Each game makes its own rules** and acts as the referee inside itself. When a game's rules are public and hide nothing, every player's app checks the referee against them, so nobody has to trust whoever hosts.
 - **The network is just a shared way to connect** (a protocol), not an app or a company. Any program that follows it can join.
 
 ## Learn more

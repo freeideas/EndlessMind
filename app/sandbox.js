@@ -41,10 +41,12 @@ function startRules(send, listen) {
       if (m.type === "load") {
         const rules = (await import("data:text/javascript;base64," + btoa(unescape(encodeURIComponent(m.code))))).default;
         driver = await directRules(rules, storage, report);
-        driver.onViews(views => send({type:"views", views}));
+        driver.onViews((views, checks) => send({type:"views", views, checks}));
         driver.onRemove((player, reason) => send({type:"remove", player, reason}));
-        value = driver.ticksPerSecond;
+        value = {rate: driver.ticksPerSecond, repeatable: driver.repeatable};
       } else if (m.type === "enter") value = await driver.enter(m.player, m.character);
+      else if (m.type === "replay") value = driver.replay(m.check, m.me);
+      else if (m.type === "resync") driver.resync(m.player);
       else if (m.type === "act") driver.act(m.player, m.action);
       else if (m.type === "leave") driver.leave(m.player);
       else if (m.type === "step") driver.step();
@@ -152,12 +154,12 @@ function makeFrame(container, script, visible, signal) {
 /** @param {HTMLElement} container @param {string} code @param {import('../shared/referee.js').RealmStorage} storage @param {AbortSignal} [signal] */
 export async function startRules(container, code, storage, signal) {
   const f = makeFrame(container, RULES, false, signal);
-  /** @type {(views: Record<string, unknown>) => void} */
+  /** @type {(views: Record<string, unknown>, checks?: Record<string, unknown>) => void} */
   let onViews = () => {};
   /** @type {(player: string, reason: string) => void} */
   let onRemove = () => {};
   f.listen((m) => {
-    if (m.type === "views") onViews(m.views);
+    if (m.type === "views") onViews(m.views, m.checks);
     if (m.type === "remove") onRemove(m.player, m.reason);
     if (m.type === "storage") {
       (async () => {
@@ -173,9 +175,18 @@ export async function startRules(container, code, storage, signal) {
   });
   try {
     await f.ready;
-    const rate = await f.call({ type: "load", code });
+    const loaded = await f.call({ type: "load", code });
     return {
-      ticksPerSecond: Math.min(Math.max(Number(rate) || 10, 1), 60),
+      ticksPerSecond: Math.min(Math.max(Number(loaded.rate) || 10, 1), 60),
+      repeatable: Boolean(loaded.repeatable),
+      /** @param {string} player */
+      resync(player) {
+        f.post({ type: "resync", player });
+      },
+      /** @param {unknown} check @param {string} me @returns {Promise<unknown>} */
+      replay(check, me) {
+        return f.call({ type: "replay", check, me });
+      },
       /** @param {string} player @param {unknown} character */
       enter(player, character) {
         return f.call({ type: "enter", player, character });
@@ -191,7 +202,7 @@ export async function startRules(container, code, storage, signal) {
       step() {
         f.post({ type: "step" });
       },
-      /** @param {(views: Record<string, unknown>) => void} fn */
+      /** @param {(views: Record<string, unknown>, checks?: Record<string, unknown>) => void} fn */
       onViews(fn) {
         onViews = fn;
       },

@@ -27,6 +27,7 @@ Some realms need their referee run by the host program (see "Hosting without a b
 - **Keep views small** (a few KB): they are signed and sent to every player many times a second.
 - **No network, no outside files** in the renderer or in public rules, which run in a sandbox. Embed images and sounds as `data:` URLs, or draw them. Inline any library you need into the module.
 - **Make sense with one player.** Public rules can be played alone (each player runs their own copy from the release link) or in a room one player hosts for friends, as well as in the maker's lasting realm. Do not assume other players are present, or that saved data from a room lasts.
+- **Make the rules repeatable when you can.** If the realm hides nothing from its players, needs nothing from outside and saves nothing, write the rules so the same moves always give the same state (random numbers from the `seed`, kept in the state; no `async`; no clock) and set `repeatable: true`. Every player's app can then check the referee, so nobody has to trust whoever hosts. See "Checking the referee" in [RUNTIME.md](RUNTIME.md) and the maze example.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
 ## Testing

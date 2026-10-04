@@ -16,10 +16,12 @@ export function relayUrl(server) {
  * one server does not end it.
  * @param {{server?: string, servers?: string[], address: string, keys: CryptoKeyPair, release: string,
  * character: unknown, onView: (view: any) => void, status: (text: string) => void, signal?: AbortSignal,
- * patienceMs?: number}} options  `address` is whoever referees; `patienceMs` is how long silence is borne
+ * patienceMs?: number, onCheck?: (check: unknown, view: unknown, hasView: boolean, first: boolean) => void}} options
+ *   `address` is whoever referees; `patienceMs` is how long silence is borne; `onCheck` receives what a
+ *   referee of repeatable rules sends with each view (see shared/check.js)
  */
 export async function visit(
-  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000 },
+  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck },
 ) {
   const me = await addressOf(keys.publicKey);
   // Offered to the referee so the session can be private (see "Private sessions" in shared/crypto.js).
@@ -104,11 +106,21 @@ export async function visit(
       Number.isSafeInteger(b.seq) && b.seq > seq
     ) {
       // In a private session only locked views count: one that fails to unlock is ignored.
-      const { view } = cipher ? JSON.parse(await unlock(cipher, TO_VISITOR, b.seq, b.box)) : b;
+      const inner = cipher ? JSON.parse(await unlock(cipher, TO_VISITOR, b.seq, b.box)) : b;
       if (stopped || b.session !== session || b.seq <= seq) return;
+      if (onCheck && inner.check && seq && b.seq !== seq + 1) {
+        // A message was lost, and with it moves the checking copy needs: start a fresh session, which
+        // begins from a full copy of the state.
+        forget();
+        enter();
+        return;
+      }
+      const first = seq === 0;
       seq = b.seq;
       lastHeard = Date.now();
-      onView(view);
+      const hasView = Object.hasOwn(inner, "view");
+      if (hasView) onView(inner.view);
+      onCheck?.(inner.check, inner.view, hasView, first);
     }
   }
   const replaced = (/** @type {Event} */ event) => {
