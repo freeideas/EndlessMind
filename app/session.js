@@ -7,14 +7,38 @@ import { referee } from "../shared/referee.js";
 import { relayUrl, visit } from "../shared/visitor.js";
 import { announce, fetchBytes, fetchFile, lookUp, postRelease, publishOwned } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
-import { realmStorage } from "./store.js";
+import { put, realmStorage } from "./store.js";
+
+/**
+ * Try each server in turn and keep the first that has what is asked for.
+ * @template T
+ * @param {string[]} servers @param {(server: string) => Promise<T | null>} attempt @param {AbortSignal} signal @param {string} nothing
+ * @returns {Promise<{ server: string, value: T }>}
+ */
+async function firstOf(servers, attempt, signal, nothing) {
+  let last;
+  for (const server of servers) {
+    try {
+      const value = await attempt(server);
+      if (value) return { server, value };
+    } catch (e) {
+      signal.throwIfAborted();
+      last = e;
+    }
+  }
+  throw servers.length === 1 && last ? last : new Error(nothing);
+}
 
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
- * @param {{server: string, status: (text: string) => void, release?: string, signal: AbortSignal}} ui */
+ * @param {{servers: string[], status: (text: string) => void, release?: string, signal: AbortSignal}} ui
+ *   `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
-  const found = await lookUp(address, ui.server, ui.signal);
-  if (!found) throw new Error("No realm with this address is announced on this server.");
+  const { server, value: found } = await firstOf(ui.servers, (s) => lookUp(address, s, ui.signal), ui.signal,
+    "No realm with this address is announced on the servers this link names.");
+  // The realm's own signed list of where it is: one working hint leads to the rest, now and next time.
+  const servers = [...new Set([server, ...found.servers, ...ui.servers])];
+  put("servers:" + address, servers).catch(() => {});
   if (ui.release && ui.release !== found.release) {
     throw Object.assign(new Error("This link's version has changed."), { code: "release-changed" });
   }
@@ -25,7 +49,7 @@ export async function play(address, character, container, ui) {
       app: manifest.app,
     });
   }
-  const code = await fetchFile(manifest.files[manifest.renderer], ui.server, ui.signal);
+  const code = await fetchFile(manifest.files[manifest.renderer], server, ui.signal);
   const keys = await keyPairForRealm(character.secret, address);
   const me = await addressOf(keys.publicKey);
   ui.signal.throwIfAborted();
@@ -41,7 +65,7 @@ export async function play(address, character, container, ui) {
   );
   try {
     session = await visit({
-      server: ui.server,
+      servers,
       // Usually the realm itself; another key when the realm gave a referee a pass.
       address: found.referee,
       keys,
@@ -63,6 +87,8 @@ export async function play(address, character, container, ui) {
       release: found.release,
       // With public rules, the same release can be played with no referee.
       alone: manifest.main ? found.release : undefined,
+      server,
+      servers,
       stop() {
         session?.stop();
         renderer.stop();
@@ -80,18 +106,20 @@ export async function play(address, character, container, ui) {
  * this app runs the rules and the renderer itself. No referee, no relay, and
  * nothing anyone else can take away.
  * @param {string} release @param {import('./character.js').Character} character @param {HTMLElement} container
- * @param {{server: string, status: (text: string) => void, signal: AbortSignal}} ui
+ * @param {{servers: string[], status: (text: string) => void, signal: AbortSignal}} ui
  */
 async function playAlone(release, character, container, ui) {
-  const body = parseStrictJson(fromUtf8(await fetchBytes(release, ui.server, ui.signal)));
+  const { server, value: bytes } = await firstOf(ui.servers, (s) => fetchBytes(release, s, ui.signal), ui.signal,
+    "None of the servers this link names has this realm.");
+  const body = parseStrictJson(fromUtf8(bytes));
   if (!isManifestBody(body) || !body.main) throw new Error("This link does not name a realm that can be played alone.");
   if (body.needs.length) throw new Error(`Unknown permissions: ${body.needs.join(", ")}`);
   if (!body.renderer) throw Object.assign(new Error(`${body.name} cannot be played in a browser.`), { app: body.app });
   const [rulesCode, code] = await Promise.all(
-    [body.main, body.renderer].map((name) => fetchFile(body.files[name], ui.server, ui.signal)),
+    [body.main, body.renderer].map((name) => fetchFile(body.files[name], server, ui.signal)),
   );
   // Using a release keeps it on the server: posting it again renews it.
-  postRelease(body, ui.server).catch(() => {});
+  postRelease(body, server).catch(() => {});
   const me = await addressOf((await keyPairForRealm(character.secret, release)).publicKey);
   ui.signal.throwIfAborted();
   const rules = await startRules(container, rulesCode, realmStorage(release), ui.signal);
@@ -120,7 +148,7 @@ async function playAlone(release, character, container, ui) {
     timer = setInterval(() => rules.step(), 1000 / rules.ticksPerSecond);
     ui.signal.addEventListener("abort", stop, { once: true });
     ui.status(`You are in ${body.name}, playing your own copy.`);
-    return { name: body.name, release, alone: release, source: { body, files: { [body.main]: rulesCode } }, stop };
+    return { name: body.name, release, alone: release, server, servers: [server], source: { body, files: { [body.main]: rulesCode } }, stop };
   } catch (e) {
     stop();
     throw e;

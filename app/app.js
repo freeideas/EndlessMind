@@ -34,10 +34,11 @@ function el(tag, attrs = {}, children = []) {
 /**
  * A link people can share. The key names the realm but says nothing about
  * where it is, so the link carries a hint: the server it is announced on.
- * @param {string} address @param {string} [release] @param {string} [origin]
+ * @param {string} address @param {string} [release] @param {string | string[]} [origin] one server, or all that are known
  */
 function realmLink(address, release, origin = selectedServer) {
-  return `${location.origin}/#emind:${address}?via=${encodeURIComponent(origin)}` + (release ? `&release=${release}` : "");
+  const via = [origin].flat().map(encodeURIComponent).join(",");
+  return `${location.origin}/#emind:${address}?via=${via}` + (release ? `&release=${release}` : "");
 }
 
 /** @param {string} text */
@@ -185,7 +186,15 @@ async function showRealm(address, release, via = []) {
     return;
   }
   noteEntering(address);
-  const server = via[0] ? serverOrigin(via[0]) : selectedServer;
+  // The link's hints first, then servers this app remembers for the realm, then the chosen server.
+  /** @type {string[]} */
+  let servers = [];
+  for (const hint of [...via, ...(await get("servers:" + address).catch(() => []) ?? []), selectedServer]) {
+    try { servers.push(serverOrigin(hint)); } catch { /* ignore a malformed hint */ }
+  }
+  servers = [...new Set(servers)];
+  let server = servers[0];
+  if (controller.signal.aborted) return;
   $("home").hidden = true;
   $("realm").hidden = false;
   $("copy-link").hidden = false;
@@ -194,13 +203,14 @@ async function showRealm(address, release, via = []) {
   $("start-room").hidden = true;
   $("more-realms").hidden = false;
   $("realm-name").textContent = "";
-  $("copy-link").onclick = () => copy(realmLink(address, undefined, server));
-  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, server));
+  $("copy-link").onclick = () => copy(realmLink(address, undefined, servers));
+  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, servers));
   const stage = $("stage");
   stage.replaceChildren();
   try {
-    const opened = current = await play(address, character, stage, { status, server, release, signal:controller.signal });
+    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal });
     $("realm-name").textContent = opened.name;
+    ({ server, servers } = opened);
     // Public rules need no referee: anyone may run their own copy, or referee a room for friends.
     $("play-alone").hidden = !opened.alone || opened.alone === address;
     $("play-alone").onclick = () => { location.hash = `emind:${opened.alone}?via=${encodeURIComponent(server)}`; };
@@ -226,10 +236,6 @@ async function showRealm(address, release, via = []) {
       // Only the https address the realm's own key signed, and only as a link the player chooses to follow.
       message.append(` It is played in its own app, ${app.name}: `, el("a", { href: app.url, rel: "noopener" }, [app.url]),
         ". A program you install runs outside any sandbox and can do anything on your computer, so get it only if you trust this realm's maker.");
-    }
-    for (const hint of via.slice(1)) {
-      try { const origin = serverOrigin(hint); message.append(" ", el("a", {href:realmLink(address, release, origin)}, [`Try ${origin}`])); }
-      catch { /* ignore malformed optional hints */ }
     }
     stage.replaceChildren(message);
   }

@@ -112,7 +112,7 @@ These are the "entering and leaving" extension (prefix `emind.`), carried in sig
 - `emind.ping`, visitor to realm: `{ session }`, every five seconds.
 - `emind.leave`, visitor to realm: `{ session }`, ending this session.
 
-Every message is signed and checked against the expected sender and receiver. Referees ignore messages for other sessions. Repeated entry requests do not run a pending `enter` twice. Visitors receiving no view for 15 seconds begin a fresh handshake; referees remove visitors unheard from for 20 seconds. The owner joins through this same path. Navigation cancels unfinished startup and disposes the visitor's frame, connection, timers and listeners; hosting is a separate lifetime.
+Every message is signed and checked against the expected sender and receiver. Referees ignore messages for other sessions. Repeated entry requests do not run a pending `enter` twice. Visitors receiving no view for 15 seconds begin a fresh handshake, on the realm's next server if it has several; referees remove visitors unheard from for 20 seconds. The owner joins through this same path. Navigation cancels unfinished startup and disposes the visitor's frame, connection, timers and listeners; hosting is a separate lifetime.
 
 Messages are signed but not encrypted to the receiver. Session IDs distinguish running copies; they do not establish a worldwide winner between two holders of the same realm key. This draft session extension replaces the earlier unscoped messages. Update both visitors and referees together; keys and source modules remain usable.
 

@@ -173,3 +173,42 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     assert(refused.includes("older than the one kept"), refused);
     await new Promise((r) => setTimeout(r, 50));
   }));
+
+Deno.test("a realm refereed on two servers survives the loss of one", async () => {
+  const dir = await Deno.makeTempDir();
+  const a = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/a` });
+  const b = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/b` });
+  const [baseA, baseB] = [a, b].map((s) => `http://127.0.0.1:${s.port}`);
+  let down = false;
+  try {
+    const host = await startHost({ server: `${baseA},${baseB}`, realmDir: "examples/maze-chase", keysFile: `${dir}/maze.json`, log: () => {} });
+    assert(host.link.includes(encodeURIComponent(baseB)), "the link names both servers");
+    // Either server alone tells a visitor about the other.
+    const found = await checkAnnouncement((await (await fetch(`${baseB}/announce/${host.address}`)).json()).announcement);
+    assertEquals(/** @type {any} */ (found?.announcement.body).servers, [baseA, baseB]);
+
+    /** @type {any[]} */
+    const views = [];
+    const visitor = await connectVisitor({
+      servers: [baseA, baseB], address: host.address, keys: await generateKeyPair(), release: await releaseOf(/** @type {any} */ (found?.announcement.body).manifest),
+      character: { name: "Tester" }, onView: (v) => views.push(v), status: () => {}, patienceMs: 600,
+    });
+    const until = async (/** @type {() => boolean} */ test) => {
+      for (let i = 0; i < 200 && !test(); i++) await new Promise((r) => setTimeout(r, 50));
+      assert(test(), "no view arrived");
+    };
+    await until(() => views.length > 0);
+    await a.shutdown();
+    down = true;
+    await new Promise((r) => setTimeout(r, 300));
+    views.length = 0;
+    await until(() => views.length > 0);
+    visitor.stop();
+    host.stop();
+    await new Promise((r) => setTimeout(r, 100));
+  } finally {
+    if (!down) await a.shutdown();
+    await b.shutdown();
+    await Deno.remove(dir, { recursive: true });
+  }
+});

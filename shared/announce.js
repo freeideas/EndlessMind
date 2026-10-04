@@ -95,6 +95,8 @@ function isApp(app) {
  * @property {string} name
  * @property {string[]} tags
  * @property {number} expires  milliseconds since 1970
+ * @property {string[]} [servers]  web addresses of every server the realm is refereed on, so one
+ *                                working hint leads to the rest
  * @property {import("./envelope.js").Envelope} [pass]  present when a referee key, not the realm's
  *                                own key, signed this announcement (see makePass)
  */
@@ -127,10 +129,11 @@ export function makeManifest(realmKeys, body) {
 /**
  * @param {CryptoKeyPair} realmKeys
  * @param {import("./envelope.js").Envelope} manifest
- * @param {number} [lifetimeMs]  shorter for a room, which is gone when its host leaves
- * @param {import("./envelope.js").Envelope} [pass]  when the keys are a referee key the realm gave a pass to
+ * @param {{ lifetimeMs?: number, pass?: import("./envelope.js").Envelope, servers?: string[] }} [options]
+ *   `lifetimeMs` is shorter for a room, which is gone when its host leaves; `pass` is given when the keys
+ *   are a referee key the realm gave a pass to; `servers` lists every server the realm is refereed on
  */
-export function makeAnnouncement(realmKeys, manifest, lifetimeMs = ANNOUNCEMENT_LIFETIME_MS, pass) {
+export function makeAnnouncement(realmKeys, manifest, { lifetimeMs = ANNOUNCEMENT_LIFETIME_MS, pass, servers } = {}) {
   const m = /** @type {ManifestBody} */ (manifest.body);
   /** @type {AnnouncementBody} */
   const body = {
@@ -139,6 +142,7 @@ export function makeAnnouncement(realmKeys, manifest, lifetimeMs = ANNOUNCEMENT_
     tags: m.tags,
     expires: Math.min(Date.now() + lifetimeMs, pass ? /** @type {any} */ (pass.body).expires : Infinity),
     ...(pass ? { pass } : {}),
+    ...(servers?.length ? { servers } : {}),
   };
   return seal(realmKeys, null, "announce", body);
 }
@@ -169,6 +173,12 @@ export async function checkPass(value) {
   return { realm: pass.from, referee: body.referee, expires: body.expires, time: pass.time };
 }
 
+/** @param {unknown} servers @returns {servers is string[]} */
+function isServerList(servers) {
+  return Array.isArray(servers) && servers.length <= 8 &&
+    servers.every((s) => typeof s === "string" && s.length <= 300 && /^https?:\/\/[^\s\/?#]+$/.test(s));
+}
+
 /** @param {unknown} tags @returns {tags is string[]} */
 function isTagList(tags) {
   return Array.isArray(tags) && tags.length <= 32 &&
@@ -191,6 +201,7 @@ export async function checkAnnouncement(value) {
   // A note may not outlive the usual lifetime (plus a day for clocks that differ).
   if (body.expires > Date.now() + ANNOUNCEMENT_LIFETIME_MS + 24 * 60 * 60 * 1000) return null;
   if (typeof body.name !== "string" || body.name.length > MAX_NAME || !isTagList(body.tags)) return null;
+  if (body.servers !== undefined && !isServerList(body.servers)) return null;
   let realm = announcement.from, authority = announcement.time;
   if (body.pass !== undefined) {
     const pass = await checkPass(body.pass);

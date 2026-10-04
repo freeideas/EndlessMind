@@ -94,7 +94,7 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 - **Saving.** The app keeps keys, manifests and original published file bytes locally before uploading copies. "Save my keys" exports identities without network access; "Save full backup" adds local files and committed realm storage. The backup is not locked with a passphrase. Files remain bytes, encoded as base64 only in JSON backups.
 - **Moving a realm.** Import a full backup into another trusted app, or give it to the host program, then explicitly publish or start hosting. To change helper servers, the same app can connect to the new one without moving keys. Realm data moves only if the rules saved it and the backup includes it. Private rules still need their source folder.
 - **Keeping the realm's key off the machine that referees.** A machine that is always on and reachable is the one most likely to be broken into. The realm's key can instead sign a referee pass: another key may referee until a date. Only the pass goes to the always-on machine. A stolen pass can be replaced by a newer one and runs out anyway, so theft of the online key is a setback, not the loss of the realm. Only the realm's own key, which can stay offline, is beyond recovery if copied. The host program makes and uses passes ([RUNNING.md](RUNNING.md)); a browser tab that hosts still uses the realm's own key.
-- **Two holders online at once.** A later claim on one helper server replaces the earlier connection, which loses both delivery and sending permission. Different servers may select different holders and histories. There is no worldwide election or guarantee of one official running copy. Session identifiers distinguish running copies; ownership remains whoever holds the key.
+- **Two holders online at once.** A later claim on one helper server replaces the earlier connection, which loses both delivery and sending permission. A realm refereed on several servers at once is one holder with several connections. Different holders on different servers may still produce different histories. There is no worldwide election or guarantee of one official running copy. Session identifiers distinguish running copies; ownership remains whoever holds the key.
 - **When no referee is online,** nothing official happens until a key holder returns. A realm with public rules can still be played alone or in a room, from its release.
 
 ## How it fits together
@@ -117,7 +117,7 @@ Playing needs only a link; agents are for making things.
 
 1. Open the link in a trusted app. A player can paste a shared link into "Open here" in their existing app.
 2. The app finds the player's character, or makes one in about a second (random name and look, editable later).
-3. The app contacts the first server hint directly. If opening fails, it offers the other hints. Neither step moves the character secret.
+3. The app contacts the link's server hints directly, in turn, then any servers it remembers for the realm. None of this moves the character secret.
 4. The app fetches the realm's files by hash, checks them, runs the renderer in a sandbox, and asks the referee to let the character in.
 5. The realm's rules read the character's description (name, color, a sentence such as "a small fox knight who carries a lantern"), use what they understand, and make an in-realm form.
 6. The player acts, the referee updates the state, the renderer draws each new view.
@@ -128,6 +128,7 @@ No realm code is ever added to the character, so a hostile realm cannot damage i
 
 - **Realms announce themselves on servers,** signed by the realm's key, with tags ("maze"). Each server keeps what it is sent. Servers do not talk to each other and there is no shared lookup table, so an address alone does not say where a realm is: links carry the servers where it is announced as hints.
 - **The app's "More realms" menu** searches the current server by tag and shows which realms are online. Releases with no key are listed too and always count as online.
+- **No server is worth attacking.** A torrent survives because no tracker matters. The same holds here when a realm is on several servers: the host program referees on all of them at once, the realm's signed announcement lists them, and a visit moves to the next when one goes quiet. A server can then be crude, full, selfish (serving only keys its operator knows) or gone, and the realm carries on elsewhere. A browser tab that hosts uses one server.
 - **Anything else is built by others:** directories and lists of links. None is official. A realm cannot send a player on to another realm; only the app's menu and links do that.
 
 ## Running in the browser: limits to design around

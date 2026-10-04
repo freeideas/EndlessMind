@@ -95,7 +95,7 @@ export async function upload(name, bytes, server = location.origin) {
 
 /** @param {{keys: CryptoKeyPair, manifest: import("../shared/envelope.js").Envelope}} realm @param {string} [server] @param {number} [lifetimeMs] */
 export async function announce(realm, server = location.origin, lifetimeMs) {
-  const announcement = await makeAnnouncement(realm.keys, realm.manifest, lifetimeMs);
+  const announcement = await makeAnnouncement(realm.keys, realm.manifest, { lifetimeMs, servers: [server] });
   const response = await fetch(new URL("/announce", server), {
     method: "POST",
     body: JSON.stringify(announcement),
@@ -125,6 +125,7 @@ export async function lookUp(address, server = location.origin, signal) {
   return {
     manifest: checked.manifest,
     referee: checked.referee,
+    servers: /** @type {string[]} */ (reply.announcement.body.servers ?? []),
     online: Boolean(reply.online),
     release: await releaseOf(reply.announcement.body.manifest),
   };

@@ -270,7 +270,11 @@ def regressions(browser, base, remote):
     wait_for(lambda: page.locator('#owned .host-toggle').inner_text() == 'Stop hosting')
     page.click('#owned a')
     wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
-    link = page.url
+    link = page.evaluate('location.href')
+    # A dead server named first in a link is skipped: the app tries each hint in turn.
+    moved.goto(link.replace('via=', 'via=http%3A%2F%2Flocalhost%3A9,'))
+    wait_for(lambda: moved.evaluate('globalThis.endlessmindLastView?.count') == 1, what='opening past a dead server hint')
+    moved.goto(base + '/#')
     page.goto(base + '/#')
     page.click('#owned .host-toggle')
     wait_for(lambda: page.locator('#owned .host-toggle').inner_text() == 'Start hosting')

@@ -162,3 +162,62 @@ export class Relay extends EventTarget {
     }
   }
 }
+
+/**
+ * Several servers at once, for a referee: no one server then holds a realm's
+ * life in its hands. It looks like one Relay. A reply goes back through the
+ * server its receiver was last heard on.
+ */
+export class Relays extends EventTarget {
+  /** @param {string[]} urls WebSocket addresses */
+  constructor(urls) {
+    super();
+    this.relays = urls.map((url) => new Relay(url));
+    /** Where each sender was last heard. @type {Map<string, Relay>} */
+    this.routes = new Map();
+    for (const relay of this.relays) {
+      relay.addEventListener("message", (event) => {
+        const envelope = /** @type {CustomEvent<Envelope>} */ (event).detail;
+        // Re-insert so the map stays in order of last use, and forget the least recent when it grows.
+        this.routes.delete(envelope.from);
+        this.routes.set(envelope.from, relay);
+        if (this.routes.size > 10_000) this.routes.delete(/** @type {string} */ (this.routes.keys().next().value));
+        this.dispatchEvent(new CustomEvent("message", { detail: envelope }));
+      });
+      relay.addEventListener("replaced", (event) => {
+        this.dispatchEvent(new CustomEvent("replaced", { detail: /** @type {CustomEvent} */ (event).detail }));
+      });
+    }
+  }
+
+  /** Enough that one server answers; the others are joined when they come back. @param {Promise<unknown>[]} tries */
+  static async #any(tries) {
+    const results = await Promise.allSettled(tries);
+    const failed = results.find((r) => r.status === "rejected");
+    if (failed && results.every((r) => r.status === "rejected")) throw /** @type {PromiseRejectedResult} */ (failed).reason;
+  }
+
+  connect() {
+    return Relays.#any(this.relays.map((r) => r.connect()));
+  }
+
+  /** @param {CryptoKeyPair} keyPair */
+  async addKey(keyPair) {
+    await Relays.#any(this.relays.map((r) => r.addKey(keyPair)));
+    return addressOf(keyPair.publicKey);
+  }
+
+  /** @param {CryptoKeyPair} from @param {string} to @param {string} kind @param {unknown} body */
+  send(from, to, kind, body) {
+    return (this.routes.get(to) ?? this.relays[0]).send(from, to, kind, body);
+  }
+
+  /** @param {string} address */
+  release(address) {
+    for (const relay of this.relays) relay.release(address);
+  }
+
+  close() {
+    for (const relay of this.relays) relay.close();
+  }
+}

@@ -27,7 +27,7 @@ import { checkAnnouncement, checkPass, makeAnnouncement, makeManifest, makePass,
 import { addressOf, hashOf, keyPairFromSecret, newPortableKey } from "../shared/crypto.js";
 import { canonicalJson } from "../shared/encoding.js";
 import { directRules, referee } from "../shared/referee.js";
-import { Relay } from "../shared/relay.js";
+import { Relays } from "../shared/relay.js";
 import { KEY_FORMAT, bundleFiles, checkKeyFormat, encodeFile } from "../shared/bundle.js";
 import { fileStorage } from "./storage.js";
 
@@ -35,7 +35,7 @@ const FORMAT = KEY_FORMAT;
 
 /**
  * @typedef {object} HostOptions
- * @property {string} server      the helper server's web address, e.g. "https://example.org"
+ * @property {string} server      the helper server's web address, e.g. "https://example.org"; several, separated by commas
  * @property {string} [realmDir]  folder holding realm.json and the realm's files
  * @property {string} keysFile    key file to read, and (with realmDir) to write
  * @property {string} [address]   which realm in the key file, if it holds several
@@ -115,7 +115,10 @@ async function loadRealm(options) {
 /** @param {HostOptions} options */
 export async function startHost(options) {
   const log = options.log ?? console.log;
-  const server = new URL(options.server);
+  // Several servers, separated by commas: the realm is refereed on all of them at once, so no one server
+  // holds its life in its hands.
+  const servers = options.server.split(",").map((s) => new URL(s.trim()));
+  const origins = servers.map((s) => s.origin);
   const { manifest, keys, pass, rulesModule, files, keyFile } = await loadRealm(options);
 
   // The realm is known by its own key's address, whichever key referees.
@@ -124,35 +127,41 @@ export async function startHost(options) {
   for (const [name, hash] of Object.entries(body.files)) {
     if (!files[name] || await hashOf(files[name]) !== hash) throw new Error(`Missing or changed file: ${name}`);
   }
-  /** @param {unknown} note */
-  async function post(note) {
-    const reply = await fetch(new URL("/announce", server), { method: "POST", body: JSON.stringify(note) });
-    if (!reply.ok) throw new Error(`Announcing failed: ${(await reply.json()).error}`);
+  /** @param {URL} server @param {string} path @param {string} method @param {BodyInit} content @param {string} what */
+  async function put(server, path, method, content, what) {
+    const reply = await fetch(new URL(path, server), { method, body: content });
+    if (!reply.ok) throw new Error(`${what} failed on ${server.origin}: ${(await reply.json()).error}`);
     await reply.body?.cancel();
   }
-  async function announce() {
-    await post(await makeAnnouncement(keys, manifest, undefined, pass));
+  /** Announce on one server, and give it the files if asked. @param {URL} server @param {boolean} withFiles */
+  async function publish(server, withFiles) {
+    // A server takes only files that an announced realm lists, so announce first.
+    await put(server, "/announce", "POST", JSON.stringify(await makeAnnouncement(keys, manifest, { pass, servers: origins })), "Announcing");
     // With public rules the release also stands without the key: anyone can play their own copy.
-    if (body.main) await post(body);
+    if (body.main) await put(server, "/announce", "POST", JSON.stringify(body), "Announcing");
+    if (!withFiles) return;
+    for (const [name, hash] of Object.entries(body.files)) await put(server, `/blob/${hash}`, "PUT", files[name], `Upload of ${name}`);
   }
-  // A server takes only files that an announced realm lists, so announce first.
-  await announce();
-  for (const [name, hash] of Object.entries(body.files)) {
-    const reply = await fetch(new URL(`/blob/${hash}`, server), { method: "PUT", body: files[name] });
-    if (!reply.ok) throw new Error(`Upload of ${name} failed: ${(await reply.json()).error}`);
-    await reply.body?.cancel();
+  /** Enough that one server takes it; the rest are told again at the next renewal. @param {boolean} withFiles */
+  async function everywhere(withFiles) {
+    const results = await Promise.allSettled(servers.map((server) => publish(server, withFiles)));
+    const failed = /** @type {PromiseRejectedResult[]} */ (results.filter((r) => r.status === "rejected"));
+    if (failed.length === servers.length) throw failed[0].reason;
+    for (const f of failed) log(String(f.reason));
   }
+  await everywhere(true);
 
   const entry = keyFile.realms.find(r => r.address === address)?.entry;
   const storage = await fileStorage(`${options.keysFile}.${address}.state.json`, entry?.storage);
   const rules = await directRules(rulesModule, storage);
-  const relay = new Relay(`${server.protocol === "https:" ? "wss" : "ws"}://${server.host}/ws`);
+  const relay = new Relays(servers.map((server) => `${server.protocol === "https:" ? "wss" : "ws"}://${server.host}/ws`));
   let ref;
   try {
     await relay.connect();
-    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay, announce, status: log, onStop:() => relay.close() });
+    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay,
+      announce: () => everywhere(true), status: log, onStop:() => relay.close() });
   } catch (e) { rules.stop(); relay.close(); throw e; }
-  const link = `${server.origin}/#emind:${address}?via=${encodeURIComponent(server.origin)}`;
+  const link = `${origins[0]}/#emind:${address}?via=${origins.map(encodeURIComponent).join(",")}`;
   const until = pass ? `, under a pass that runs out on ${new Date(/** @type {any} */ (pass.body).expires).toDateString()}` : "";
   log(`Hosting ${body.name}${body.main ? "" : " (private rules)"}${until}: ${link}`);
   return {
@@ -182,7 +191,7 @@ async function readKeyFile(path) {
   for (const entry of Array.isArray(raw.realms) ? raw.realms : []) {
     const keys = await keyPairFromSecret(entry.secret);
     if (entry.pass && !await checkPass(entry.pass)) throw new Error("A referee pass in this file has run out. Make a new one where the realm's key is kept.");
-    if (!await checkAnnouncement(await makeAnnouncement(keys, entry.manifest, undefined, entry.pass))) throw new Error("A realm does not match its key.");
+    if (!await checkAnnouncement(await makeAnnouncement(keys, entry.manifest, { pass: entry.pass }))) throw new Error("A realm does not match its key.");
     const files = await bundleFiles(raw, entry);
     entry.files = Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)]));
     realms.push({ address: entry.manifest.from, name: String(entry.manifest?.body?.name), secret: entry.secret, entry });

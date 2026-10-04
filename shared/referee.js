@@ -1,7 +1,7 @@
 // One referee and one session path for every visitor, including its owner.
 import { randomId } from "./encoding.js";
 
-/** @typedef {import("./relay.js").Relay} Relay */
+/** @typedef {import("./relay.js").Relay | import("./relay.js").Relays} Relay */
 /** @typedef {import("./envelope.js").Envelope} Envelope */
 /** @typedef {{get: (key: string) => Promise<any>, put: (key: string, value: unknown) => Promise<unknown>}} RealmStorage */
 /**
