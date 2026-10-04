@@ -3,7 +3,7 @@
 // app and the host program share it.
 
 import { addressOf, sign } from "./crypto.js";
-import { parseStrictJson } from "./encoding.js";
+import { MAX_MESSAGE_BYTES, parseStrictJson } from "./encoding.js";
 import { open, ReplayGuard, seal } from "./envelope.js";
 
 /** @typedef {import("./envelope.js").Envelope} Envelope */
@@ -25,6 +25,10 @@ export class Relay extends EventTarget {
     this.replays = new ReplayGuard();
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     this.reconnectTimer = undefined;
+    /** Messages leave in the order send() was called. @type {Promise<unknown>} */
+    this.sending = Promise.resolve();
+    /** Messages are handled in the order they arrive. @type {Promise<unknown>} */
+    this.receiving = Promise.resolve();
   }
 
   /** Connect (or reconnect) and re-claim every address. */
@@ -44,7 +48,10 @@ export class Relay extends EventTarget {
         }
       };
       socket.onerror = () => reject(new Error("cannot reach the server"));
-      socket.onmessage = (event) => this.#onMessage(event.data);
+      // One at a time: checking a large message must not let a later small one overtake it.
+      socket.onmessage = (event) => {
+        this.receiving = this.receiving.then(() => this.#onMessage(event.data)).catch(console.error);
+      };
       socket.onclose = () => {
         clearTimeout(deadline);
         reject(new Error("The connection closed"));
@@ -94,13 +101,26 @@ export class Relay extends EventTarget {
   }
 
   /**
-   * Sign and send a message.
+   * Sign and send a message. The body is copied when this is called, and
+   * messages leave in the order of the calls, however long each takes to sign.
+   * Rejects if the message is too large for a relay to carry.
    * @param {CryptoKeyPair} from @param {string} to @param {string} kind @param {unknown} body
+   * @returns {Promise<Envelope>}
    */
-  async send(from, to, kind, body) {
-    const envelope = await seal(from, to, kind, body);
-    this.#raw({ type: "send", envelope });
-    return envelope;
+  send(from, to, kind, body) {
+    const sealed = seal(from, to, kind, body);
+    sealed.catch(() => {});
+    const sent = this.sending.then(async () => {
+      const envelope = await sealed;
+      const text = JSON.stringify({ type: "send", envelope });
+      if (text.length > MAX_MESSAGE_BYTES) {
+        throw new Error(`A ${kind} message of ${text.length} characters is over the limit of ${MAX_MESSAGE_BYTES} and was not sent.`);
+      }
+      if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(text);
+      return envelope;
+    });
+    this.sending = sent.catch(() => {});
+    return sent;
   }
 
   /** @param {unknown} message */

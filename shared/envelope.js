@@ -29,13 +29,16 @@ export const PROTOCOL_VERSION = "emind/0";
  * @returns {Promise<Envelope>}
  */
 export async function seal(keyPair, to, kind, body, fixed = {}) {
+  // Copy the body as plain JSON before anything waits, so what is signed is
+  // what the caller passed at this moment and exactly what travels as text.
+  const copy = JSON.parse(JSON.stringify(body ?? null) ?? "null");
   const unsigned = {
     v: PROTOCOL_VERSION,
     id: fixed.id ?? randomId(),
     from: await addressOf(keyPair.publicKey),
     to,
     kind,
-    body: structuredClone(body ?? null),
+    body: copy,
     time: fixed.time ?? Date.now(),
   };
   return { ...unsigned, sig: await sign(keyPair.privateKey, "envelope", canonicalJson(unsigned)) };
@@ -52,7 +55,8 @@ export async function seal(keyPair, to, kind, body, fixed = {}) {
 export async function open(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const { sig, ...unsigned } = /** @type {Record<string, unknown>} */ (value);
-  if (typeof unsigned.v !== "string" || !unsigned.v.startsWith("emind/")) return null;
+  // Another version may mean something else by the same fields, so it is not understood here.
+  if (unsigned.v !== PROTOCOL_VERSION) return null;
   if (typeof unsigned.id !== "string" || unsigned.id.length < 16 || unsigned.id.length > 64) return null;
   if (!isAddress(unsigned.from)) return null;
   if (unsigned.to !== null && !isAddress(unsigned.to)) return null;

@@ -235,3 +235,46 @@ Deno.test("visitor accepts only its session and increasing view numbers", async 
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test("messages are copied when sent, leave in order, and oversize ones are reported", async () => {
+  const { Relay } = await import("../shared/relay.js");
+  const { relayUrl } = await import("../shared/visitor.js");
+  const { open, seal } = await import("../shared/envelope.js");
+  const dir = await Deno.makeTempDir();
+  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: dir });
+  const a = new Relay(relayUrl(`http://127.0.0.1:${s.port}`)), b = new Relay(a.url);
+  try {
+    const sender = await newPortableKey(), receiver = await newPortableKey();
+    await Promise.all([a.connect(), b.connect()]);
+    await a.addKey(sender.keys);
+    const to = await b.addKey(receiver.keys);
+    /** @type {any[]} */
+    const got = [];
+    b.addEventListener("message", (e) => got.push(/** @type {CustomEvent} */ (e).detail.body));
+
+    // A change made after the call must not reach the receiver.
+    const state = { score: 1 };
+    const first = a.send(sender.keys, to, "x.view", state);
+    state.score = 2;
+    // A large message followed by a small one: the small one must not overtake it.
+    const big = a.send(sender.keys, to, "x.act", { n: 1, pad: "x".repeat(150_000) });
+    const small = a.send(sender.keys, to, "x.act", { n: 2 });
+    let refused = "";
+    await a.send(sender.keys, to, "x.view", "x".repeat(300_000)).catch((e) => refused = String(e));
+    await Promise.all([first, big, small]);
+    for (let i = 0; i < 50 && got.length < 3; i++) await delay();
+    assertEquals(got.map((m) => m.score ?? m.n), [1, 1, 2]);
+    assert(refused.includes("over the limit"), "an oversize message must be reported to its sender");
+
+    // A value JSON writes differently from how it is held (a Date) is signed as it travels.
+    const dated = await seal(sender.keys, to, "x.view", { at: new Date(0) });
+    assertEquals((await open(JSON.parse(JSON.stringify(dated))))?.body, { at: "1970-01-01T00:00:00.000Z" });
+    assertEquals(await open({ ...dated, v: "emind/1" }), null, "an unknown version is not read as version 0");
+  } finally {
+    a.close();
+    b.close();
+    await delay();
+    await s.shutdown();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
