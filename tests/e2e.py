@@ -178,6 +178,15 @@ def alone_and_room(browser, base, link):
     seen.goto(one.evaluate('location.href'))
     wait_for(lambda: '@' in seen.frame_locator('iframe.renderer').locator('pre').inner_text(), what='the text look from a link')
     seen.context.close()
+    # The data itself: exactly what the realm sends this actor, whatever its own renderer chooses to draw.
+    one.select_option('#look', label='The data itself')
+    wait_for(lambda: '"grid"' in one.frame_locator('iframe.renderer').locator('pre').inner_text(), what='the raw data')
+    # A renderer from the actor's own device, showing what the realm's own does not. It is kept for this realm.
+    one.set_input_files('#look-file', {'name': 'mine.js', 'mimeType': 'text/javascript', 'buffer':
+        b"export default { start(root, game) { game.onView(v => root.textContent = 'EVERY SCORE ' + v.actors.map(a => a.score)); } };"})
+    wait_for(lambda: 'EVERY SCORE' in one.frame_locator('iframe.renderer').locator('body').inner_text(), what='the actor\'s own renderer')
+    one.reload()
+    wait_for(lambda: 'EVERY SCORE' in one.frame_locator('iframe.renderer').locator('body').inner_text(), what='the chosen look remembered')
     one.select_option('#look', label='Its own look')
     wait_for(lambda: one.frame_locator('iframe.renderer').locator('canvas').count() == 1, what='the realm\'s own look again')
     one.locator('#play-alone').click()

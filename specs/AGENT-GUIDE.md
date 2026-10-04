@@ -32,6 +32,10 @@ Some realms need their referee run by the host program (see "Hosting without a b
 - **Views are for any renderer.** The rules send plain data and never assume how it is drawn. The actor may choose another look: one you offer under `renderers` in `realm.json` (a text-only one helps screen readers and is quick to write), or one someone else made.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
+## A renderer for someone else's realm
+
+A person may ask only for a different look at a realm they play: "show me every runner's score", "make it text only". That needs one file, a renderer module as described in [RUNTIME.md](RUNTIME.md), and nothing from the realm's maker. Have them open the realm, choose **The data itself** in the portal's **Look** menu, and tell you what the views contain (or read the realm's public rules). Write the renderer for exactly that data, and have them choose **A file on this device** in the same menu. The portal keeps it for that realm. A renderer can show anything the realm sends and send any move the rules accept; it cannot see what the realm does not send.
+
 ## Testing
 
 The rules are plain JavaScript, so you can test them directly with Deno (install with `brew install deno` or `winget install DenoLand.Deno`), as [tests/maze_test.js](../tests/maze_test.js) does:

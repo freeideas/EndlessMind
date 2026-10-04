@@ -17,22 +17,50 @@ import { put, realmStorage } from "./store.js";
  * How a realm looks is the actor's choice: the realm's own renderer, another the realm offers, or any
  * renderer a link names by its hash. Whatever is chosen runs in the same sandbox and gets the same views.
  * @param {import("../shared/announce.js").ManifestBody} manifest @param {string} server
- * @param {{ renderer?: string, status: (text: string, ms?: number) => void, signal: AbortSignal }} ui
+ * @param {{ renderer?: string, localLook?: { name: string, code: string }, status: (text: string, ms?: number) => void, signal: AbortSignal }} ui
+ *   `renderer` is a file hash, "raw" for the data itself, or "local" for `localLook`, a renderer from the actor's own device
  */
 async function chooseRenderer(manifest, server, ui) {
   const own = manifest.renderer ? manifest.files[manifest.renderer] : undefined;
   const looks = [
     ...(own ? [{ label: "Its own look", hash: own }] : []),
     ...Object.entries(manifest.renderers ?? {}).map(([label, file]) => ({ label, hash: manifest.files[file] })),
+    ...(ui.localLook ? [{ label: `My own: ${ui.localLook.name}`, hash: "local" }] : []),
+    { label: "The data itself", hash: "raw" },
   ];
-  const look = isHash(ui.renderer) ? ui.renderer : own;
+  const asked = ui.renderer === "raw" || (ui.renderer === "local" && ui.localLook) || isHash(ui.renderer) ? ui.renderer : undefined;
+  const look = asked ?? own;
   if (!look) throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), { portal: manifest.portal });
   if (!looks.some((l) => l.hash === look)) {
     looks.push({ label: "From the link", hash: look });
     ui.status("This link shows the realm with a look its maker did not supply. It is sandboxed like any other, but it decides what you see and which moves it sends.", 12_000);
   }
-  return { code: await fetchFile(look, server, ui.signal), look, looks };
+  const code = look === "raw" ? RAW : look === "local" ? /** @type {{ code: string }} */ (ui.localLook).code : await fetchFile(look, server, ui.signal);
+  return { code, look, looks };
 }
+
+/**
+ * A renderer that shows a realm's views exactly as they arrive, and sends any move typed in. It is how to see
+ * what a realm really reveals, and the place to start when writing a renderer of one's own.
+ */
+const RAW = `export default { start(root, game) {
+  root.style.cssText = "display:flex;flex-direction:column;height:100%;font:13px ui-monospace,monospace";
+  const data = document.createElement("pre");
+  data.style.cssText = "flex:1;margin:0;padding:8px;overflow:auto;white-space:pre-wrap";
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:6px;padding:6px";
+  const move = document.createElement("input");
+  move.placeholder = 'A move, as JSON, for example {"dir":"up"}';
+  move.style.cssText = "flex:1;font:inherit";
+  const send = document.createElement("button");
+  send.textContent = "Send move";
+  const go = () => { try { game.act(JSON.parse(move.value)); move.value = ""; } catch { move.select(); } };
+  send.onclick = go;
+  move.onkeydown = (e) => { if (e.key === "Enter") go(); };
+  row.append(move, send);
+  root.append(data, row);
+  game.onView((view) => { data.textContent = JSON.stringify(view, null, 1); });
+} };`;
 
 /**
  * Try each server in turn and keep the first that has what is asked for.
@@ -56,7 +84,8 @@ async function firstOf(servers, attempt, signal, nothing) {
 
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal,
- *   mayShow?: (name: string, realms: string[]) => Promise<string[]>, renderer?: string}} ui
+ *   mayShow?: (name: string, realms: string[]) => Promise<string[]>, renderer?: string,
+ *   localLook?: { name: string, code: string }}} ui
  *   `renderer` is the hash of the renderer to use in place of the realm's own, when the actor or a link chose one;
  *   `mayShow` asks the actor which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this portal remembers for the realm */
 export async function play(address, character, container, ui) {
@@ -180,7 +209,8 @@ export async function play(address, character, container, ui) {
  * this portal runs the rules and the renderer itself. No referee, no relay, and
  * nothing anyone else can take away.
  * @param {string} release @param {import('./character.js').Character} character @param {HTMLElement} container
- * @param {{servers: string[], status: (text: string, ms?: number) => void, signal: AbortSignal, renderer?: string}} ui
+ * @param {{servers: string[], status: (text: string, ms?: number) => void, signal: AbortSignal, renderer?: string,
+ *   localLook?: { name: string, code: string }}} ui
  */
 async function playAlone(release, character, container, ui) {
   const { server, value: bytes } = await firstOf(ui.servers, (s) => fetchBytes(release, s, ui.signal), ui.signal,

@@ -12,6 +12,7 @@ Open a game's link in a portal you trust. A portal is the program that gets you 
 
 - The first time, the portal makes you a **character** (a name and a look you can change). Your character is yours: it is a secret key that lives in your browser, and you take it from game to game. Choose **Save my keys** for an offline key copy, or **Save full backup** to include locally held realm files and saved data; clearing your browser's data for the site deletes it otherwise. Anyone who gets that file can be you, so keep it like a password.
 - The portal's menu always offers a way to find more games, so no game can trap you.
+- How a game looks is up to you. The **Look** menu offers the game's own look, any others its maker supplies, the plain data the game sends you, and **A file on this device**, which runs a look of your own that your AI agent can write for you.
 - When a game's rules are public, **Play alone** runs your own copy on your device, with nobody hosting, and **Play with others** makes your tab the host of a room you can invite friends to with a link. The room lasts while your tab stays open.
 
 ## Creating

@@ -107,7 +107,7 @@ export default {
 };
 ```
 
-**More than one look.** Views are plain data, so any renderer that understands them will do, and the rules cannot tell which is in use. A realm can offer several (`renderers` in `realm.json`); the maze example has its drawn maze and a text-only one, [examples/maze-chase/text.js](../examples/maze-chase/text.js). Anyone else can write one too: a link ending in `&renderer=<file hash>` shows the realm with that renderer, as long as a server the link names holds the file. So keep the shape of your views steady between versions, and describe it in a comment, as the maze's rules do.
+**More than one look.** Views are plain data, so any renderer that understands them will do, and the rules cannot tell which is in use. A realm can offer several (`renderers` in `realm.json`); the maze example has its drawn maze and a text-only one, [examples/maze-chase/text.js](../examples/maze-chase/text.js). Anyone else can write one too, and the realm has no say in it. In the portal's **Look** menu, **The data itself** shows each view exactly as it arrives and sends any move typed in as JSON, which is the place to start; **A file on this device** runs a renderer file of the actor's own and keeps it for that realm; and a link ending in `&renderer=<file hash>` shows the realm with that renderer to whoever opens it, as long as a server the link names holds the file. So keep the shape of your views steady between versions, and describe it in a comment, as the maze's rules do.
 
 Input (keyboard, mouse, touch, gamepad) arrives inside the sandbox as usual once the actor clicks or taps it. Views arrive about `ticksPerSecond` times a second; smooth movement between them in the renderer if you like.
 

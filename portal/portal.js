@@ -225,14 +225,20 @@ async function showRealm(address, release, via = [], renderer = "") {
   $("start-room").hidden = true;
   $("more-realms").hidden = false;
   $("realm-name").textContent = "";
-  // A link copied while another look is chosen keeps that look.
-  $("copy-link").onclick = () => copy(realmLink(address, undefined, servers, renderer));
-  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, servers, renderer));
+  // How this actor likes to see this realm: a look named in the link, or else the one chosen here before.
+  /** @type {{ name: string, code: string } | undefined} */
+  const localLook = await get("look:" + address);
+  if (!renderer) renderer = await get("chosen:" + address) ?? "";
+  if (controller.signal.aborted) return;
+  // A link copied while another look is chosen keeps that look, if others could fetch it.
+  const shared = renderer.startsWith("sha256-") ? renderer : "";
+  $("copy-link").onclick = () => copy(realmLink(address, undefined, servers, shared));
+  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, servers, shared));
   $("look").hidden = true;
   const stage = $("stage");
   stage.replaceChildren();
   try {
-    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal, renderer,
+    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal, renderer, localLook,
       // The actor answers once for each realm whose claims are asked for, and is asked again
       // whenever this realm starts asking for another.
       mayShow: async (name, realms) => {
@@ -254,11 +260,31 @@ async function showRealm(address, release, via = [], renderer = "") {
       const option = /** @type {HTMLOptionElement} */ (el("option", { value: l.hash }, [l.label]));
       option.selected = l.hash === opened.look;
       return option;
-    }));
-    look.hidden = opened.looks.length < 2;
+    }), el("option", { value: "file" }, ["A file on this device..."]));
+    look.hidden = false;
+    /** Remember the choice for this realm and show it. @param {string} value */
+    const choose = async (value) => {
+      const own = opened.looks[0].hash === value && opened.looks[0].label === "Its own look";
+      await put("chosen:" + address, own ? undefined : value);
+      // Only a look others could fetch goes in the link; the rest is this actor's own business.
+      const next = realmLink(address, release, servers, !own && value.startsWith("sha256-") ? value : "");
+      if (location.href === next) route();
+      else location.href = next;
+    };
     look.onchange = () => {
-      const own = opened.looks[0].hash === look.value && opened.looks[0].label === "Its own look";
-      location.href = realmLink(address, release, servers, own ? "" : look.value);
+      if (look.value !== "file") return choose(look.value);
+      look.value = opened.look;
+      $("look-file").click();
+    };
+    // A renderer the actor wrote, or had an agent write: kept for this realm, and never sent anywhere.
+    $("look-file").onchange = async (e) => {
+      const input = /** @type {HTMLInputElement} */ (e.target);
+      const file = input.files?.[0];
+      input.value = "";
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) return status("A renderer may be at most 2 MB.");
+      await put("look:" + address, { name: file.name.slice(0, 40), code: await file.text() });
+      await choose("local");
     };
     // Public rules need no referee: anyone may run their own copy, or referee a room for friends.
     $("play-alone").hidden = !opened.alone || opened.alone === address;
