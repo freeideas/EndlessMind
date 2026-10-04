@@ -1,6 +1,6 @@
 # EveryGame protocol: an outline
 
-Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The design behind it is in [BRAINSTORM.md](BRAINSTORM.md), and the words used here are defined there under "Words used here".
+Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The design behind it is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
 
 ## What it is for
 
@@ -17,21 +17,21 @@ EveryGame is meant to be a worldwide network, like the World Wide Web. The web w
 
 ## The core
 
-| Part | What it defines |
-|---|---|
-| Identity | Key pairs; an address is a public key; the neutral link format |
-| Content | Files named by their hash; a signed manifest listing an object's files |
-| Messages | One signed envelope (from, to, kind, body, time) that works over any connection |
-| Announcements | Signed "here I am" notes: key, tags, how to reach me, expiry |
-| Object description | How an object lists its callable functions, their code, and its encrypted parts |
-| Runtime interface | The few calls sandboxed object code can make, such as send, receive and save state |
+| Part               | What it defines                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| Identity           | Key pairs; an address is a public key; the neutral link format                     |
+| Content            | Files named by their hash; a signed manifest listing an object's files             |
+| Messages           | One signed envelope (from, to, kind, body, time) that works over any connection    |
+| Announcements      | Signed "here I am" notes: key, tags, how to reach me, expiry                       |
+| Object description | How an object lists its callable functions, their code, and its encrypted parts    |
+| Runtime interface  | The few calls sandboxed object code can make, such as send, receive and save state |
 
 - **Identity.** Every object is a key pair, and its address is its public key. A realm's link is that key, so no website or company owns it, and any app can open it.
 - **Content.** Every file is named by its hash, so anyone holding a copy can serve it and anyone receiving it can check it. A manifest lists an object's files by hash and is signed by the object's key.
 - **Messages.** One envelope for everything: who sent it, to whom, what kind of message, the body, the time, and the sender's signature. It does not care how it travels (WebSocket, WebRTC, a relay, or anything later).
 - **Announcements.** How an object that wants to be found says so: its key, its tags, where to reach it, and when the note expires. Servers and directories keep and index them; peers can pass them along.
 - **Object description.** How an object publishes what others may call and the code behind it, with any encrypted parts marked, so any other object can examine it before trusting it.
-- **Runtime interface.** The small, fixed set of calls that object code (JavaScript or WebAssembly) may use from inside its sandbox. This is what lets the same realm code run unchanged in the browser app, an app written from scratch in Rust, or an app built with Unreal, Godot or Unity. It plays the role WASI plays for WebAssembly: a standard set of calls that works in any host program.
+- **Runtime interface.** The small, fixed set of calls that object code (JavaScript or WebAssembly) may use from inside its sandbox. This is what lets the same realm code run unchanged in the browser app, an app written from scratch in Rust, or an app built with Unreal, Godot or Unity. It plays the role WASI plays for WebAssembly: a standard set of calls that works in any host program. The first draft is in [RUNTIME.md](RUNTIME.md).
 
 ## Shared habits: optional extensions
 

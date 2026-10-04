@@ -1,6 +1,6 @@
-# EveryGame: brainstorm
+# EveryGame: design
 
-Started 2026-09-24. Sources: Ace's chat notes of 2026-09-24, follow-up decisions in the same session, and the earlier "Sovereign Nodes Game" design document (summarized here, not copied).
+The living design record: what EveryGame is, the decisions made so far and why. Started 2026-09-24 as a brainstorm. The protocol outline is in [PROTOCOL.md](PROTOCOL.md), a step-by-step story in [WALKTHROUGH.md](WALKTHROUGH.md), and worked examples in [examples/](examples/). Sources: Ace's chat notes of 2026-09-24, follow-up decisions in the same session, and the earlier "Sovereign Nodes Game" design document (summarized here, not copied).
 
 ## The idea in one paragraph
 
@@ -23,7 +23,7 @@ A massively multiplayer world where both the code and the running of that code a
 ## Decisions so far
 
 - **Freedom almost always wins over safety.** Anything should be possible. The sandbox is the safety floor: foreign code only ever runs sandboxed (in a web page, or in a JavaScript or WebAssembly sandbox inside another app), where it cannot do much catastrophic harm to a player's machine, so the project adds few protections of its own.
-- **The browser is the front door, not a requirement.** Every realm link opens in a browser with one click, but the app is an open protocol with a reference browser version, not the only way in. Other apps (an app built with Unreal, Godot or Unity, a native desktop app, the headless host runner) can join the same realms. See "Other apps and game engines".
+- **The browser is the front door, not a requirement.** Every realm link opens in a browser with one click, but the app is any program that speaks the open protocol; the reference app runs in the browser and is not the only way in. Other apps (an app built with Unreal, Godot or Unity, a native desktop app, the headless host runner) can join the same realms. See "Other apps and game engines".
 - **There is only one kind of thing: the object.** An object is a key pair plus some code. Players can make as many as they like, and any object can contain any number of any other objects. Bodies, realms, and swords differ only in the code written for them. All limits are set by code, never by the platform.
 - **Visuals come first**, or nearly first. Seeing it is a key part of the idea, so the first demo is visual, not text.
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
@@ -37,7 +37,7 @@ A massively multiplayer world where both the code and the running of that code a
 - **The private key marks the one real instance of an object.** Official results are signed with it, or by a host holding the owner's signed permission; unsigned or wrongly signed results are ignored.
 - **A key pair lives on exactly one device.** Giving an object creates a new key pair on the receiver's device; private keys are never transferred.
 - **No rarity.** Anyone can make any object.
-- **A player can have any number of objects and any number of devices.** Each device is a separate server with its own keys. Moving an object between your own devices is just giving it to yourself.
+- **A player can have any number of objects and any number of devices.** Each device is a separate peer with its own keys. Moving an object between your own devices is just giving it to yourself.
 - **Enforcement is each realm's choice.** Some realms run entirely on the honor system (every player's copy decides for itself); others have the key holder or an authorized host referee and sign the official state. What happens when no referee is online (freeze, carry on unchecked, or hand refereeing to a stand-in) is also up to the realm's code.
 - **Everything a visitor needs to judge a realm is visible.** Visitors (in practice, their AI agents) can read all of a realm's code and see which parts are encrypted, so no separate declaration of enforcement style is needed. The only hidden part is what the encrypted parts do.
 - **It works both ways.** A realm can read any visiting object's code and see which parts are encrypted, so it knows roughly how the object behaves before admitting it. Since code is identified by its hash, a realm can remember code it has already approved and admit it instantly next time.
@@ -56,6 +56,7 @@ A massively multiplayer world where both the code and the running of that code a
 - **Custom renderers and controls are a headline feature.** Anyone can write their own renderer (make plain state look fantastic, show a 2D game in 3D) and their own controls suited to a kind of play (custom keyboard actions, joysticks, brain-computer interfaces). Renderers are objects, traded like any other. See "How it fits together".
 - **There is no cheating, only rules.** Players are free to do anything their own software can do. Whatever a realm's rules and referee allow is fair play; a realm that wants something prevented must design it so (see "Hidden information").
 - **Unused things fade away.** Nothing is stored forever by default; data lives only while someone keeps a copy. See "Where things are saved".
+- **Code: plain JavaScript, no build step.** The reference app, server and example realms are plain JavaScript with type notes in comments (JSDoc), checked and run by Deno. The same shared code (keys, hashes, signed messages, realm rules) runs unchanged in browsers and in Deno, and browsers run the files as they are, so the app stays a few files anyone can copy or mirror.
 
 ## Rules by consensus, not by platform
 
@@ -127,7 +128,7 @@ Businesses with many games will likely make their own apps that try to keep peop
 
 Most people have no AI coding agent, so playing must not need one. Agents are for making new things; playing needs only a link.
 
-- **A player's character.** A player's browser keeps a character object for them (created on first visit, kept across visits). It is still an ordinary object, not a built-in "player".
+- **A player's character.** A player's app keeps a character object for them (created on first visit, kept across visits). It is still an ordinary object, not a built-in "player".
 - **Characters publish a general API** that any realm can read, not tied to any realm: name, look, a plain-language description ("a small fox knight who carries a lantern"), and what it has earned or carries. The reference software ships a default layout for this; anyone may extend or ignore it ("Defaults instead of requirements").
 - **Each realm has its own API, and makes an in-realm form of each visitor.** The realm reads the character's general API and builds a form that fits the realm (a runner in a maze, a driver in a city). The realm owns that form and lends it to the visitor while they are inside, so the realm stays a fair referee.
 - **The character itself is never changed by a realm.** No realm code is added to it, so a hostile realm cannot damage a visitor's character. Anything earned comes back out as statements signed by the realm, and the character's own code decides whether to keep them.
@@ -165,7 +166,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 - **"Cannot be shut down" also means illegal content cannot be removed centrally,** so allow lists, block lists and takedown support are essential for ordinary people to feel safe running servers. Describe the design as "no single point of failure, like email", never as built to escape authorities.
 - **The industry is more likely to ignore, copy or compete than to buy.** The open-code-plus-services path still pays in that case.
 
-**Weak points to remove before launch:** the website serving the page (make it one file anyone can mirror or keep locally), the default server list (gather it from several sources), and the code host (mirror the repository elsewhere).
+**Weak points to remove before launch:** the website serving the page (keep it a few plain files, with no build step, that anyone can mirror or keep locally), the default server list (gather it from several sources), and the code host (mirror the repository elsewhere).
 
 ## Core model
 
@@ -243,13 +244,13 @@ No rarity. Any player can make any object they want, so "rare" is an odd idea he
 
 Five pieces. Everything is an object except the app, which is any program that speaks the protocol. The open reference app runs in the browser; others may be written in any language or engine.
 
-| Piece | What it is | Who owns it | Where it runs |
-|---|---|---|---|
-| **The app** | The page you open; runs everything else | Its author (reference app is open) | Browser or any device |
-| **Character** | Your persistent identity, look and feel | You | Anywhere; you operate it |
-| **Realm** | A place or game: rules, map, referee | Its creator | Anywhere; referee by key |
-| **In-realm form** | What your character becomes in that realm | The realm, lent to you | Anywhere; realm referees |
-| **Renderer** | Turns the realm's state into a picture | Its author; you pick it | Your browser |
+| Piece             | What it is                             | Who owns it             | Where it runs            |
+| ----------------- | -------------------------------------- | ----------------------- | ------------------------ |
+| **The app**       | Opens links; runs everything else      | Its author              | Browser or any device    |
+| **Character**     | Your identity, look and feel           | You                     | Anywhere; you operate it |
+| **Realm**         | A place or game: rules, map, referee   | Its creator             | Anywhere; referee by key |
+| **In-realm form** | Your character as that realm shows it  | The realm, lent to you  | Anywhere; realm referees |
+| **Renderer**      | Turns the realm's state into a picture | Its author; you pick it | Your app, sandboxed      |
 
 **The app** holds your keys and saved data, keeps each piece of foreign code in its own sandbox, opens links, hands the realm your character's general API and receives your in-realm form, and owns the menu that is always there (find more realms, change renderer, edit character, leave). It is not called "player", since that word means the person.
 
@@ -284,13 +285,13 @@ Five pieces. Everything is an object except the app, which is any program that s
 
 ## Where things are saved
 
-| What | Where |
-|---|---|
-| Character (keys, name, look, feel, its own code) | Player's browser; a character file and/or encrypted backup |
-| What a character has earned | Signed statements, kept with the character |
-| Realm state | The referee's device; encrypted copies on storage nodes |
-| Code (realms, renderers, adapters, assets) | Found by hash, cached; any holder can serve it |
-| Settings (renderer choice) | Player's browser |
+| What                                             | Where                                                   |
+| ------------------------------------------------ | ------------------------------------------------------- |
+| Character (keys, name, look, feel, its own code) | Player's app; a character file and/or encrypted backup  |
+| What a character has earned                      | Signed statements, kept with the character              |
+| Realm state                                      | The referee's device; encrypted copies on storage nodes |
+| Code (realms, renderers, adapters, assets)       | Found by hash, cached; any holder can serve it          |
+| Settings (renderer choice)                       | Player's app                                            |
 
 **Saving a character, two ways:**
 
@@ -333,7 +334,7 @@ A browser tab can act as a referee for the objects it owns. Browsers cannot acce
 
 Applied here: the same small server program could offer optional roles, each switched on by its operator: **finder** (announcements, who is online), **relay** (pass traffic for peers who cannot connect directly), and **storage** (keep signed, encrypted data blobs, with a size limit per key). An object's saved state is encrypted with its owner's key, so storage nodes cannot read it, and signed, so they cannot fake it. Objects keep copies on several storage nodes, like seeding. Encrypted character backups live there too (see "Where things are saved").
 
-**Direction:** object code is plain JavaScript or WebAssembly that runs unchanged in the browser, in a headless runtime (Deno or Node) on any always-on machine, and inside other apps. The browser is where most players look and play; the headless runner is how an authorized host keeps an object or realm up while its owner sleeps.
+**Direction:** object code is plain JavaScript or WebAssembly that runs unchanged in the browser, in a headless runtime (Deno, the reference choice) on any always-on machine, and inside other apps. The browser is where most players look and play; the headless runner is how an authorized host keeps an object or realm up while its owner sleeps.
 
 ## Other apps, languages and game engines
 
@@ -352,13 +353,13 @@ People will make games every way there is: from scratch in JavaScript or Rust, w
 
 **Why this is easy in each engine.** Everything a native app needs already exists as an embeddable library with a C interface (usable from all three engines):
 
-| Need | Library | Unreal (C++) | Godot | Unity (C#) |
-|---|---|---|---|---|
-| Talk to servers | WebSocket | Built in | Built in | Built in or package |
-| Direct connections | WebRTC | libdatachannel | Plugin | Unity WebRTC |
-| Signatures | libsodium | Yes | Plugin | Yes |
-| Run JavaScript | QuickJS, V8 | PuerTS | GodotJS | PuerTS, Jint |
-| Run WebAssembly | Wasmtime | Yes | godot-wasm | Wasmtime .NET |
+| Need               | Library     | Unreal (C++)   | Godot      | Unity (C#)          |
+| ------------------ | ----------- | -------------- | ---------- | ------------------- |
+| Talk to servers    | WebSocket   | Built in       | Built in   | Built in or package |
+| Direct connections | WebRTC      | libdatachannel | Plugin     | Unity WebRTC        |
+| Signatures         | libsodium   | Yes            | Plugin     | Yes                 |
+| Run JavaScript     | QuickJS, V8 | PuerTS         | GodotJS    | PuerTS, Jint        |
+| Run WebAssembly    | Wasmtime    | Yes            | godot-wasm | Wasmtime .NET       |
 
 The plan: write one small core library (protocol, signatures, sandbox) once, with a C interface, and wrap it thinly for each engine, so supporting a new engine is a thin wrapper rather than a rewrite. A native app can start with WebSocket only, through the server's relay, and add direct connections later.
 
@@ -384,7 +385,7 @@ Goal: simple enough that anyone can clone this repository and run their own serv
 
 EveryGame is a tool for making original worlds. The project must never suggest, show or encourage copying anyone else's game, characters, names, art, music or other protected work, in its docs, examples, demos, code or promotion.
 
-- **Examples are technical and original.** Example worlds use invented names and generic kinds of game (a large city, a world made of blocks, a maze chase). They explain how the system works, not how to recreate an existing product. See [EXAMPLE-CITY.md](EXAMPLE-CITY.md), [EXAMPLE-BLOCK-WORLD.md](EXAMPLE-BLOCK-WORLD.md) and [EXAMPLE-MAZE-CHASE.md](EXAMPLE-MAZE-CHASE.md).
+- **Examples are technical and original.** Example worlds use invented names and generic kinds of game (a large city, a world made of blocks, a maze chase). They explain how the system works, not how to recreate an existing product. See [the city](examples/city.md), [the block world](examples/block-world.md) and [the maze chase](examples/maze-chase.md).
 - **The agent guide steers agents toward original work.** It tells AI agents to build original designs, and to decline to copy another product's names, characters, art, music, logos or level designs, suggesting an original alternative instead.
 - **Each builder is responsible for what they build.** Realms and objects are made and hosted by their builders, on their own devices. The docs say plainly that builders must hold the rights to what they publish.
 - **The reference server supports takedowns.** It has a contact field for rights complaints and can honor takedown lists, so each operator can handle complaints about what their server stores or lists.
@@ -393,17 +394,20 @@ EveryGame is a tool for making original worlds. The project must never suggest, 
 
 ## First version
 
-1. **Server.** Announcements, online list, message passing, and serving the web page.
-2. **The app.** Makes key pairs and characters, fetches and sandboxes object code, hands out input by permission, connects to peers, runs the chosen renderer, saves and restores characters.
-3. **Protocol draft** (outline in [PROTOCOL.md](PROTOCOL.md)). Object API format, examining an object, signed commands and results, encrypted parts, hosting permissions, entering and leaving, the realm's state updates, giving an object.
-4. **Agent guide.** An instructions file that any AI coding agent reads to build realms and objects for its player. The most important deliverable: players will not read specs, their agents will. It includes the "Original work only" rules above.
-5. **Demo content.** A sword-fighting arena (admits only objects that can take damage and die, lends swords to visitors while inside) and a calm garden (honor system). One fighter body and one wanderer body. Show a refused entry, an agent adding what was missing, a fight, an ejection for refusing to die, and a sword being given away.
+**First working demo:** two browsers on different devices playing the [maze chase](examples/maze-chase.md) through one small server. The creator's browser tab is the referee (host mode) and keeps the full state; all traffic goes through the server's relay over WebSocket at first, with direct connections (WebRTC) added later. Code lives in this repository: `app/` (the browser app), `shared/` (code that runs in both browsers and Deno: keys, hashes, signed messages), `server/` (the helper server), `examples/maze-chase/` (the realm's source files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md).
+
+**Built so far (2026-10-04):** the server (announcements with tag search and who is online, files by hash, relay with proof of key, serving the app); the app (non-exportable keys, a character, publishing a realm from files or the example, hosting it in the publishing tab, joining by link, sandboxed rules and renderer, "Find realms"); runtime interface version 0; the agent guide; the maze chase; unit tests and a two-browser test in Chrome, Firefox and WebKit. **Not yet:** direct connections (WebRTC), character files and backups, input permissions beyond the active renderer, hosting permissions and the headless runner, saved realm state, giving objects, encrypted parts, storage expiry, and object APIs beyond realms.
+
+1. **Server.** Announcements, online list, message passing (relay), storing files by hash, and serving the web page. Started with `deno task start`.
+2. **The app.** Makes key pairs and characters, fetches and sandboxes object code, hands out input by permission, connects to the referee, runs the chosen renderer, saves and restores characters.
+3. **Protocol draft** (outline in [PROTOCOL.md](PROTOCOL.md), runtime interface in [RUNTIME.md](RUNTIME.md)). Object API format, examining an object, signed commands and results, encrypted parts, hosting permissions, entering and leaving, the realm's state updates, giving an object.
+4. **Agent guide** ([AGENT-GUIDE.md](AGENT-GUIDE.md)). An instructions file that any AI coding agent reads to build realms and objects for its player. The most important deliverable: players will not read specs, their agents will. It includes the "Original work only" rules above.
+5. **Demo content.** First the maze chase. Next, a sword-fighting arena (admits only objects that can take damage and die, lends swords to visitors while inside) and a calm garden (honor system), with one fighter body and one wanderer body, to show a refused entry, an agent adding what was missing, a fight, an ejection for refusing to die, and a sword being given away.
 
 Success test: two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.
 
 ## Open questions
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
-- Which multiplayer mode for the first demo: the host keeping full state, or lockstep?
-- Server language: TypeScript (one language for the whole project) or Python with `uv` (your usual tooling)?
+- When to add the lockstep multiplayer mode alongside "the host keeps the full state", which the first demo uses.
 - Name: keep "EveryGame", or call it "Infinite Worlds Unlimited"?

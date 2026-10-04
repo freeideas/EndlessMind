@@ -1,6 +1,6 @@
 # Example: a world made of blocks
 
-Written 2026-09-27. A technical example of how the EveryGame model described in [BRAINSTORM.md](BRAINSTORM.md) handles a world built from millions of small pieces that players keep changing. All names here are invented for this example. Anything built with EveryGame should be the builder's own original work (see "Original work only" in the brainstorm).
+Written 2026-09-27. A technical example of how the EveryGame model described in [DESIGN.md](../DESIGN.md) handles a world built from millions of small pieces that players keep changing. All names here are invented for this example. Anything built with EveryGame should be the builder's own original work (see "Original work only" in the design).
 
 ## Bulk content is data, not objects
 
@@ -17,7 +17,7 @@ Written 2026-09-27. A technical example of how the EveryGame model described in 
 ## Gathering, crafting, and value
 
 - Anyone can make anything, so a rare material is worth something only because a world says so. The world's referee records what each visitor gathered and signs their inventory. Materials from a strict gathering world are trusted elsewhere; materials from a free-building world are not.
-- Carrying items between worlds works like currency in the [city example](EXAMPLE-CITY.md): each world decides which other worlds' signed items it accepts.
+- Carrying items between worlds works like currency in the [city example](city.md): each world decides which other worlds' signed items it accepts.
 
 ## Extensions are just objects
 

@@ -1,27 +1,29 @@
 # Walkthrough: from launch to a friend playing
 
-Written 2026-09-27. A concrete, step-by-step picture of how EveryGame works in practice, using the [maze chase example](EXAMPLE-MAZE-CHASE.md). The design behind it is in [BRAINSTORM.md](BRAINSTORM.md). This is also an outline of what the first version has to build.
+Written 2026-09-27. A concrete, step-by-step picture of how EveryGame works in practice, using the [maze chase example](examples/maze-chase.md). The design behind it is in [DESIGN.md](DESIGN.md). This is also an outline of what the first version has to build.
 
 ## 1. Launching the platform
 
 There is no company system to switch on. Launching means making three things available:
 
 1. **The code:** this repository, public under the MIT license. It contains the server, the app and the agent guide.
-2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `everygame.example`, running one command (something like `deno run server.ts`). It serves the app page, introduces browsers to each other, relays traffic when direct connections fail, and stores encrypted files.
+2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `everygame.example`, running one command (`deno task start`); for a group of friends, any computer they already have will do. It serves the app page, introduces browsers to each other, relays traffic when direct connections fail, and stores encrypted files.
 3. **The agent guide:** a file any AI coding agent reads to learn how to build realms and objects.
 
 There is no user database and no accounts. On day one, "the network" is one server plus whoever opens it. It grows as other people run servers too.
 
 ## 2. Making a realm
 
-The creator opens their AI agent in an empty folder and says: "Make a top-down maze where lantern spirits chase players who collect glowing seeds." The agent reads the guide and writes a few ordinary JavaScript files:
+The creator opens their AI agent in an empty folder and says: "Make a top-down maze where lantern spirits chase players who collect glowing seeds." The agent reads the [agent guide](AGENT-GUIDE.md) and writes a few ordinary JavaScript files, for example:
 
-| File | What it is |
-|---|---|
-| `maze.js` | The realm's rules: entry, moves, the chasers, scoring, what each player sees |
-| `maze-renderer.js` | The default renderer: draws the state as a flat 2D maze |
-| `lantern-spirit.js` | The chasers' behavior |
-| `looks.json` | Shapes and colors |
+| File                | What it is                                                                   |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `maze.js`           | The realm's rules: entry, moves, the chasers, scoring, what each player sees |
+| `maze-renderer.js`  | The default renderer: draws the state as a flat 2D maze                      |
+| `lantern-spirit.js` | The chasers' behavior                                                        |
+| `looks.json`        | Shapes and colors                                                            |
+
+A working version lives in this repository under `examples/maze-chase/`.
 
 **Objects in the realm come in three kinds:**
 
@@ -46,7 +48,7 @@ The friend taps the link on their phone.
 1. **The app loads** from the server: one web page, no install.
 2. **They get a character.** A key must be created on the friend's own phone, since keys never move, so no one can hand over a finished character. The creator can instead publish a **character design** (code, look, a description such as "a small fox knight with a lantern"), and the link can include it (`...&start=<design hash>`). The friend's app creates a brand-new key and builds their character from that design, so it is theirs from the first second. Without a design, the app makes a default character with a random name and look.
 3. **The app fetches the realm's files** by hash (from storage nodes, the server, or other players who have them), checks each hash, and runs each file in its own sandbox.
-4. **The app connects to the referee** (the creator's tab or the hosting server), directly over WebRTC when possible, otherwise through the relay.
+4. **The app connects to the referee** (the creator's tab or the hosting server), directly over WebRTC when possible, otherwise through the relay. (The first version uses the relay only.)
 5. **The realm reads the character** (fox knight, orange, carries a lantern) and lends the friend an in-realm form: an orange runner with a little lantern.
 6. **They play.** Swipes go from the app to the referee. The referee updates the state and sends each player their share. The phone draws it with the realm's default renderer. If the friend later finds a 3D renderer someone else wrote, they switch in the app's menu, and the realm cannot tell the difference.
 7. **They leave.** The character keeps its signed high score, and the app's menu offers "More realms", starting with realms the maze links to.

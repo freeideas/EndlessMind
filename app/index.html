@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EveryGame</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="#" class="brand">EveryGame</a>
+    <span id="realm-name"></span>
+    <span class="spacer"></span>
+    <button id="copy-link" hidden>Copy link</button>
+    <a href="#" id="more-realms" hidden>More realms</a>
+    <span id="me" class="me"></span>
+  </header>
+
+  <main id="home" hidden>
+    <section>
+      <h2>Your character</h2>
+      <form id="character-form" class="row">
+        <input id="char-color" type="color" aria-label="Color">
+        <input id="char-name" maxlength="40" aria-label="Name" placeholder="Name">
+        <input id="char-desc" maxlength="200" aria-label="Description" placeholder="Describe your character">
+        <button>Save</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Find realms</h2>
+      <form id="search-form" class="row">
+        <input id="search-tag" placeholder="Tag, for example maze (leave empty for all)">
+        <button>Search</button>
+      </form>
+      <ul id="search-results" class="list"></ul>
+    </section>
+
+    <section>
+      <h2>Make a realm</h2>
+      <p>Ask your AI coding agent to read <code>specs/AGENT-GUIDE.md</code> and make a realm, then publish its files here. Or start from an example.</p>
+      <div class="row">
+        <button id="publish-example">Publish the maze chase example</button>
+        <label class="button">Publish from files<input id="publish-files" type="file" multiple hidden></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Your realms</h2>
+      <p class="hint">Realms whose key lives on this device. Open one to host it; keep the tab open so others can play.</p>
+      <ul id="owned" class="list"></ul>
+    </section>
+  </main>
+
+  <main id="realm" hidden>
+    <div id="stage"></div>
+  </main>
+
+  <div id="status" role="status"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
