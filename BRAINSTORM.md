@@ -4,7 +4,7 @@ Started 2026-09-24. Sources: Ace's chat notes of 2026-09-24, follow-up decisions
 
 ## The idea in one paragraph
 
-A massively multiplayer world where both the code and the running of that code are spread across the players. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code. The code is public and anyone can run it, but only the holder of an object's private key can operate it or speak for it. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). The server is a small program anyone can clone and run, so there is no single server to shut down. It is not one game but every game anyone can imagine.
+A massively multiplayer world where both the code and the running of that code are spread across the players. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code. The code is public and anyone can run it, but only the holder of an object's private key can operate it or speak for it. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). Because AI coding agents let everyone make their own games, EveryGame is the peer network that unites them, the way BitTorrent unites file sharers: anyone can make any game, in any language or engine, and anyone can play it. There is no central server; helper servers are small programs anyone can clone and run, and a game may run its own server if it wants, but none is required. It is not one game but every game anyone can imagine.
 
 ## Decisions so far
 
@@ -33,7 +33,8 @@ A massively multiplayer world where both the code and the running of that code a
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
 - **Growth over control.** The goal is for EveryGame to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
-- **One click to play.** Anyone can open a realm's link and start playing at once, with no install, no account and no AI agent. Each realm turns a visitor's character into an in-realm form and ships a renderer so this works (see "Joining with one click").
+- **The protocol is the network.** EveryGame is a set of conventions (keys, signed messages, code found by hash), not an app or a server. Any program that follows them is a full peer, whether it is the reference browser app, a game written from scratch in JavaScript or Rust, or one built with an engine such as Unreal, Godot or Unity.
+- **One click to play.** For any realm that offers a browser version (most will), anyone can open its link and start playing at once, with no install, no account and no AI agent. Each realm turns a visitor's character into an in-realm form and ships a renderer so this works (see "Joining with one click").
 - **Every realm leads to more realms.** From inside any realm, a player can always find other realms.
 - **License: MIT.** A copyleft license such as the GPL stops copying of the code but not rebuilding of the same features, so it protects little and slows growth. A permissive license spreads fastest.
 - **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
@@ -198,11 +199,11 @@ No rarity. Any player can make any object they want, so "rare" is an odd idea he
 
 ## How it fits together (first priority)
 
-Five pieces. Everything is an object except the app, which is the platform's own open software.
+Five pieces. Everything is an object except the app, which is any program that speaks the protocol. The open reference app runs in the browser; others may be written in any language or engine.
 
 | Piece | What it is | Who owns it | Where it runs |
 |---|---|---|---|
-| **The app** | The page you open; runs everything else | Nobody (open software) | Your browser |
+| **The app** | The page you open; runs everything else | Its author (reference app is open) | Browser or any device |
 | **Character** | Your persistent identity, look and feel | You | Anywhere; you operate it |
 | **Realm** | The game: rules, map, referee | Its creator | Anywhere; referee by key |
 | **In-realm form** | What your character becomes in that realm | The realm, lent to you | Anywhere; realm referees |
@@ -292,16 +293,16 @@ Applied here: the same small server program could offer optional roles, each swi
 
 **Direction:** object code is plain JavaScript or WebAssembly that runs unchanged in the browser, in a headless runtime (Deno or Node) on any always-on machine, and inside other apps. The browser is where most players look and play; the headless runner is how an authorized host keeps an object or realm up while its owner sleeps.
 
-## Other apps and game engines
+## Other apps, languages and game engines
 
-Many builders will want to use game engines such as Unreal, Godot or Unity. The browser stays the front door, but nothing depends on it.
+People will make games every way there is: from scratch in JavaScript or Rust, with engines such as Unreal, Godot or Unity, or with tools that do not exist yet. Engines are only examples. The browser stays the front door, but nothing depends on it.
 
 - **Object code must stay portable:** JavaScript or WebAssembly (compiled code that runs at near-native speed in browsers and elsewhere). C++, C#, Rust and others compile to WebAssembly, so builders are not limited to JavaScript. This is what keeps every realm playable from a browser link.
 - **Renderers and clients may be native.** An Unreal, Godot or Unity app can join any realm and draw it with full engine graphics, since it speaks the same protocol. The realm cannot tell the difference, like any other renderer.
 - **Native code is never passed around as an object.** A native client is installed deliberately by the player, like any app. Objects stay JavaScript or WebAssembly, so the sandbox remains the safety floor.
 - **Each app does the browser's jobs too:** keeps private keys on the device (in the operating system's secure key store), runs each foreign object in its own sandbox, and asks first before giving any object camera, microphone or device access.
 - **Shared engine players, plus programs of a realm's own.** Both exist side by side:
-  - **Shared players (the default).** One well-known player app per engine (an EveryGame Unreal player, Godot player, Unity player). Installed once, it runs every realm built for it with no further installs, because realms ship only data (models, sounds, scene descriptions) and sandboxed JavaScript or WebAssembly. The engine supplies graphics, physics and audio; the realm's behavior is in its portable code.
+  - **Shared players (the default).** Player apps that run many realms, for example one built with Unreal, one with Godot, one written from scratch in Rust. Anyone can write one; none is official. Installed once, it runs every realm built for it with no further installs, because realms ship only data (models, sounds, scene descriptions) and sandboxed JavaScript or WebAssembly. The engine supplies graphics, physics and audio; the realm's behavior is in its portable code.
   - **A realm's own program (allowed).** A builder who needs more than a shared player offers (for example Unreal's own C++ or Blueprints, its visual scripting) can ship a separate program for their realm. It runs outside any sandbox, so the app warns plainly before install: "This realm needs its own program, which can do anything on your computer."
 - **The manifest says how a realm can be played** (in the browser, in a shared player, or only in its own program), so the app and directories can show it before anyone clicks.
 - **Engine-made 3D models** come in as glTF files (the common web format for 3D models), which all these engines export.
@@ -322,6 +323,8 @@ The plan: write one small core library (protocol, signatures, sandbox) once, wit
 ## The server: a small program anyone can run
 
 Goal: simple enough that anyone can clone this repository and run their own server with one command.
+
+- **Helpers, not a center.** Servers help peers meet, relay for peers who cannot connect directly, and store copies, like trackers and seeders in BitTorrent. Game traffic goes peer to peer whenever it can. Browsers need at least one reachable helper to meet (they cannot accept incoming connections); native apps can also find each other through the shared lookup table, with no helper at all. A game may run its own server for its own reasons, but the network never needs one.
 
 - **It does three things (each role optional, see storage and relay nodes above):** stores signed announcements (an object's API and how to reach it), tells who is online, and passes messages between two players who cannot connect directly (for example, because both are behind home routers).
 - **It cannot cheat.** Everything it stores is signed by the key that wrote it, so a server cannot forge a realm, object, or transfer. It holds no game state and makes no rules. A bad or dead server is simply one you stop using.
