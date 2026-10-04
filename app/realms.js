@@ -93,9 +93,9 @@ export async function upload(name, bytes, server = location.origin) {
   return hash;
 }
 
-/** @param {OwnedRealm} realm @param {string} [server] */
-export async function announce(realm, server = location.origin) {
-  const announcement = await makeAnnouncement(realm.keys, realm.manifest);
+/** @param {{keys: CryptoKeyPair, manifest: import("../shared/envelope.js").Envelope}} realm @param {string} [server] @param {number} [lifetimeMs] */
+export async function announce(realm, server = location.origin, lifetimeMs) {
+  const announcement = await makeAnnouncement(realm.keys, realm.manifest, lifetimeMs);
   const response = await fetch(new URL("/announce", server), {
     method: "POST",
     body: JSON.stringify(announcement),

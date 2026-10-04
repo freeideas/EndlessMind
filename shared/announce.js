@@ -125,15 +125,16 @@ export function makeManifest(realmKeys, body) {
 /**
  * @param {CryptoKeyPair} realmKeys
  * @param {import("./envelope.js").Envelope} manifest
+ * @param {number} [lifetimeMs]  shorter for a room, which is gone when its host leaves
  */
-export function makeAnnouncement(realmKeys, manifest) {
+export function makeAnnouncement(realmKeys, manifest, lifetimeMs = ANNOUNCEMENT_LIFETIME_MS) {
   const m = /** @type {ManifestBody} */ (manifest.body);
   /** @type {AnnouncementBody} */
   const body = {
     manifest,
     name: m.name,
     tags: m.tags,
-    expires: Date.now() + ANNOUNCEMENT_LIFETIME_MS,
+    expires: Date.now() + lifetimeMs,
   };
   return seal(realmKeys, null, "announce", body);
 }

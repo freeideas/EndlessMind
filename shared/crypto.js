@@ -57,14 +57,15 @@ export function keyPairFromSecret(secret) {
  * material, "emind-realm-key" as salt and the realm's address as info gives
  * the 32-byte Ed25519 seed (see specs/PROTOCOL.md).
  * @param {unknown} secret  a secret made by newPortableKey
- * @param {string} realm    the realm's address
+ * @param {string} realm    the realm's address, or its release hash if it has no key
  * @returns {Promise<CryptoKeyPair>}
  */
 export async function keyPairForRealm(secret, realm) {
   if (typeof secret !== "string" || !/^[a-z2-7]{52}$/.test(secret) || !canonicalBase32(secret)) {
     throw new Error("not a key secret");
   }
-  if (!isAddress(realm)) throw new Error("not an ed25519 address: " + realm);
+  // A realm with no key is named by its release hash, and the player's key there comes from that.
+  if (!isAddress(realm) && !isHash(realm)) throw new Error("not a realm address or release hash: " + realm);
   const material = await crypto.subtle.importKey("raw", fromBase32(secret), "HKDF", false, ["deriveBits"]);
   const params = { name: "HKDF", hash: "SHA-256", salt: utf8("emind-realm-key"), info: utf8(realm) };
   return keyPairFromSeed(new Uint8Array(await crypto.subtle.deriveBits(params, material, 256)));

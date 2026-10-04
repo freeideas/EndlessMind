@@ -5,7 +5,7 @@
 
 import { myCharacter, updateCharacter } from "./character.js";
 import { exampleFiles, ownedRealms, publish, publishOwned, search, serverOrigin } from "./realms.js";
-import { play, startHosting } from "./session.js";
+import { play, startHosting, startRoom } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
 import { askToPersist, get, put } from "./store.js";
 
@@ -72,7 +72,7 @@ if (!ed25519Works) {
 askToPersist();
 const character = await myCharacter();
 let selectedServer = await get("server") ?? location.origin;
-/** @type {Map<string, {server: string, stop: () => void}>} */
+/** Realms and rooms this tab referees. @type {Map<string, {server: string, stop: () => void, room?: string}>} */
 const hosts = new Map();
 const starting = new Set();
 /** @type {AbortController | undefined} */
@@ -126,7 +126,15 @@ async function showOwned() {
     };
     return el("li", {"data-address":r.address}, [el("a", { href: realmLink(r.address, undefined, targetServer) }, [r.name]), hostButton, publishButton, copyButton]);
   }));
-  if (!realms.length) list.append(el("li", {}, ["None yet."]));
+  for (const [address, host] of hosts) {
+    if (!host.room) continue;
+    const stopButton = el("button", { class: "host-toggle" }, ["End room"]);
+    stopButton.onclick = () => host.stop();
+    const copyButton = el("button", {}, ["Copy link"]);
+    copyButton.onclick = () => copy(realmLink(address, undefined, host.server));
+    list.append(el("li", { "data-address": address }, [el("a", { href: realmLink(address, undefined, host.server) }, [`${host.room} (room)`]), stopButton, copyButton]));
+  }
+  if (!list.children.length) list.append(el("li", {}, ["None yet."]));
 }
 
 async function showHome() {
@@ -134,6 +142,8 @@ async function showHome() {
   $("home").hidden = false;
   $("copy-link").hidden = true;
   $("copy-version-link").hidden = true;
+  $("play-alone").hidden = true;
+  $("start-room").hidden = true;
   $("more-realms").hidden = true;
   $("realm-name").textContent = "";
   /** @type {HTMLInputElement} */ ($("server-address")).value = selectedServer;
@@ -143,7 +153,7 @@ async function showHome() {
   await Promise.all([showSearch(), showOwned()]);
 }
 
-/** @type {{ name: string, release: string, stop: () => void } | null} */
+/** @type {Awaited<ReturnType<typeof play>> | null} */
 let current = null;
 const ENTERING = "emind-entering";
 function entering() {
@@ -180,6 +190,8 @@ async function showRealm(address, release, via = []) {
   $("realm").hidden = false;
   $("copy-link").hidden = false;
   $("copy-version-link").hidden = false;
+  $("play-alone").hidden = true;
+  $("start-room").hidden = true;
   $("more-realms").hidden = false;
   $("realm-name").textContent = "";
   $("copy-link").onclick = () => copy(realmLink(address, undefined, server));
@@ -187,8 +199,22 @@ async function showRealm(address, release, via = []) {
   const stage = $("stage");
   stage.replaceChildren();
   try {
-    current = await play(address, character, stage, { status, server, release, signal:controller.signal });
-    $("realm-name").textContent = current.name;
+    const opened = current = await play(address, character, stage, { status, server, release, signal:controller.signal });
+    $("realm-name").textContent = opened.name;
+    // Public rules need no referee: anyone may run their own copy, or referee a room for friends.
+    $("play-alone").hidden = !opened.alone || opened.alone === address;
+    $("play-alone").onclick = () => { location.hash = `emind:${opened.alone}?via=${encodeURIComponent(server)}`; };
+    const source = "source" in opened ? opened.source : undefined;
+    $("start-room").hidden = !source;
+    $("start-room").onclick = async () => {
+      if (!source) return;
+      try {
+        const room = await startRoom(source, server, $("hosts"), status, () => { hosts.delete(room.address); showOwned(); });
+        hosts.set(room.address, { stop: room.stop, server, room: opened.name });
+        location.hash = `emind:${room.address}?via=${encodeURIComponent(server)}`;
+        status("Room started. Copy its link to invite others. It lasts while this tab stays open.", 8000);
+      } catch (e) { status(String(e), 8000); }
+    };
   } catch (error) {
     if (controller.signal.aborted) return;
     const message = el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]);

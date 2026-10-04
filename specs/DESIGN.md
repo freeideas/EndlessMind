@@ -55,6 +55,22 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 - **Code: plain JavaScript, no build step.** The reference app, server, host program and example realms are plain JavaScript with type notes in comments (JSDoc), checked and run by Deno. The same shared code (keys, hashes, signed messages) runs unchanged in browsers and in Deno, and the app stays a few plain files anyone can copy or mirror.
 - **Spending stays minimal.** The project earns nothing directly, so it relies on public, dated use to establish its name rather than paid registrations or lawyers. Realm creators can charge money separately, however they like; the platform takes no cut and plays no part.
 
+## Three kinds of realm: only what one party holds can be attacked
+
+Anything that exists in one place can be flooded, seized or switched off. Anything public and copied cannot. So a realm should depend on a single holder only when it needs something only one party can hold.
+
+| Kind              | What names it         | Who referees                 | What can be attacked        |
+| ----------------- | --------------------- | ---------------------------- | --------------------------- |
+| Played alone      | The hash of its files | Each player, for themselves  | Nothing, while a copy lasts |
+| A room            | A key made on the spot| Whoever started the room     | That one room, at no loss   |
+| A lasting realm   | A key that is kept    | Whoever holds the key        | Its referee and its key     |
+
+- **Played alone.** A realm with public rules is fully described by its manifest body, and the hash of that body (its release) names it. Anyone holding the link fetches the files by hash from any server that has them and runs rules and renderer on their own device, with no key, no referee and no relay. Like a file in a torrent, it cannot be shut down while one copy exists, and a server keeps it for as long as people keep opening it.
+- **A room.** The same public release, refereed for friends by one player's tab under a key made on the spot and never saved. The host sees everything and can cheat, and the room ends when the host leaves, but nothing lasting is lost: anyone starts another. The game cannot be destroyed, only one table.
+- **A lasting realm.** A kept key gives one address across versions, hidden information, lasting records, and rules or secrets that stay private (an AI model's credentials). It needs one referee, and that referee is a target. No design removes this: a file has no "what happened", a live place does.
+- **The kind is how a release is opened, not a property of the code.** The maze example can be played alone from its hash, in a room, or as a lasting realm. Publishing with public rules always posts the release too, so a lasting realm whose referee is offline, or whose key is lost, can still be played alone or in rooms. Private rules exist only as a lasting realm.
+- **What a lasting realm can and cannot survive.** Knocked over (flooded, its server gone), it comes back wherever its key and its saved data are taken, from its last save. A stolen key cannot be taken back, and a stolen secret is gone. Normal play never sends keys, private rules or credentials anywhere; theft means someone reached the machine or the files that hold them, or the app was loaded from a source that took them (see "How it fits together").
+
 ## Rules by consensus, not by platform
 
 - **Rules hold by consensus.** A rule exists because the software people choose to run follows it, the way the web works because browsers and servers follow the same conventions. No one can force a rule on anyone else's device, and no global agreement is needed: two peers only need to agree with each other.
@@ -78,7 +94,7 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 - **Saving.** The app keeps keys, manifests and original published file bytes locally before uploading copies. "Save my keys" exports identities without network access; "Save full backup" adds local files and committed realm storage. The backup is not locked with a passphrase. Files remain bytes, encoded as base64 only in JSON backups.
 - **Moving a realm.** Import a full backup into another trusted app, or give it to the host program, then explicitly publish or start hosting. To change helper servers, the same app can connect to the new one without moving keys. Realm data moves only if the rules saved it and the backup includes it. Private rules still need their source folder.
 - **Two holders online at once.** A later claim on one helper server replaces the earlier connection, which loses both delivery and sending permission. Different servers may select different holders and histories. There is no worldwide election or guarantee of one official running copy. Session identifiers distinguish running copies; ownership remains whoever holds the key.
-- **When no referee is online,** the realm's public files still exist, but nothing official happens until a key holder returns.
+- **When no referee is online,** nothing official happens until a key holder returns. A realm with public rules can still be played alone or in a room, from its release.
 
 ## How it fits together
 
@@ -110,7 +126,7 @@ No realm code is ever added to the character, so a hostile realm cannot damage i
 ## Finding realms
 
 - **Realms announce themselves on servers,** signed by the realm's key, with tags ("maze"). Each server keeps what it is sent. Servers do not talk to each other and there is no shared lookup table, so an address alone does not say where a realm is: links carry the servers where it is announced as hints.
-- **The app's "More realms" menu** searches the current server by tag and shows which realms are online.
+- **The app's "More realms" menu** searches the current server by tag and shows which realms are online. Releases with no key are listed too and always count as online.
 - **Anything else is built by others:** directories and lists of links. None is official. A realm cannot send a player on to another realm; only the app's menu and links do that.
 
 ## Running in the browser: limits to design around
@@ -158,7 +174,7 @@ Endless Mind is a tool for making original things. The project never suggests, s
 
 ## Current state
 
-Several players play the [maze chase](examples/maze-chase.md) through one small server; the automated test does this with separate browsers (Chrome, Firefox and WebKit) on one computer. The host program referees realms with no browser, including the [listening well](examples/listening-well.md), whose private rules ask an AI model. Code: `app/` (the browser app), `shared/` (keys, hashes, signed messages, the relay client and the referee loop), `server/` (the helper server), `host/` (the host program), `examples/` (realm files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md); the calls realm code can make are in [RUNTIME.md](RUNTIME.md); the guide agents read is [AGENT-GUIDE.md](AGENT-GUIDE.md).
+Several players play the [maze chase](examples/maze-chase.md) through one small server, as a lasting realm, in a room, or each alone from its release hash; the automated test does this with separate browsers (Chrome, Firefox and WebKit) on one computer. The host program referees realms with no browser, including the [listening well](examples/listening-well.md), whose private rules ask an AI model. Code: `app/` (the browser app), `shared/` (keys, hashes, signed messages, the relay client and the referee loop), `server/` (the helper server), `host/` (the host program), `examples/` (realm files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md); the calls realm code can make are in [RUNTIME.md](RUNTIME.md); the guide agents read is [AGENT-GUIDE.md](AGENT-GUIDE.md).
 
 **Further work:** publishing edited versions under the same key from the browser UI, an independent test of the agent guide, and tests by people on separate devices and networks. Passphrase-protected backups and stronger execution isolation are possible additions, rather than guarantees about the correctness of realm code.
 

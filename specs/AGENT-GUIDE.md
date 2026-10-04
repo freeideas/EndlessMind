@@ -26,6 +26,7 @@ Some realms need their referee run by the host program (see "Hosting without a b
 - **Send each player only what they may see** in `view`. Anything sent counts as seen.
 - **Keep views small** (a few KB): they are signed and sent to every player many times a second.
 - **No network, no outside files** in the renderer or in public rules, which run in a sandbox. Embed images and sounds as `data:` URLs, or draw them. Inline any library you need into the module.
+- **Make sense with one player.** Public rules can be played alone (each player runs their own copy from the release link) or in a room one player hosts for friends, as well as in the maker's lasting realm. Do not assume other players are present, or that saved data from a room lasts.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
 ## Testing

@@ -59,6 +59,7 @@ def run(browser_name: str, base: str, remote: str, well_link: str) -> None:
 
         try:
             steps(host, guest, base, browser_name)
+            alone_and_room(browser, base, link_of(host))
             well(guest, well_link)
             regressions(browser, base, remote)
         except Exception:
@@ -156,6 +157,36 @@ def steps(host, guest, base, browser_name):
         mover.click('#owned a')
         wait_for(lambda: mover.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest joining the moved realm")
         wait_for(lambda: "somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
+
+
+def link_of(page):
+    return page.locator('#owned a').first.get_attribute('href')
+
+
+def alone_and_room(browser, base, link):
+    """Public rules need no referee: one browser plays its own copy, then referees a room that another joins."""
+    one = browser.new_context().new_page()
+    one.goto(link)
+    one.locator('#play-alone').click()
+    # Ask the page for its address: the test tool's own copy goes stale between calls.
+    here = lambda: one.evaluate('location.href')
+    wait_for(lambda: 'emind:sha256-' in here(), what='the release link')
+    wait_for(lambda: 'your own copy' in one.locator('#status').inner_text(), what='playing alone')
+    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='a view of the solo game')
+    alone = here()
+    one.locator('#start-room').click()
+    wait_for(lambda: 'emind:ed25519-' in here() and here() != link, what='the room link')
+    one.evaluate('globalThis.endlessmindLastView = null')
+    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='the room host inside')
+    two = browser.new_context().new_page()
+    two.goto(here())
+    wait_for(lambda: two.evaluate('globalThis.endlessmindLastView?.players?.length') == 2, what='a friend in the room')
+    # The release link alone is enough for anyone, with no host anywhere.
+    two.goto(alone)
+    two.evaluate('globalThis.endlessmindLastView = null')
+    wait_for(lambda: two.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='a stranger playing alone')
+    one.context.close()
+    two.context.close()
 
 
 def well(page, link):

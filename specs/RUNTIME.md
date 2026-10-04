@@ -62,6 +62,16 @@ export default {
 - **State** lives in the referee process. Rules choose what to preserve using `storage.get(key)` and `storage.put(key, value)`, both asynchronous. Keys are strings, values are JSON data, and a missing key reads as `undefined`. Only this realm's rules receive its storage; renderers do not. A completed write replaces one value atomically. Browser storage uses IndexedDB transactions; host storage replaces a JSON file beside its key file. This is not a multi-key transaction or an automatic snapshot of the running state. Rules own save timing, schema changes, and correctness. Full backups include committed storage; clearing site data can still erase browser storage.
 - **Waiting, and the outside world.** `init`, `enter`, `act` and `tick` may return promises in both hosting modes. The host program has no sandbox, so rules there can also use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. Actions and entry may overlap other work; the runtime does not serialize state mutations or manage transactions. Rules are responsible for that. Browser rules can await their provided storage but still have no general network access. Startup and entry errors reject their pending calls. Closing a visit cancels pending calls and removes its frame; the runtime imposes no execution deadline on realm code and does not interrupt endless loops. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
 
+## Three ways the same rules run
+
+Rules that are public can be run in three ways, and the rules cannot tell which (see "Three kinds of realm" in [DESIGN.md](DESIGN.md)):
+
+- **Alone.** A player opens the release link (`emind:sha256-...`) and their app runs the rules for one player. `storage` is kept in that player's browser, under the release hash. Rules should make sense with a single player inside.
+- **In a room.** A player chooses **Play with others** and their tab referees under a key made on the spot. A room's `storage` lasts only as long as the room.
+- **As a lasting realm.** The maker's key referees, in a tab or under the host program, and `storage` lasts.
+
+Rules kept private run only the third way.
+
 ## The renderer module
 
 The renderer runs on each player's device, in a visible sandbox that fills the realm area.

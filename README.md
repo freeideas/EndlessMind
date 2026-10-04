@@ -4,7 +4,7 @@ A worldwide network for anything AI can make: games, places, shops, tools, whole
 
 AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, and anyone can use it from a link.
 
-**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game is playable while a browser tab explicitly hosting it is open, or while its maker runs the host program (a small program that keeps it up without a browser). Games written in JavaScript play in the browser; programs made with game engines can join by speaking the protocol, but nothing for any engine has been built. It has been tested with several browsers on one computer, not yet by strangers on the open internet. Expect rough edges and frequent changes.
+**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices, or play their own copy with nobody hosting. A game is playable while a browser tab explicitly hosting it is open, or while its maker runs the host program (a small program that keeps it up without a browser). Games written in JavaScript play in the browser; programs made with game engines can join by speaking the protocol, but nothing for any engine has been built. It has been tested with several browsers on one computer, not yet by strangers on the open internet. Expect rough edges and frequent changes.
 
 ## Playing
 
@@ -12,6 +12,7 @@ Open a game's link in an app you trust. Use **Open here** to paste a link into y
 
 - The first time, the app makes you a **character** (a name and a look you can change). Your character is yours: it is a secret key that lives in your browser, and you take it from game to game. Choose **Save my keys** for an offline key copy, or **Save full backup** to include locally held realm files and saved data; clearing your browser's data for the site deletes it otherwise. Anyone who gets that file can be you, so keep it like a password.
 - The app's menu always offers a way to find more games, so no game can trap you.
+- When a game's rules are public, **Play alone** runs your own copy on your device, with nobody hosting, and **Play with others** makes your tab the host of a room you can invite friends to with a link. The room lasts while your tab stays open.
 
 ## Creating
 
