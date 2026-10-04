@@ -36,10 +36,11 @@ function el(tag, attrs = {}, children = []) {
  * A link people can share. The key names the realm but says nothing about
  * where it is, so the link carries a hint: the server it is announced on.
  * @param {string} address @param {string} [release] @param {string | string[]} [origin] one server, or all that are known
+ * @param {string} [renderer] the hash of a renderer to show the realm with, when not its own
  */
-function realmLink(address, release, origin = selectedServer) {
+function realmLink(address, release, origin = selectedServer, renderer) {
   const via = [origin].flat().map(encodeURIComponent).join(",");
-  return `${location.origin}/#emind:${address}?via=${via}` + (release ? `&release=${release}` : "");
+  return `${location.origin}/#emind:${address}?via=${via}` + (release ? `&release=${release}` : "") + (renderer ? `&renderer=${renderer}` : "");
 }
 
 /** @param {string} text */
@@ -164,6 +165,7 @@ async function showHome() {
   $("copy-version-link").hidden = true;
   $("play-alone").hidden = true;
   $("start-room").hidden = true;
+  $("look").hidden = true;
   $("more-realms").hidden = true;
   $("realm-name").textContent = "";
   /** @type {HTMLInputElement} */ ($("server-address")).value = selectedServer;
@@ -187,7 +189,7 @@ function noteEntering(address) {
 addEventListener("pagehide", () => noteEntering());
 
 /** @param {string} address @param {string} [release] @param {string[]} [via] servers the link hints at */
-async function showRealm(address, release, via = []) {
+async function showRealm(address, release, via = [], renderer = "") {
   const controller = new AbortController();
   visiting = controller;
   // A renderer stuck in an endless loop can freeze the page, and reloading
@@ -223,12 +225,14 @@ async function showRealm(address, release, via = []) {
   $("start-room").hidden = true;
   $("more-realms").hidden = false;
   $("realm-name").textContent = "";
-  $("copy-link").onclick = () => copy(realmLink(address, undefined, servers));
-  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, servers));
+  // A link copied while another look is chosen keeps that look.
+  $("copy-link").onclick = () => copy(realmLink(address, undefined, servers, renderer));
+  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, servers, renderer));
+  $("look").hidden = true;
   const stage = $("stage");
   stage.replaceChildren();
   try {
-    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal,
+    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal, renderer,
       // The actor answers once for each realm whose claims are asked for, and is asked again
       // whenever this realm starts asking for another.
       mayShow: async (name, realms) => {
@@ -244,6 +248,18 @@ async function showRealm(address, release, via = []) {
       } });
     $("realm-name").textContent = opened.name;
     ({ server, servers } = opened);
+    // The actor chooses how the realm looks, when there is more than one way.
+    const look = /** @type {HTMLSelectElement} */ ($("look"));
+    look.replaceChildren(...opened.looks.map((l) => {
+      const option = /** @type {HTMLOptionElement} */ (el("option", { value: l.hash }, [l.label]));
+      option.selected = l.hash === opened.look;
+      return option;
+    }));
+    look.hidden = opened.looks.length < 2;
+    look.onchange = () => {
+      const own = opened.looks[0].hash === look.value && opened.looks[0].label === "Its own look";
+      location.href = realmLink(address, release, servers, own ? "" : look.value);
+    };
     // Public rules need no referee: anyone may run their own copy, or referee a room for friends.
     $("play-alone").hidden = !opened.alone || opened.alone === address;
     $("play-alone").onclick = () => { location.hash = `emind:${opened.alone}?via=${encodeURIComponent(server)}`; };
@@ -286,7 +302,7 @@ async function route() {
   }
   const match = hash.match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?(.*))?$/);
   const query = new URLSearchParams(match?.[2] ?? "");
-  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? []).catch(e => status(String(e)));
+  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? [], query.get("renderer") ?? "").catch(e => status(String(e)));
   else await showHome();
 }
 

@@ -173,7 +173,7 @@ export async function exampleFiles(folder) {
   const sourceBytes = new Uint8Array(await (await fetch(base + "realm.json")).arrayBuffer());
   const source = /** @type {RealmSource} */ (JSON.parse(fromUtf8(sourceBytes)));
   const files = new Map([["realm.json", sourceBytes]]);
-  for (const name of new Set([source.main, source.renderer, ...(source.files ?? [])])) {
+  for (const name of new Set([source.main, source.renderer, ...Object.values(source.renderers ?? {}), ...(source.files ?? [])])) {
     if (name) files.set(name, new Uint8Array(await (await fetch(base + name)).arrayBuffer()));
   }
   return files;

@@ -21,6 +21,8 @@ import { open, seal } from "./envelope.js";
  *                                private (known only to the referee)
  * @property {string} [renderer]  file name of the default browser renderer; left out when the
  *                                realm cannot be played in a browser
+ * @property {Record<string, string>} [renderers]  other renderers the realm offers: a short label for
+ *                                each, and its file name. A portal may let the actor choose among them.
  * @property {RealmPortal} [portal]     the realm's own portal, for realms made with an engine
  * @property {string[]} [asks]  addresses of realms whose signed claims this realm would like to be
  *                              shown; the portal offers what the actor holds from them, if the actor agrees
@@ -46,6 +48,7 @@ import { open, seal } from "./envelope.js";
  * @property {string} [main]      rules file
  * @property {boolean} [privateRules]  keep the rules file off the network: only a host program can referee
  * @property {string} [renderer]  default browser renderer file
+ * @property {Record<string, string>} [renderers]  other renderers offered: label to file
  * @property {string[]} [files]   other public files
  * @property {RealmPortal} [portal]
  * @property {string[]} [asks]    realms whose signed claims this realm would like to be shown
@@ -73,7 +76,10 @@ export function manifestBody(source, hashes) {
   }
   if (source.portal && !isPortal(source.portal)) throw new Error("realm.json's portal needs a name and an https address (url).");
   const main = source.privateRules ? undefined : source.main;
-  for (const name of [main, source.renderer]) {
+  if (source.renderers !== undefined && !isRendererList(source.renderers)) {
+    throw new Error("realm.json's renderers may name at most 8 files, each under a label of 1 to 40 characters.");
+  }
+  for (const name of [main, source.renderer, ...Object.values(source.renderers ?? {})]) {
     if (name && !hashes[name]) throw new Error(`The file ${name} named in realm.json is missing.`);
   }
   return {
@@ -83,6 +89,7 @@ export function manifestBody(source, hashes) {
     files: hashes,
     ...(main ? { main } : {}),
     ...(source.renderer ? { renderer: source.renderer } : {}),
+    ...(source.renderers && Object.keys(source.renderers).length ? { renderers: source.renderers } : {}),
     ...(source.portal ? { portal: { name: source.portal.name, url: source.portal.url } } : {}),
     ...(source.asks?.length ? { asks: source.asks } : {}),
     needs: source.needs ?? [],
@@ -183,6 +190,13 @@ export async function checkPass(value) {
   return { realm: pass.from, referee: body.referee, expires: body.expires, time: pass.time };
 }
 
+/** @param {unknown} list @returns {list is Record<string, string>} */
+function isRendererList(list) {
+  if (!list || typeof list !== "object" || Array.isArray(list)) return false;
+  const entries = Object.entries(list);
+  return entries.length <= 8 && entries.every(([label, file]) => label.length > 0 && label.length <= 40 && typeof file === "string");
+}
+
 /** @param {unknown} servers @returns {servers is string[]} */
 function isServerList(servers) {
   return Array.isArray(servers) && servers.length <= 8 &&
@@ -239,7 +253,8 @@ export function isManifestBody(body) {
   const names = Object.keys(m.files);
   if (names.length > MAX_FILES || !names.every((n) => n.length > 0 && n.length <= MAX_NAME)) return false;
   if (!Object.values(m.files).every(isHash)) return false;
-  for (const name of [m.main, m.renderer]) {
+  if (m.renderers !== undefined && !isRendererList(m.renderers)) return false;
+  for (const name of [m.main, m.renderer, ...Object.values(m.renderers ?? {})]) {
     if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return false;
   }
   if (m.asks !== undefined && !(Array.isArray(m.asks) && m.asks.length <= 16 && m.asks.every(isAddress))) return false;

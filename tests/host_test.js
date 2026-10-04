@@ -134,7 +134,7 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     // Renaming the realm keeps its address: the key file belongs to the folder, not the name.
     const renamed = `${dir}/renamed`;
     await Deno.mkdir(renamed);
-    for (const name of ["rules.js", "renderer.js"]) await Deno.copyFile(`examples/maze-chase/${name}`, `${renamed}/${name}`);
+    for (const name of ["rules.js", "renderer.js", "text.js"]) await Deno.copyFile(`examples/maze-chase/${name}`, `${renamed}/${name}`);
     const source = JSON.parse(await Deno.readTextFile("examples/maze-chase/realm.json"));
     await Deno.writeTextFile(`${renamed}/realm.json`, JSON.stringify({ ...source, name: "Lantern Maze Two" }));
     const again = await startHost({ server: base, realmDir: renamed, keysFile, log: () => {} });

@@ -14,6 +14,27 @@ import { startRenderer, startRules } from "./sandbox.js";
 import { put, realmStorage } from "./store.js";
 
 /**
+ * How a realm looks is the actor's choice: the realm's own renderer, another the realm offers, or any
+ * renderer a link names by its hash. Whatever is chosen runs in the same sandbox and gets the same views.
+ * @param {import("../shared/announce.js").ManifestBody} manifest @param {string} server
+ * @param {{ renderer?: string, status: (text: string, ms?: number) => void, signal: AbortSignal }} ui
+ */
+async function chooseRenderer(manifest, server, ui) {
+  const own = manifest.renderer ? manifest.files[manifest.renderer] : undefined;
+  const looks = [
+    ...(own ? [{ label: "Its own look", hash: own }] : []),
+    ...Object.entries(manifest.renderers ?? {}).map(([label, file]) => ({ label, hash: manifest.files[file] })),
+  ];
+  const look = isHash(ui.renderer) ? ui.renderer : own;
+  if (!look) throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), { portal: manifest.portal });
+  if (!looks.some((l) => l.hash === look)) {
+    looks.push({ label: "From the link", hash: look });
+    ui.status("This link shows the realm with a look its maker did not supply. It is sandboxed like any other, but it decides what you see and which moves it sends.", 12_000);
+  }
+  return { code: await fetchFile(look, server, ui.signal), look, looks };
+}
+
+/**
  * Try each server in turn and keep the first that has what is asked for.
  * @template T
  * @param {string[]} servers @param {(server: string) => Promise<T | null>} attempt @param {AbortSignal} signal @param {string} nothing
@@ -35,7 +56,8 @@ async function firstOf(servers, attempt, signal, nothing) {
 
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal,
- *   mayShow?: (name: string, realms: string[]) => Promise<string[]>}} ui
+ *   mayShow?: (name: string, realms: string[]) => Promise<string[]>, renderer?: string}} ui
+ *   `renderer` is the hash of the renderer to use in place of the realm's own, when the actor or a link chose one;
  *   `mayShow` asks the actor which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this portal remembers for the realm */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
@@ -49,12 +71,7 @@ export async function play(address, character, container, ui) {
   }
   const { manifest } = found;
   if (manifest.needs.length) throw new Error(`Unknown permissions: ${manifest.needs.join(", ")}`);
-  if (!manifest.renderer) {
-    throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), {
-      portal: manifest.portal,
-    });
-  }
-  const code = await fetchFile(manifest.files[manifest.renderer], server, ui.signal);
+  const { code, look, looks } = await chooseRenderer(manifest, server, ui);
   const keys = await keysIn(character, address);
   const me = await addressOf(keys.publicKey);
   ui.signal.throwIfAborted();
@@ -142,6 +159,8 @@ export async function play(address, character, container, ui) {
       alone: manifest.main ? found.release : undefined,
       server,
       servers,
+      look,
+      looks,
       stop() {
         session?.stop();
         renderer.stop();
@@ -161,7 +180,7 @@ export async function play(address, character, container, ui) {
  * this portal runs the rules and the renderer itself. No referee, no relay, and
  * nothing anyone else can take away.
  * @param {string} release @param {import('./character.js').Character} character @param {HTMLElement} container
- * @param {{servers: string[], status: (text: string) => void, signal: AbortSignal}} ui
+ * @param {{servers: string[], status: (text: string, ms?: number) => void, signal: AbortSignal, renderer?: string}} ui
  */
 async function playAlone(release, character, container, ui) {
   const { server, value: bytes } = await firstOf(ui.servers, (s) => fetchBytes(release, s, ui.signal), ui.signal,
@@ -169,9 +188,8 @@ async function playAlone(release, character, container, ui) {
   const body = parseStrictJson(fromUtf8(bytes));
   if (!isManifestBody(body) || !body.main) throw new Error("This link does not name a realm that can be played alone.");
   if (body.needs.length) throw new Error(`Unknown permissions: ${body.needs.join(", ")}`);
-  if (!body.renderer) throw Object.assign(new Error(`${body.name} cannot be played in a browser.`), { portal: body.portal });
-  const [rulesCode, code] = await Promise.all(
-    [body.main, body.renderer].map((name) => fetchFile(body.files[name], server, ui.signal)),
+  const [rulesCode, { code, look, looks }] = await Promise.all(
+    [fetchFile(body.files[body.main], server, ui.signal), chooseRenderer(body, server, ui)],
   );
   // Using a release keeps it on the server: posting it again renews it.
   postRelease(body, server).catch(() => {});
@@ -203,7 +221,7 @@ async function playAlone(release, character, container, ui) {
     timer = setInterval(() => rules.step(), 1000 / rules.ticksPerSecond);
     ui.signal.addEventListener("abort", stop, { once: true });
     ui.status(`You are in ${body.name}, playing your own copy.`);
-    return { name: body.name, release, alone: release, server, servers: [server], source: { body, files: { [body.main]: rulesCode } }, stop };
+    return { name: body.name, release, alone: release, server, servers: [server], look, looks, source: { body, files: { [body.main]: rulesCode } }, stop };
   } catch (e) {
     stop();
     throw e;

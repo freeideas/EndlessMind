@@ -3,5 +3,6 @@
   "description": "Collect glowing seeds in a maze while lantern spirits chase you. Getting caught costs half your seeds.",
   "tags": ["maze", "chase", "multiplayer", "example"],
   "main": "rules.js",
-  "renderer": "renderer.js"
+  "renderer": "renderer.js",
+  "renderers": { "Text only": "text.js" }
 }

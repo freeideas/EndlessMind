@@ -64,7 +64,7 @@ async function loadRealm(options) {
     const dir = new URL(options.realmDir.replace(/\/?$/, "/"), `file://${Deno.cwd()}/`);
     /** @type {import("../shared/announce.js").RealmSource} */
     const source = JSON.parse(await Deno.readTextFile(new URL("realm.json", dir)));
-    const names = new Set([source.privateRules ? undefined : source.main, source.renderer, ...(source.files ?? [])]);
+    const names = new Set([source.privateRules ? undefined : source.main, source.renderer, ...Object.values(source.renderers ?? {}), ...(source.files ?? [])]);
     /** @type {Record<string, string>} */
     const hashes = {};
     for (const name of names) {

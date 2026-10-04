@@ -168,6 +168,18 @@ def alone_and_room(browser, base, link):
     """Public rules need no referee: one browser plays its own copy, then referees a room that another joins."""
     one = browser.new_context().new_page()
     one.goto(link)
+    # The actor chooses how the realm looks: the maze offers a text-only renderer beside its own.
+    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.actors?.length'), what='a view before changing the look')
+    one.select_option('#look', label='Text only')
+    wait_for(lambda: 'renderer=sha256-' in one.evaluate('location.href'), what='the chosen look in the link')
+    wait_for(lambda: '@' in one.frame_locator('iframe.renderer').locator('pre').inner_text(), what='the maze drawn as text')
+    # A link with the look in it opens that way for anyone.
+    seen = browser.new_context().new_page()
+    seen.goto(one.evaluate('location.href'))
+    wait_for(lambda: '@' in seen.frame_locator('iframe.renderer').locator('pre').inner_text(), what='the text look from a link')
+    seen.context.close()
+    one.select_option('#look', label='Its own look')
+    wait_for(lambda: one.frame_locator('iframe.renderer').locator('canvas').count() == 1, what='the realm\'s own look again')
     one.locator('#play-alone').click()
     # Ask the page for its address: the test tool's own copy goes stale between calls.
     here = lambda: one.evaluate('location.href')
