@@ -37,20 +37,20 @@ Publishing makes a new key pair and saves the original files locally before uplo
 
 ## The rules module
 
-The rules run on the referee: in a hidden sandbox when a browser tab holding the realm's key referees, or directly under the host program. The referee keeps the state and calls these functions; all are optional except `init` and `view`.
+The rules run on the referee: in a hidden sandbox when a browser tab holding the realm's key referees, or directly under the host program. Both use the same driver (`directRules` in [shared/referee.js](../shared/referee.js)), so rules behave the same in either place. In the browser the rules run in a worker (a background thread) inside the sandbox, so rules stuck in an endless loop do not freeze the page and stop when hosting stops. The referee keeps the state and calls these functions; all are optional except `init` and `view`.
 
 ```js
 export default {
   ticksPerSecond: 10,                 // how often tick() runs, 1 to 60
 
-  init({ seed, storage }) { return state; },   // make the starting state; seed is a random integer
+  init({ seed, storage, remove }) { return state; }, // make the starting state; seed is a random integer
   enter(state, player, character) {   // a player asks to come in
     return true;                      // true lets them in; a string refuses, giving the reason
   },
   act(state, player, action) {},      // a player's move, exactly as their renderer sent it
   leave(state, player) {},            // a player left or stopped answering (after 20 seconds)
   tick(state) {},                     // time passes
-  view(state, player) { return {}; }, // what this player is sent after each tick
+  view(state, player) { return {}; }, // what this player is sent after each tick; undefined sends nothing
 };
 ```
 
@@ -58,6 +58,7 @@ export default {
 - **`character`** is the character's general description, sent by the visitor's app. The default layout is `{ name, color, description }`, but any field may be missing or strange. Treat it as untrusted input: use what you understand, clean it up, ignore the rest.
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick. A view is copied as plain JSON at the moment `view` returns it, so later changes to the state never leak into a view already made. A message over 256 KB cannot be carried: it is not sent, and the referee logs an error naming its size.
+- **`remove(player, reason)`**, given to `init`, ends a player's visit: the player is told the reason, gets no more views, and their moves are ignored. `leave` is not called for a player the rules removed. They may ask to enter again, and `enter` decides. Use it for an idle limit, a full realm, or someone the rules no longer want inside.
 - **State** lives in the referee process. Rules choose what to preserve using `storage.get(key)` and `storage.put(key, value)`, both asynchronous. Keys are strings, values are JSON data, and a missing key reads as `undefined`. Only this realm's rules receive its storage; renderers do not. A completed write replaces one value atomically. Browser storage uses IndexedDB transactions; host storage replaces a JSON file beside its key file. This is not a multi-key transaction or an automatic snapshot of the running state. Rules own save timing, schema changes, and correctness. Full backups include committed storage; clearing site data can still erase browser storage.
 - **Waiting, and the outside world.** `init`, `enter`, `act` and `tick` may return promises in both hosting modes. The host program has no sandbox, so rules there can also use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. Actions and entry may overlap other work; the runtime does not serialize state mutations or manage transactions. Rules are responsible for that. Browser rules can await their provided storage but still have no general network access. Startup and entry errors reject their pending calls. Closing a visit cancels pending calls and removes its frame; the runtime imposes no execution deadline on realm code and does not interrupt endless loops. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
 
@@ -87,7 +88,7 @@ In the browser app, renderers and public rules run in frames with their own blan
 - No direct access to the app's storage, keys or other frames. Rules receive only the realm-local storage interface described above.
 - No navigating the page, and no navigating its own frame to a web address: the app page's content security policy (`frame-src 'none'`) forbids it, since that would give the code the network. Known limit: browsers offer no dependable way to switch off WebRTC (direct connections) inside a frame, so code may still be able to send data out that way.
 
-This is the safety floor: players can open any realm without trusting its author. Known limit: code stuck in an endless loop can freeze the page in some browsers; nothing meters or stops it yet.
+This is the safety floor: players can open any realm without trusting its author. Known limit: a renderer stuck in an endless loop can freeze the page in some browsers, and nothing meters or stops it. The app notes which realm it is entering and clears the note on leaving, so after a freeze and a reload it asks before opening that realm again. A realm hosted in the same tab pauses while the page is frozen.
 
 ## Messages between visitors and the referee
 
@@ -95,7 +96,7 @@ These are the "entering and leaving" extension (prefix `emind.`), carried in sig
 
 - `emind.enter`, visitor to realm: `{ request, release, character }`. The visitor chooses a random request ID (16 to 64 characters), repeating it while waiting. A new visit or reconnection after silence chooses a fresh one. `release` is the expected manifest-body hash.
 - `emind.welcome`, realm to visitor: `{ request, session, instance, release, name }`. The referee creates a random instance ID on startup and a fresh session ID for this visitor's new request. Welcome must echo the expected request and release. Once accepted, a different session or instance cannot replace it without a fresh handshake.
-- `emind.refused`, realm to visitor: `{ request, reason }`. Ends that visit attempt. A release mismatch is refused.
+- `emind.refused`, realm to visitor: `{ request, reason }`. Ends that visit, whether it arrives in answer to `emind.enter` or later, when the rules remove a player. A release mismatch is refused.
 - `emind.act`, visitor to realm: `{ session, seq, action }`. Sequence numbers are positive safe integers that increase within this session; older or repeated actions are dropped. An app sends its messages in the order they were made and handles arriving ones in the order they came, so moves reach the rules in the order the player made them.
 - `emind.state`, realm to visitor: `{ session, seq, view }`. An independently increasing positive sequence number orders views. Only the accepted session's newer views are displayed.
 - `emind.ping`, visitor to realm: `{ session }`, every five seconds.

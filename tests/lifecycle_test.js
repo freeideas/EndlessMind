@@ -63,6 +63,8 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
   const pending = new Promise((resolve) => finish = resolve);
   /** @type {(views: Record<string, unknown>) => void} */
   let views = () => {};
+  /** @type {(player: string, reason: string) => void} */
+  let remove = () => {};
   /** @type {import('../shared/referee.js').RulesDriver} */
   const rules = {
     ticksPerSecond: 1,
@@ -77,6 +79,9 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
     step() {},
     onViews(fn) {
       views = fn;
+    },
+    onRemove(fn) {
+      remove = fn;
     },
     stop() {
       stopped = true;
@@ -116,6 +121,10 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
     message("emind.leave", { session: "old" });
     message("emind.act", { session, seq: 3, action: {} });
     assertEquals(actions, 2);
+    remove("player", "Idle too long.");
+    assertEquals(relay.sent.at(-1), { to: "player", kind: "emind.refused", body: { request, reason: "Idle too long." } });
+    message("emind.act", { session, seq: 9, action: {} });
+    assertEquals(actions, 2, "a removed player's session is over");
     ref.stop();
     assert(stopped);
     message("emind.act", { session, seq: 4, action: {} });
@@ -277,4 +286,40 @@ Deno.test("messages are copied when sent, leave in order, and oversize ones are 
     await s.shutdown();
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("rules can remove a player, skip a view, and survive one view failing", async () => {
+  const { directRules } = await import("../shared/referee.js");
+  /** @type {(player: string, reason?: string) => void} */
+  let remove = () => {};
+  /** @type {unknown[]} */
+  const errors = [];
+  const driver = await directRules({
+    init(/** @type {any} */ o) {
+      remove = o.remove;
+      return {};
+    },
+    view(/** @type {unknown} */ _s, /** @type {string} */ p) {
+      if (p === "broken") throw new Error("bad view");
+      return p === "quiet" ? undefined : { hello: p };
+    },
+  }, undefined, (e) => errors.push(e));
+  /** @type {Record<string, unknown>[]} */
+  const views = [];
+  /** @type {string[][]} */
+  const removed = [];
+  driver.onViews((v) => views.push(v));
+  driver.onRemove((player, reason) => removed.push([player, reason]));
+  for (const p of ["a", "quiet", "broken", "b"]) await driver.enter(p, {});
+  driver.step();
+  await delay();
+  assertEquals(views, [{ a: { hello: "a" }, b: { hello: "b" } }]);
+  assertEquals(errors.length, 1);
+  remove("b", "Idle too long.");
+  remove("nobody");
+  assertEquals(removed, [["b", "Idle too long."]]);
+  driver.step();
+  await delay();
+  assertEquals(views[1], { a: { hello: "a" } });
+  driver.stop();
 });

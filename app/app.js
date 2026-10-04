@@ -145,11 +145,36 @@ async function showHome() {
 
 /** @type {{ name: string, release: string, stop: () => void } | null} */
 let current = null;
+const ENTERING = "emind-entering";
+function entering() {
+  try { return sessionStorage.getItem(ENTERING); } catch { return null; }
+}
+/** @param {string} [address] */
+function noteEntering(address) {
+  try { address ? sessionStorage.setItem(ENTERING, address) : sessionStorage.removeItem(ENTERING); } catch { /* no storage: no guard */ }
+}
+addEventListener("pagehide", () => noteEntering());
 
 /** @param {string} address @param {string} [release] @param {string[]} [via] servers the link hints at */
 async function showRealm(address, release, via = []) {
   const controller = new AbortController();
   visiting = controller;
+  // A renderer stuck in an endless loop can freeze the page, and reloading
+  // would open the same realm again. So the app notes which realm it is in and
+  // clears the note when leaving; finding the note still there means the last
+  // visit did not end cleanly, and the player is asked before going back in.
+  if (entering() === address) {
+    $("home").hidden = true;
+    $("realm").hidden = false;
+    $("more-realms").hidden = false;
+    const again = el("button", { id: "open-anyway" }, ["Open it anyway"]);
+    again.onclick = route;
+    $("stage").replaceChildren(el("p", { style: "padding:16px" }, [
+      "This realm did not close cleanly last time. It may have frozen the page. ", again,
+    ]));
+    return;
+  }
+  noteEntering(address);
   const server = via[0] ? serverOrigin(via[0]) : selectedServer;
   $("home").hidden = true;
   $("realm").hidden = false;
@@ -185,6 +210,8 @@ async function showRealm(address, release, via = []) {
 }
 
 async function route() {
+  // Leaving a realm the ordinary way clears the note; a fresh page load keeps it.
+  if (visiting) noteEntering();
   visiting?.abort();
   current?.stop();
   current = null;

@@ -12,6 +12,7 @@ import { randomId } from "./encoding.js";
  * @property {(player: string) => void} leave
  * @property {() => void} step
  * @property {(fn: (views: Record<string, unknown>) => void) => void} onViews
+ * @property {(fn: (player: string, reason: string) => void) => void} onRemove  the rules ended a visit
  * @property {() => void} stop
  */
 
@@ -37,6 +38,13 @@ export async function referee(
       const p = players.get(player);
       if (p) send(player, "emind.state", { session: p.session, seq: ++p.seq, view });
     }
+  });
+
+  rules.onRemove((player, reason) => {
+    const p = players.get(player);
+    if (stopped || !p) return;
+    players.delete(player);
+    send(player, "emind.refused", { request: p.request, reason });
   });
 
   /** @param {Event} event */
@@ -138,17 +146,32 @@ export async function referee(
   return { stop, instance };
 }
 
-/** Host rules manage their own asynchronous work. @param {any} rules @param {RealmStorage} [storage] @returns {Promise<RulesDriver>} */
-export async function directRules(rules, storage) {
-  const state = await rules.init({ seed: Math.floor(Math.random() * 2 ** 31), storage });
+/**
+ * The one driver for a rules module (specs/RUNTIME.md), used by the host
+ * program directly and by the browser inside a sandbox. It must stay
+ * self-contained: app/sandbox.js inserts this function's source text into
+ * the sandbox, so it may use nothing outside itself.
+ * @param {any} rules
+ * @param {RealmStorage} [storage]
+ * @param {(error: unknown) => void} [report] where errors thrown by the rules go
+ * @returns {Promise<RulesDriver>}
+ */
+export async function directRules(rules, storage, report = (error) => console.error("[rules]", error)) {
   const players = new Set();
   /** @type {(views: Record<string, unknown>) => void} */
   let onViews = () => {};
+  /** @type {(player: string, reason: string) => void} */
+  let onRemove = () => {};
   let stepping = false;
   let stopped = false;
   /** @param {() => unknown} call */
-  const safely = (call) =>
-    (async () => await call())().catch((error) => console.error("[rules]", error));
+  const safely = (call) => (async () => await call())().catch(report);
+  /** The rules end a player's visit. @param {string} player @param {unknown} [reason] */
+  const remove = (player, reason) => {
+    if (players.delete(player)) onRemove(player, typeof reason === "string" ? reason : "");
+  };
+  const seed = Math.floor(Math.random() * 2 ** 31);
+  const state = rules.init ? await rules.init({ seed, storage, remove }) : {};
   return {
     ticksPerSecond: Math.min(Math.max(Number(rules.ticksPerSecond) || 10, 1), 60),
     async enter(player, character) {
@@ -174,14 +197,25 @@ export async function directRules(rules, storage) {
       stepping = true;
       safely(async () => {
         if (rules.tick) await rules.tick(state);
-        const views = Object.fromEntries(
-          [...players].map((p) => [p, rules.view ? rules.view(state, p) : state]),
-        );
+        /** @type {Record<string, unknown>} */
+        const views = {};
+        for (const player of [...players]) {
+          // One player's view failing must not blank everyone else's. No view means nothing to send.
+          try {
+            const view = rules.view ? rules.view(state, player) : state;
+            if (view !== undefined) views[player] = view;
+          } catch (e) {
+            report(e);
+          }
+        }
         if (!stopped) onViews(views);
       }).finally(() => stepping = false);
     },
     onViews(fn) {
       onViews = fn;
+    },
+    onRemove(fn) {
+      onRemove = fn;
     },
     stop() {
       stopped = true;

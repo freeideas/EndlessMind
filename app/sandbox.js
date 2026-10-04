@@ -1,3 +1,5 @@
+import { directRules } from "../shared/referee.js";
+
 // Foreign code has its own blank origin. Only rules receive realm-local storage.
 const POLICY =
   "default-src 'none'; script-src 'unsafe-inline' blob: data:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:";
@@ -10,52 +12,55 @@ const report = e => send({type:'error', error:String(e?.stack || e)});
 addEventListener('error', e => report(e.error || e.message));
 addEventListener('unhandledrejection', e => report(e.reason));
 `;
-const RULES = `
-let rules, state, nextStorageId = 0;
-const players = new Set(), waiting = new Map();
-function storageCall(op, key, value) {
-  const storageId = ++nextStorageId;
-  return new Promise((resolve, reject) => {
-    waiting.set(storageId, {resolve,reject});
-    send({type:'storage', storageId, op, key, value});
+// The rules run in a worker inside the sandboxed frame, so rules stuck in an
+// endless loop cannot freeze the page, and removing the frame stops them. The
+// worker runs the same driver as the host program (directRules), inserted here
+// as source text because sandboxed code cannot import the app's files.
+const RULES_BRIDGE = `
+const directRules = ${directRules.toString()};
+function startRules(send, listen) {
+  let driver, nextStorageId = 0;
+  const waiting = new Map();
+  const report = e => send({type:"error", error:String(e?.stack || e)});
+  function storageCall(op, key, value) {
+    const storageId = ++nextStorageId;
+    return new Promise((resolve, reject) => {
+      waiting.set(storageId, {resolve, reject});
+      send({type:"storage", storageId, op, key, value});
+    });
+  }
+  const storage = { get: key => storageCall("get", key), put: (key, value) => storageCall("put", key, value) };
+  listen(async m => {
+    if (m.type === "stored") {
+      const p = waiting.get(m.storageId); waiting.delete(m.storageId);
+      if (p) m.error ? p.reject(new Error(m.error)) : p.resolve(m.value);
+      return;
+    }
+    try {
+      let value;
+      if (m.type === "load") {
+        const rules = (await import("data:text/javascript;base64," + btoa(unescape(encodeURIComponent(m.code))))).default;
+        driver = await directRules(rules, storage, report);
+        driver.onViews(views => send({type:"views", views}));
+        driver.onRemove((player, reason) => send({type:"remove", player, reason}));
+        value = driver.ticksPerSecond;
+      } else if (m.type === "enter") value = await driver.enter(m.player, m.character);
+      else if (m.type === "act") driver.act(m.player, m.action);
+      else if (m.type === "leave") driver.leave(m.player);
+      else if (m.type === "step") driver.step();
+      if (m.id) send({type:"reply", id:m.id, value});
+    } catch (e) { m.id ? send({type:"reply", id:m.id, error:String(e)}) : report(e); }
   });
+  send({type:"ready"});
 }
-const storage = { get: key => storageCall('get', key), put: (key,value) => storageCall('put',key,value) };
-async function handle(m) {
-  if (m.type === 'load') {
-    rules = await loadModule(m.code);
-    state = rules.init ? await rules.init({seed:m.seed, storage}) : {};
-    return rules.ticksPerSecond || 10;
-  }
-  if (m.type === 'enter') {
-    const verdict = rules.enter ? await rules.enter(state,m.player,m.character) : true;
-    const ok = verdict === true || verdict === undefined;
-    if (ok) players.add(m.player);
-    return {ok, reason:typeof verdict === 'string' ? verdict : undefined};
-  }
-  if (m.type === 'act' && players.has(m.player) && rules.act) await rules.act(state,m.player,m.action);
-  if (m.type === 'leave' && players.delete(m.player) && rules.leave) await rules.leave(state,m.player);
-  if (m.type === 'step') {
-    if (rules.tick) await rules.tick(state);
-    send({type:'views', views:Object.fromEntries([...players].map(p => [p, rules.view ? rules.view(state,p) : state]))});
-  }
-}
-let stepping = false;
-addEventListener('message', async e => {
-  if (e.source !== parent) return;
-  const m = e.data;
-  if (m.type === 'stored') {
-    const p = waiting.get(m.storageId); waiting.delete(m.storageId);
-    if (p) m.error ? p.reject(new Error(m.error)) : p.resolve(m.value);
-    return;
-  }
-  if (m.type === 'step' && stepping) return;
-  if (m.type === 'step') stepping = true;
-  try { const value = await handle(m); if (m.id) send({type:'reply', id:m.id, value}); }
-  catch (e) { m.id ? send({type:'reply', id:m.id, error:String(e)}) : report(e); }
-  finally { if (m.type === 'step') stepping = false; }
-});
-send({type:'ready'});
+`;
+const RULES_WORKER = RULES_BRIDGE + "startRules(m => postMessage(m), fn => { onmessage = e => fn(e.data); });";
+// "<" is written as an escape so the text can sit inside the frame's script element.
+const RULES = `
+const worker = new Worker(URL.createObjectURL(new Blob([${JSON.stringify(RULES_WORKER).replaceAll("<", "\\u003c")}], {type:"text/javascript"})));
+worker.onmessage = e => send(e.data);
+worker.onerror = e => { e.preventDefault(); report(e.message || "The rules stopped with an error."); };
+addEventListener("message", e => { if (e.source === parent) worker.postMessage(e.data); });
 `;
 const RENDERER = `
 let viewListener = () => {};
@@ -149,8 +154,11 @@ export async function startRules(container, code, storage, signal) {
   const f = makeFrame(container, RULES, false, signal);
   /** @type {(views: Record<string, unknown>) => void} */
   let onViews = () => {};
+  /** @type {(player: string, reason: string) => void} */
+  let onRemove = () => {};
   f.listen((m) => {
     if (m.type === "views") onViews(m.views);
+    if (m.type === "remove") onRemove(m.player, m.reason);
     if (m.type === "storage") {
       (async () => {
         if (typeof m.key !== "string") throw new Error("Storage keys must be strings.");
@@ -165,7 +173,7 @@ export async function startRules(container, code, storage, signal) {
   });
   try {
     await f.ready;
-    const rate = await f.call({ type: "load", code, seed: Math.floor(Math.random() * 2 ** 31) });
+    const rate = await f.call({ type: "load", code });
     return {
       ticksPerSecond: Math.min(Math.max(Number(rate) || 10, 1), 60),
       /** @param {string} player @param {unknown} character */
@@ -186,6 +194,10 @@ export async function startRules(container, code, storage, signal) {
       /** @param {(views: Record<string, unknown>) => void} fn */
       onViews(fn) {
         onViews = fn;
+      },
+      /** @param {(player: string, reason: string) => void} fn */
+      onRemove(fn) {
+        onRemove = fn;
       },
       stop: f.stop,
     };

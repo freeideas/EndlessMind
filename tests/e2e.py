@@ -258,6 +258,26 @@ def regressions(browser, base, remote):
       return {home:!document.querySelector('#home').hidden,frames:document.querySelectorAll('iframe.renderer').length};
     }''', link)
     assert result == {'home': True, 'frames': 0}, result
+    # Rules stuck in an endless loop must not freeze the page, and a realm that
+    # did not close cleanly is not reopened without asking.
+    alive = page.evaluate('''async () => {
+      const box=document.body.appendChild(document.createElement('div'));
+      const {startRules}=await import('/sandbox.js');
+      const rules=await startRules(box,'export default {init(){return {}}, tick(){for(;;){}}, view(){return 1}}',{get:async()=>{},put:async()=>{}});
+      rules.step();
+      await new Promise(r=>setTimeout(r,500));
+      rules.stop(); box.remove();
+      return true;
+    }''')
+    assert alive, 'runaway rules froze the page'
+    page.goto(link)
+    wait_for(lambda: page.evaluate("sessionStorage.getItem('emind-entering')"), what='the note of the realm being entered')
+    # A frozen page never gets to clear its note; imitate that across a reload.
+    page.evaluate("addEventListener('pagehide', () => sessionStorage.setItem('emind-entering', location.hash.match(/emind:([a-z0-9-]+)/)[1]))")
+    page.reload()
+    page.wait_for_selector('#open-anyway')
+    assert page.locator('iframe.renderer').count() == 0, 'a realm that froze was reopened without asking'
+    page.goto(base + '/#')
     rejected = page.evaluate('''async () => {
       const box=document.body.appendChild(document.createElement('div'));
       try { await (await import('/sandbox.js')).startRules(box,'broken syntax',{get:async()=>{},put:async()=>{}}); return false; }
