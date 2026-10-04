@@ -79,13 +79,20 @@ def steps(host, guest, base, browser_name):
         def guest_pos():
             return host.evaluate("JSON.stringify(globalThis.everygameLastView.players.filter(p => !p.me).map(p => [p.x, p.y]))")
 
-        start = guest_pos()
         frame = guest.frame_locator("iframe.renderer")
         frame.locator("canvas").click()
-        for key in ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 3:
+        # Try one direction at a time (some are walls) until the host sees the guest move.
+        moved = False
+        for key in ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"]:
+            start = guest_pos()
             guest.keyboard.press(key)
-            time.sleep(0.25)
-        wait_for(lambda: guest_pos() != start, what="guest movement seen by host")
+            try:
+                wait_for(lambda: guest_pos() != start, timeout=3, what="move")
+                moved = True
+                break
+            except AssertionError:
+                continue
+        assert moved, "the host never saw the guest move" 
 
         Path(tempfile.gettempdir(), f"everygame-{browser_name}-guest.png").write_bytes(guest.screenshot())
 

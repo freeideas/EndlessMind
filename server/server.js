@@ -11,10 +11,10 @@
 
 import { checkAnnouncement } from "../shared/announce.js";
 import { hashOf, isAddress, isHash, verify } from "../shared/crypto.js";
-import { open, PROTOCOL_VERSION } from "../shared/envelope.js";
+import { MAX_MESSAGE_BYTES, parseStrictJson } from "../shared/encoding.js";
+import { PROTOCOL_VERSION } from "../shared/envelope.js";
 
 const MAX_BLOB_BYTES = 2 * 1024 * 1024;
-const MAX_MESSAGE_BYTES = 256 * 1024;
 const ROOT = new URL("..", import.meta.url);
 
 /** Folders served as plain files, by URL prefix. The app is served at the root. */
@@ -81,8 +81,11 @@ export async function startServer(options = {}) {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   }
 
-  /** @param {WebSocket} socket */
-  function handleSocket(socket) {
+  /**
+   * @param {WebSocket} socket
+   * @param {string} host  this server's name as the client used it, e.g. "example.org:8000"
+   */
+  function handleSocket(socket, host) {
     /** Addresses this socket has proved. @type {Set<string>} */
     const mine = new Set();
     /** Challenges sent, by address. @type {Map<string, string>} */
@@ -92,16 +95,13 @@ export async function startServer(options = {}) {
 
     socket.onmessage = async (event) => {
       if (typeof event.data !== "string" || event.data.length > MAX_MESSAGE_BYTES) return;
-      let msg;
-      try {
-        msg = JSON.parse(event.data);
-      } catch {
-        return;
-      }
+      const msg = /** @type {any} */ (parseStrictJson(event.data));
       if (!msg || typeof msg !== "object") return;
 
       // Claiming an address: the socket proves it holds the private key by
-      // signing a random challenge. Then messages for that address come here.
+      // signing a random challenge together with this server's name, so a
+      // dishonest server cannot pass the signature on to claim the address
+      // elsewhere. Then messages for that address come here.
       if (msg.type === "claim" && isAddress(msg.address)) {
         const nonce = crypto.randomUUID();
         challenges.set(msg.address, nonce);
@@ -109,7 +109,7 @@ export async function startServer(options = {}) {
       } else if (msg.type === "prove" && challenges.has(msg.address)) {
         const nonce = challenges.get(msg.address);
         challenges.delete(msg.address);
-        if (await verify(msg.address, "claim", String(nonce), msg.sig)) {
+        if (await verify(msg.address, "claim", `${host}\n${nonce}`, msg.sig)) {
           mine.add(msg.address);
           if (!claims.has(msg.address)) claims.set(msg.address, new Set());
           claims.get(msg.address)?.add(socket);
@@ -149,12 +149,8 @@ export async function startServer(options = {}) {
     if (request.method === "POST") {
       const text = await request.text();
       if (text.length > MAX_MESSAGE_BYTES) return json({ error: "too large" }, 413);
-      let value;
-      try {
-        value = JSON.parse(text);
-      } catch {
-        return json({ error: "not JSON" }, 400);
-      }
+      const value = parseStrictJson(text);
+      if (value === undefined) return json({ error: "not acceptable JSON" }, 400);
       const checked = await checkAnnouncement(value);
       if (!checked) return json({ error: "invalid announcement" }, 400);
       const existing = announcements.get(checked.announcement.from);
@@ -234,8 +230,9 @@ export async function startServer(options = {}) {
     const url = new URL(request.url);
     if (url.pathname === "/ws") {
       if (request.headers.get("upgrade") !== "websocket") return new Response("WebSocket only", { status: 400 });
+      const host = request.headers.get("host") ?? url.host;
       const { socket, response } = Deno.upgradeWebSocket(request);
-      handleSocket(socket);
+      handleSocket(socket, host);
       return response;
     }
     if (url.pathname === "/announce" || url.pathname.startsWith("/announce/")) return handleAnnounce(request);

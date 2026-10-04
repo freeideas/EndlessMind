@@ -3,6 +3,7 @@
 // the envelope format does not change when they do.
 
 import { addressOf, sign } from "../shared/crypto.js";
+import { parseStrictJson } from "../shared/encoding.js";
 import { open, ReplayGuard, seal } from "../shared/envelope.js";
 
 /** @typedef {import("../shared/envelope.js").Envelope} Envelope */
@@ -85,16 +86,12 @@ export class Relay extends EventTarget {
 
   /** @param {string} text */
   async #onMessage(text) {
-    let msg;
-    try {
-      msg = JSON.parse(text);
-    } catch {
-      return;
-    }
+    const msg = /** @type {any} */ (parseStrictJson(text));
+    if (!msg || typeof msg !== "object") return;
     if (msg.type === "challenge") {
       const keyPair = this.keys.get(msg.address);
       if (!keyPair) return;
-      const sig = await sign(keyPair.privateKey, "claim", msg.nonce);
+      const sig = await sign(keyPair.privateKey, "claim", `${new URL(this.url).host}\n${msg.nonce}`);
       this.#raw({ type: "prove", address: msg.address, sig });
     } else if (msg.type === "claimed") {
       this.pendingClaims.get(msg.address)?.();

@@ -1,0 +1,97 @@
+{
+  "about": "wwg protocol version 0 (draft) test vectors. See specs/PROTOCOL.md, \"Version 0 formats\". Strings in base32 are lowercase RFC 4648 without padding.",
+  "base32": [
+    {
+      "hex": "",
+      "base32": ""
+    },
+    {
+      "hex": "66",
+      "base32": "my"
+    },
+    {
+      "hex": "666f6f626172",
+      "base32": "mzxw6ytboi"
+    }
+  ],
+  "canonicalJson": [
+    {
+      "input": "{\"b\":1,\"a\":[true,null,{\"d\":2,\"c\":\"x\"}]}",
+      "canonical": "{\"a\":[true,null,{\"c\":\"x\",\"d\":2}],\"b\":1}"
+    },
+    {
+      "input": "{\"n\":[1e30,4.50,0.002,-0,1e-7]}",
+      "canonical": "{\"n\":[1e+30,4.5,0.002,0,1e-7]}"
+    },
+    {
+      "input": "{\"\\u20ac\":1,\"\\r\":2,\"\\ud83d\\ude00\":3,\"1\":4}",
+      "canonical": "{\"\\r\":2,\"1\":4,\"€\":1,\"😀\":3}"
+    }
+  ],
+  "hash": [
+    {
+      "utf8": "abc",
+      "hash": "sha256-xj4bnp4pahh6uqkbidpf3lrceoyagyndsylxvhfucd7wd4qacwwq"
+    },
+    {
+      "utf8": "",
+      "hash": "sha256-4oymiquy7qobjgx36tejs35zeqt24qpemsnzgtfeswmrw6csxbkq"
+    }
+  ],
+  "key": {
+    "seedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "address": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena"
+  },
+  "signature": {
+    "purpose": "claim",
+    "text": "example.org:8000\nchallenge-nonce",
+    "signedBytesUtf8": "wwg-claim\nexample.org:8000\nchallenge-nonce",
+    "sig": "ed25519-lwk2523ysmnuh5s7mn5o24ktqd43vqzkqb4vzpzbcctufc43rd4zq5vly5bb27zks477r3yo3sdd2wih6zbsdhllnqa7rxlvzj6yaba"
+  },
+  "envelope": {
+    "envelope": {
+      "v": "wwg/0",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "from": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
+      "to": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "wwg.act",
+      "body": {
+        "action": {
+          "dir": "up"
+        }
+      },
+      "time": 1790000000000,
+      "sig": "ed25519-ellqvxp4qiikyckzgdc76u3jgcsjnltpbpn4zfma22f3gwirgj2c6qp6nuws4lamedd6wudehqk7hr6nxizkxhtall3vqt5u7ldaiby"
+    },
+    "signedBytesUtf8": "wwg-envelope\n{\"body\":{\"action\":{\"dir\":\"up\"}},\"from\":\"ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\",\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"wwg.act\",\"time\":1790000000000,\"to\":\"ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"v\":\"wwg/0\"}"
+  },
+  "release": {
+    "manifest": {
+      "v": "wwg/0",
+      "id": "bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "from": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
+      "to": null,
+      "kind": "manifest",
+      "body": {
+        "name": "Vector Realm",
+        "description": "",
+        "tags": [
+          "test"
+        ],
+        "files": {
+          "rules.js": "sha256-tlvy2wnu2sb4uyuy5gsfb67tpx6swtddteatlky5aqgxmmkaq7wa"
+        },
+        "main": "rules.js",
+        "renderer": "rules.js",
+        "play": [
+          "browser"
+        ],
+        "needs": []
+      },
+      "time": 1790000000000,
+      "sig": "ed25519-za5nkpv4z4ncld2kjoe3ylayvjdqb35vpyz7kqsxh3eupbjlx6xw5anw6uuvjqevsrzekaohzmhfumhjg5ex76mui4g5h2ou525hybq"
+    },
+    "release": "sha256-kkb2wfhwitd4lgytmfmregxe6z46sf6gp75d74wmkysyfjqw2ezq"
+  }
+}

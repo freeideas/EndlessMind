@@ -60,6 +60,55 @@ export function randomId(byteCount = 16) {
   return toBase32(crypto.getRandomValues(new Uint8Array(byteCount)));
 }
 
+/** Largest message text accepted, and deepest nesting (see specs/PROTOCOL.md, "Limits"). */
+export const MAX_MESSAGE_BYTES = 256 * 1024;
+export const MAX_DEPTH = 32;
+
+/**
+ * Parse JSON received from someone else, rejecting what different languages'
+ * parsers might read differently: duplicate field names in one object, nesting
+ * deeper than MAX_DEPTH, and text longer than MAX_MESSAGE_BYTES.
+ * @param {string} text
+ * @returns {unknown} the value, or undefined if the text is not acceptable
+ */
+export function parseStrictJson(text) {
+  if (typeof text !== "string" || text.length > MAX_MESSAGE_BYTES) return undefined;
+  /** @type {({ keys: Set<string>, expectKey: boolean } | null)[]} null marks an array */
+  const stack = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "{" || ch === "[") {
+      stack.push(ch === "{" ? { keys: new Set(), expectKey: true } : null);
+      if (stack.length > MAX_DEPTH) return undefined;
+    } else if (ch === "}" || ch === "]") {
+      stack.pop();
+    } else if (ch === ",") {
+      const top = stack[stack.length - 1];
+      if (top) top.expectKey = true;
+    } else if (ch === '"') {
+      const start = i;
+      for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === "\\") i++;
+      const top = stack[stack.length - 1];
+      if (top && top.expectKey) {
+        let key;
+        try {
+          key = JSON.parse(text.slice(start, i + 1));
+        } catch {
+          return undefined;
+        }
+        if (top.keys.has(key)) return undefined;
+        top.keys.add(key);
+        top.expectKey = false;
+      }
+    }
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Canonical JSON, as defined by RFC 8785 (JSON Canonicalization Scheme):
  * object keys sorted by UTF-16 code units at every level, no extra spaces,

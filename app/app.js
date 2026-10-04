@@ -31,9 +31,9 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
-/** @param {string} address */
-function realmLink(address) {
-  return `${location.origin}/#wwg:${address}`;
+/** @param {string} address @param {string} [release] */
+function realmLink(address, release) {
+  return `${location.origin}/#wwg:${address}` + (release ? `?release=${release}` : "");
 }
 
 /** @param {string} text */
@@ -46,13 +46,23 @@ async function copy(text) {
   }
 }
 
+/** Replace the page with an explanation and stop. @param {string} title @param {string} html */
+function cannotRun(title, html) {
+  document.body.innerHTML = `<main style="padding:16px;max-width:640px"><h2>${title}</h2><p>${html}</p></main>`;
+  throw new Error(title);
+}
+
 if (!globalThis.crypto?.subtle) {
-  document.body.innerHTML = `<main style="padding:16px;max-width:640px">
-    <h2>This page needs a secure connection</h2>
-    <p>Browsers only allow the key functions EveryGame uses on <b>https</b> addresses or on
-    <b>localhost</b>. Open this server through https, or on the computer running it.
-    See <code>specs/RUNNING.md</code> in the EveryGame repository.</p></main>`;
-  throw new Error("insecure context");
+  cannotRun("This page needs a secure connection", `Browsers only allow the key functions EveryGame uses on
+    <b>https</b> addresses or on <b>localhost</b>. Open this server through https, or on the computer running it.
+    See <code>specs/RUNNING.md</code> in the EveryGame repository.`);
+}
+// Having Web Crypto does not mean having Ed25519 keys, so test the exact operation.
+const ed25519Works = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])
+  .then(() => true, () => false);
+if (!ed25519Works) {
+  cannotRun("This browser is too old", `EveryGame needs Ed25519 keys, which arrived in Chrome and Edge 137,
+    Firefox 129 and Safari 17. Please update your browser, or try another one.`);
 }
 
 askToPersist();
@@ -94,6 +104,7 @@ async function showHome() {
   $("realm").hidden = true;
   $("home").hidden = false;
   $("copy-link").hidden = true;
+  $("copy-version-link").hidden = true;
   $("more-realms").hidden = true;
   $("realm-name").textContent = "";
   /** @type {HTMLInputElement} */ ($("char-name")).value = character.info.name;
@@ -102,34 +113,40 @@ async function showHome() {
   await Promise.all([showSearch(), showOwned()]);
 }
 
-/** @type {{ stop: () => void } | null} */
+/** @type {{ name: string, release: string, stop: () => void } | null} */
 let current = null;
 
-/** @param {string} address */
-async function showRealm(address) {
+/** @param {string} address @param {string} [release] */
+async function showRealm(address, release) {
   $("home").hidden = true;
   $("realm").hidden = false;
   $("copy-link").hidden = false;
+  $("copy-version-link").hidden = false;
   $("more-realms").hidden = false;
   $("realm-name").textContent = "";
   $("copy-link").onclick = () => copy(realmLink(address));
+  $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release));
   const stage = $("stage");
   stage.replaceChildren();
   try {
     await relay.ready;
     const owned = await ownedRealm(address);
-    current = await play(address, character, relay, stage, { status, owned });
-    $("realm-name").textContent = /** @type {any} */ (current).name;
+    current = await play(address, character, relay, stage, { status, owned, release });
+    $("realm-name").textContent = current.name;
   } catch (error) {
-    stage.replaceChildren(el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]));
+    const message = el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]);
+    if (/** @type {any} */ (error).code === "release-changed") {
+      message.append(" ", el("a", { href: `#wwg:${address}` }, ["Open the current version"]));
+    }
+    stage.replaceChildren(message);
   }
 }
 
 async function route() {
   current?.stop();
   current = null;
-  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?wwg:([a-z0-9-]+)/);
-  if (match) await showRealm(match[1]);
+  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?wwg:([a-z0-9-]+)(?:\?release=([a-z0-9-]+))?/);
+  if (match) await showRealm(match[1], match[2]);
   else await showHome();
 }
 

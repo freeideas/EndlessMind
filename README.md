@@ -59,4 +59,4 @@ The technical documents are in [specs/](specs/):
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+The code is yours to use under your choice of the MIT license ([LICENSE-MIT](LICENSE-MIT)) or the Apache License 2.0 ([LICENSE-APACHE](LICENSE-APACHE)). The Apache option includes a patent grant from contributors. The documents in [specs/](specs/) are dedicated to the public domain under CC0 1.0 ([specs/LICENSE](specs/LICENSE)), so anyone can copy, change and republish the protocol. To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -25,17 +25,18 @@ export const PROTOCOL_VERSION = "wwg/0";
  * @param {string | null} to
  * @param {string} kind
  * @param {unknown} body
+ * @param {{ id?: string, time?: number }} [fixed] set id and time (for test vectors only)
  * @returns {Promise<Envelope>}
  */
-export async function seal(keyPair, to, kind, body) {
+export async function seal(keyPair, to, kind, body, fixed = {}) {
   const unsigned = {
     v: PROTOCOL_VERSION,
-    id: randomId(),
+    id: fixed.id ?? randomId(),
     from: await addressOf(keyPair.publicKey),
     to,
     kind,
     body: body ?? null,
-    time: Date.now(),
+    time: fixed.time ?? Date.now(),
   };
   return { ...unsigned, sig: await sign(keyPair.privateKey, "envelope", canonicalJson(unsigned)) };
 }

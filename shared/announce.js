@@ -4,7 +4,8 @@
 // An announcement is the realm's signed "here I am" note that carries the
 // manifest, so anyone holding the announcement can fetch and check every file.
 
-import { isHash } from "./crypto.js";
+import { hashOf, isHash } from "./crypto.js";
+import { canonicalJson } from "./encoding.js";
 import { open, seal } from "./envelope.js";
 
 /**
@@ -16,6 +17,8 @@ import { open, seal } from "./envelope.js";
  * @property {string} main      file name of the realm's rules
  * @property {string} renderer  file name of the default renderer
  * @property {string[]} play    how it can be played, e.g. ["browser"]
+ * @property {string[]} needs   permissions the realm asks the player's app for; none are
+ *                              defined in version 0, so this is empty for now
  */
 
 /**
@@ -25,6 +28,15 @@ import { open, seal } from "./envelope.js";
  * @property {string[]} tags
  * @property {number} expires  milliseconds since 1970
  */
+
+/**
+ * A release is one exact signed manifest. Its hash pins that version, so a
+ * link can say "this realm, exactly as it was" (`wwg:<address>?release=<hash>`).
+ * @param {import("./envelope.js").Envelope} manifest
+ */
+export function releaseOf(manifest) {
+  return hashOf(canonicalJson(manifest));
+}
 
 /** One week: announcements expire unless renewed ("unused things fade away"). */
 export const ANNOUNCEMENT_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
@@ -76,6 +88,7 @@ export async function checkAnnouncement(value) {
   }
   const m = /** @type {ManifestBody} */ (manifestEnv.body);
   if (!m || typeof m.name !== "string" || !isTagList(m.tags)) return null;
+  if (!Array.isArray(m.needs) || !m.needs.every((n) => typeof n === "string")) return null;
   if (!m.files || typeof m.files !== "object") return null;
   if (!Object.values(m.files).every(isHash)) return null;
   if (!m.files[m.main] || !m.files[m.renderer]) return null;

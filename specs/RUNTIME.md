@@ -20,9 +20,12 @@ A realm is published from a folder of files:
   "description": "Collect glowing seeds while lantern spirits chase you.",
   "tags": ["maze", "chase", "multiplayer"],
   "main": "rules.js",
-  "renderer": "renderer.js"
+  "renderer": "renderer.js",
+  "needs": []
 }
 ```
+
+`needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
 
 Publishing makes a new key pair for the realm on the publishing device, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<any server>/#wwg:<address>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
 

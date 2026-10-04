@@ -1,8 +1,8 @@
 // Publishing realms and fetching them back, checking every hash and signature.
 
-import { checkAnnouncement, makeAnnouncement, makeManifest } from "../shared/announce.js";
+import { checkAnnouncement, makeAnnouncement, makeManifest, releaseOf } from "../shared/announce.js";
 import { addressOf, generateKeyPair, hashOf } from "../shared/crypto.js";
-import { fromUtf8 } from "../shared/encoding.js";
+import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import * as store from "./store.js";
 
 /**
@@ -13,6 +13,7 @@ import * as store from "./store.js";
  * @property {string[]} [tags]
  * @property {string} main      rules file
  * @property {string} renderer  default renderer file
+ * @property {string[]} [needs] permissions asked for (none exist yet)
  */
 
 /**
@@ -59,6 +60,7 @@ export async function publish(files) {
     main: source.main,
     renderer: source.renderer,
     play: ["browser"],
+    needs: source.needs ?? [],
   });
   /** @type {OwnedRealm} */
   const realm = { address, name: source.name, keys, manifest };
@@ -91,10 +93,13 @@ export function ownedRealm(address) {
 export async function lookUp(address) {
   const response = await fetch(`/announce/${encodeURIComponent(address)}`);
   if (!response.ok) return null;
-  const { announcement, online } = await response.json();
+  const reply = /** @type {any} */ (parseStrictJson(await response.text()));
+  if (!reply) return null;
+  const { announcement, online } = reply;
   const checked = await checkAnnouncement(announcement);
   if (!checked || checked.announcement.from !== address) return null;
-  return { manifest: checked.manifest, online: Boolean(online) };
+  const manifestEnv = /** @type {any} */ (checked.announcement.body).manifest;
+  return { manifest: checked.manifest, online: Boolean(online), release: await releaseOf(manifestEnv) };
 }
 
 /**

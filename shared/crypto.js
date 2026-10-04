@@ -27,6 +27,23 @@ export async function generateKeyPair(extractable = false) {
 }
 
 /**
+ * Rebuild a key pair from a 32-byte Ed25519 seed (the raw private key). Used
+ * for test vectors; ordinary keys are made with generateKeyPair and never leave
+ * their device.
+ * @param {Uint8Array<ArrayBuffer>} seed
+ * @returns {Promise<CryptoKeyPair>}
+ */
+export async function keyPairFromSeed(seed) {
+  // PKCS #8 wrapping for an Ed25519 private key: a fixed 16-byte prefix, then the seed.
+  const prefix = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
+  const pkcs8 = new Uint8Array([...prefix, ...seed]);
+  const privateKey = await crypto.subtle.importKey("pkcs8", pkcs8, ED25519, true, ["sign"]);
+  const jwk = await crypto.subtle.exportKey("jwk", privateKey);
+  const publicKey = await crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: jwk.x }, ED25519, true, ["verify"]);
+  return { privateKey, publicKey };
+}
+
+/**
  * An object's address is its labeled public key.
  * @param {CryptoKey} publicKey
  * @returns {Promise<string>}
@@ -36,9 +53,23 @@ export async function addressOf(publicKey) {
   return "ed25519-" + toBase32(raw);
 }
 
+/**
+ * True if the text is base32 in its one canonical form: leftover bits at the
+ * end must be zero, so no two strings decode to the same bytes.
+ * @param {string} text
+ */
+function canonicalBase32(text) {
+  try {
+    return toBase32(fromBase32(text)) === text;
+  } catch {
+    return false;
+  }
+}
+
 /** @param {unknown} address @returns {address is string} */
 export function isAddress(address) {
-  return typeof address === "string" && /^ed25519-[a-z2-7]{52}$/.test(address);
+  return typeof address === "string" && /^ed25519-[a-z2-7]{52}$/.test(address) &&
+    canonicalBase32(address.slice(8));
 }
 
 /** @type {Map<string, Promise<CryptoKey>>} */
@@ -83,6 +114,7 @@ export async function sign(privateKey, purpose, text) {
 export async function verify(address, purpose, text, signature) {
   try {
     if (typeof signature !== "string" || !/^ed25519-[a-z2-7]{103}$/.test(signature)) return false;
+    if (!canonicalBase32(signature.slice(8))) return false;
     const sig = fromBase32(signature.slice("ed25519-".length));
     return await crypto.subtle.verify(ED25519, await publicKeyFor(address), sig, signedBytes(purpose, text));
   } catch {
@@ -103,5 +135,5 @@ export async function hashOf(data) {
 
 /** @param {unknown} hash @returns {hash is string} */
 export function isHash(hash) {
-  return typeof hash === "string" && /^sha256-[a-z2-7]{52}$/.test(hash);
+  return typeof hash === "string" && /^sha256-[a-z2-7]{52}$/.test(hash) && canonicalBase32(hash.slice(7));
 }

@@ -6,7 +6,7 @@ Written 2026-09-27. A concrete, step-by-step picture of how EveryGame works in p
 
 There is no company system to switch on. Launching means making three things available:
 
-1. **The code:** this repository, public under the MIT license. It contains the server, the app and the agent guide.
+1. **The code:** this repository, public under the MIT or Apache 2.0 license (the user's choice), with the documents in the public domain. It contains the server, the app and the agent guide.
 2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `everygame.example`, running one command (`deno task start`); for a group of friends, any computer they already have will do. It serves the app page, introduces browsers to each other, relays traffic when direct connections fail, and stores encrypted files.
 3. **The agent guide:** a file any AI coding agent reads to learn how to build realms and objects.
 

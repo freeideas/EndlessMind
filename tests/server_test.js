@@ -26,7 +26,7 @@ async function connect(base, keys) {
   socket.onmessage = async (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "challenge") {
-      socket.send(JSON.stringify({ type: "prove", address: m.address, sig: await sign(keys.privateKey, "claim", m.nonce) }));
+      socket.send(JSON.stringify({ type: "prove", address: m.address, sig: await sign(keys.privateKey, "claim", `${new URL(base).host}\n${m.nonce}`) }));
       return;
     }
     const w = waiters.shift();
@@ -57,7 +57,7 @@ Deno.test("announcements are checked, listed by tag, and show who is online", ()
     const realm = await generateKeyPair();
     const address = await addressOf(realm.publicKey);
     const manifest = await makeManifest(realm, {
-      name: "Maze", tags: ["maze"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", play: ["browser"],
+      name: "Maze", tags: ["maze"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", play: ["browser"], needs: [],
     });
     const posted = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify(await makeAnnouncement(realm, manifest)) });
     assertEquals(posted.status, 200);
@@ -100,6 +100,31 @@ Deno.test("the relay delivers signed messages and refuses to send as someone els
     assertEquals((await alice.next()).type, "undeliverable");
     alice.close();
     bob.close();
+    await new Promise((r) => setTimeout(r, 50));
+  }));
+
+Deno.test("a claim signed for another server is refused", () =>
+  withServer(async (base) => {
+    const keys = await generateKeyPair();
+    const address = await addressOf(keys.publicKey);
+    const socket = new WebSocket(base.replace("http", "ws") + "/ws");
+    /** @type {string[]} */
+    const replies = [];
+    const done = new Promise((resolve) => {
+      socket.onmessage = async (e) => {
+        const m = JSON.parse(e.data);
+        replies.push(m.type);
+        if (m.type === "welcome") socket.send(JSON.stringify({ type: "claim", address }));
+        if (m.type === "challenge") {
+          const sig = await sign(keys.privateKey, "claim", `other.example:443\n${m.nonce}`);
+          socket.send(JSON.stringify({ type: "prove", address, sig }));
+        }
+        if (m.type === "error" || m.type === "claimed") resolve(undefined);
+      };
+    });
+    await done;
+    assertEquals(replies.at(-1), "error");
+    socket.close();
     await new Promise((r) => setTimeout(r, 50));
   }));
 

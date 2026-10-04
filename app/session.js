@@ -109,12 +109,20 @@ export async function referee(realm, relay, container, status) {
  * @param {Character} character
  * @param {Relay} relay
  * @param {HTMLElement} container
- * @param {{ status: (text: string) => void, owned?: OwnedRealm }} ui
+ * @param {{ status: (text: string) => void, owned?: OwnedRealm, release?: string }} ui
  */
 export async function play(address, character, relay, container, ui) {
   const found = await lookUp(address);
   if (!found) throw new Error("No realm with this address is announced on this server.");
   const { manifest } = found;
+  if (ui.release && ui.release !== found.release) {
+    throw Object.assign(new Error("This link is for an earlier version of this realm, which has changed since."), {
+      code: "release-changed",
+    });
+  }
+  if (manifest.needs.length) {
+    throw new Error(`This realm asks for permissions this app does not know: ${manifest.needs.join(", ")}.`);
+  }
   const rendererCode = await fetchFile(manifest.files[manifest.renderer]);
 
   if (ui.owned) {
@@ -124,7 +132,7 @@ export async function play(address, character, relay, container, ui) {
     const verdict = await ref.addLocalPlayer(character, (v) => (lastView(v), view.show(v)));
     if (!verdict.ok) throw new Error(`The realm refused you: ${verdict.reason ?? "no reason given"}`);
     ui.status(`You are hosting ${manifest.name}. Keep this tab open so others can play.`);
-    return { name: manifest.name, stop: () => (ref.stop(), view.stop()) };
+    return { name: manifest.name, release: found.release, stop: () => (ref.stop(), view.stop()) };
   }
 
   await relay.addKey(character.keys);
@@ -167,6 +175,7 @@ export async function play(address, character, relay, container, ui) {
 
   return {
     name: manifest.name,
+    release: found.release,
     stop() {
       clearInterval(pinger);
       relay.send(character.keys, address, "wwg.leave", {});
