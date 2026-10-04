@@ -141,11 +141,11 @@ What all of this relies on, and what later changes to the protocol must keep tru
 
 | Piece             | What it is                             | Who owns it                | Where it runs            |
 | ----------------- | -------------------------------------- | -------------------------- | ------------------------ |
-| **The player**       | Opens links; runs everything else      | Its author                 | Browser or any device    |
+| **The player**    | Opens links; runs everything else      | Its author                 | Browser or any device    |
 | **Character**     | Your name, look and description        | Whoever holds its secret   | Wherever its secret is   |
 | **Realm**         | A place or game: rules and referee     | Whoever holds its key      | Rules on the referee     |
 | **In-realm form** | Your character as that realm shows it  | The realm, lent to you     | Realm state              |
-| **Renderer**      | Turns the realm's state into a picture | The realm's maker          | Your player, sandboxed      |
+| **Renderer**      | Turns the realm's state into a picture | The realm's maker          | Your player, sandboxed   |
 
 **The player** holds your keys, runs foreign code in sandboxes, opens links and owns its menu. Use a copy of the player you trust: its source can take any key it holds. Helper servers are separate connection targets. A link hint selects a server without loading its player or moving your keys. HTTP API routes allow cross-origin requests for public files and announcements; relay connections prove keys without exporting them.
 
