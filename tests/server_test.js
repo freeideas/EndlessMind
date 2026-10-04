@@ -215,13 +215,13 @@ Deno.test("a proof signed for another server is refused", () =>
     await new Promise((r) => setTimeout(r, 50));
   }));
 
-Deno.test("the server serves the player page", () =>
+Deno.test("the server serves the portal page", () =>
   withServer(async (base) => {
     const page = await fetch(`${base}/`);
     assert((await page.text()).includes("Endless Mind"));
     const hidden = await fetch(`${base}/../deno.json`);
     assert(hidden.status === 404 || !(await hidden.text()).includes("tasks"));
-    // A path that is itself a whole file address must not escape the player folder.
+    // A path that is itself a whole file address must not escape the portal folder.
     const outside = await fetch(`${base}/${new URL("../deno.json", import.meta.url).href}`);
     assertEquals(outside.status, 404);
     await outside.body?.cancel();
@@ -265,7 +265,7 @@ Deno.test("uploads over the size limit are refused", () =>
     await reply.body?.cancel();
   }));
 
-Deno.test("server file quota is cumulative, deduplicated, and available to another player origin", async () => {
+Deno.test("server file quota is cumulative, deduplicated, and available to another portal origin", async () => {
   const dataDir = await Deno.makeTempDir();
   const server = await startServer({port:0,hostname:"127.0.0.1",dataDir,maxStoredBytes:4});
   const base = `http://127.0.0.1:${server.port}`;
@@ -273,7 +273,7 @@ Deno.test("server file quota is cumulative, deduplicated, and available to anoth
     const hash = await hashOf("1234");
     await announceFiles(base, { a: hash, b: await hashOf("5") });
     for (let i = 0; i < 2; i++) {
-      const reply = await fetch(`${base}/blob/${hash}`, {method:"PUT",body:"1234",headers:{origin:"https://another-player.example"}});
+      const reply = await fetch(`${base}/blob/${hash}`, {method:"PUT",body:"1234",headers:{origin:"https://another-portal.example"}});
       assertEquals(reply.status, 200);
       assertEquals(reply.headers.get("access-control-allow-origin"), "*");
       await reply.body?.cancel();

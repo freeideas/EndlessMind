@@ -18,7 +18,7 @@ import { verify } from "./crypto.js";
  * @property {(actor: string) => void} leave
  * @property {() => void} step
  * @property {(fn: (views: Record<string, unknown>, checks?: Record<string, unknown>) => void) => void} onViews
- *   `checks` is given by repeatable rules: for each actor, what their player needs to check the referee
+ *   `checks` is given by repeatable rules: for each actor, what their portal needs to check the referee
  * @property {(actor: string, both: { claim: unknown, seen: string }) => void} [seen]  an actor signed a claim in return
  * @property {boolean} [repeatable]  the rules promise: the same moves in the same order always give the same state
  * @property {(actor: string) => void} [resync]  send this actor a fresh starting point with the next tick
@@ -284,7 +284,7 @@ export async function referee(
 /**
  * The one driver for a rules module (specs/RUNTIME.md), used by the host
  * program directly and by the browser inside a sandbox. It must stay
- * self-contained: player/sandbox.js inserts this function's source text into
+ * self-contained: portal/sandbox.js inserts this function's source text into
  * the sandbox, so it may use nothing outside itself.
  * @param {any} rules
  * @param {RealmStorage} [storage]

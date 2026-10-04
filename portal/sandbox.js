@@ -15,7 +15,7 @@ addEventListener('unhandledrejection', e => report(e.reason));
 // The rules run in a worker inside the sandboxed frame, so rules stuck in an
 // endless loop cannot freeze the page, and removing the frame stops them. The
 // worker runs the same driver as the host program (directRules), inserted here
-// as source text because sandboxed code cannot import the player's files.
+// as source text because sandboxed code cannot import the portal's files.
 const RULES_BRIDGE = `
 const directRules = ${directRules.toString()};
 function startRules(send, listen) {

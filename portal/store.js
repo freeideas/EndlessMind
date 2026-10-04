@@ -1,6 +1,6 @@
-// The player's local storage: one IndexedDB database holding the character, the
+// The portal's local storage: one IndexedDB database holding the character, the
 // realms this browser has keys for, and their keys. Clearing the site's data
-// clears it, which is why the player offers "Save my keys" (keyfile.js).
+// clears it, which is why the portal offers "Save my keys" (keyfile.js).
 
 const DB_NAME = "endlessmind";
 const STORE = "things";

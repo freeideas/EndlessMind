@@ -72,7 +72,7 @@ Deno.test("a referee that changes a view, or makes a move in an actor's name, is
   await forge.host.enter("ann", {});
   forge.host.step();
   await forge.settle();
-  forge.host.act("ann", { dir: "left" }); // ann's player never sent this
+  forge.host.act("ann", { dir: "left" }); // ann's portal never sent this
   forge.host.step();
   await forge.settle();
   assertEquals(forge.alarms, ["made a move in your name that you did not make"]);

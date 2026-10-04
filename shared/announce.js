@@ -1,4 +1,4 @@
-// Realm manifests and announcements, shared by the player and the server.
+// Realm manifests and announcements, shared by the portal and the server.
 //
 // A manifest is a realm's signed list of files (by hash) plus its name and tags.
 // An announcement is the realm's signed "here I am" note that carries the
@@ -21,18 +21,18 @@ import { open, seal } from "./envelope.js";
  *                                private (known only to the referee)
  * @property {string} [renderer]  file name of the default browser renderer; left out when the
  *                                realm cannot be played in a browser
- * @property {RealmPlayer} [player]     the realm's own player, for realms made with an engine
+ * @property {RealmPortal} [portal]     the realm's own portal, for realms made with an engine
  * @property {string[]} [asks]  addresses of realms whose signed claims this realm would like to be
- *                              shown; the player offers what the actor holds from them, if the actor agrees
- * @property {string[]} needs   permissions the realm asks the actor's player for; none are
+ *                              shown; the portal offers what the actor holds from them, if the actor agrees
+ * @property {string[]} needs   permissions the realm asks the actor's portal for; none are
  *                              defined in version 0, so this is empty for now
  */
 
 /**
  * A program actors install to play a realm (built with a game engine, say).
  * It is a peer like any other: it speaks the protocol; nothing in it is run by
- * the browser player.
- * @typedef {object} RealmPlayer
+ * the browser portal.
+ * @typedef {object} RealmPortal
  * @property {string} name
  * @property {string} url   https address where actors can get it
  */
@@ -47,7 +47,7 @@ import { open, seal } from "./envelope.js";
  * @property {boolean} [privateRules]  keep the rules file off the network: only a host program can referee
  * @property {string} [renderer]  default browser renderer file
  * @property {string[]} [files]   other public files
- * @property {RealmPlayer} [player]
+ * @property {RealmPortal} [portal]
  * @property {string[]} [asks]    realms whose signed claims this realm would like to be shown
  * @property {string[]} [needs]   permissions asked for (none exist yet)
  */
@@ -67,11 +67,11 @@ export function manifestBody(source, hashes) {
   const tags = source.tags ?? [];
   if (!isTagList(tags)) throw new Error("realm.json may list at most 32 tags, each 1 to 40 characters.");
   if (!source.main) throw new Error("realm.json must point to the realm's rules file (main).");
-  if (!source.renderer && !source.player) throw new Error("realm.json must point to a renderer file, or name the realm's own player.");
+  if (!source.renderer && !source.portal) throw new Error("realm.json must point to a renderer file, or name the realm's own portal.");
   if (source.asks && !(Array.isArray(source.asks) && source.asks.length <= 16 && source.asks.every(isAddress))) {
     throw new Error("realm.json's asks may list at most 16 realm addresses.");
   }
-  if (source.player && !isPlayer(source.player)) throw new Error("realm.json's player needs a name and an https address (url).");
+  if (source.portal && !isPortal(source.portal)) throw new Error("realm.json's portal needs a name and an https address (url).");
   const main = source.privateRules ? undefined : source.main;
   for (const name of [main, source.renderer]) {
     if (name && !hashes[name]) throw new Error(`The file ${name} named in realm.json is missing.`);
@@ -83,15 +83,15 @@ export function manifestBody(source, hashes) {
     files: hashes,
     ...(main ? { main } : {}),
     ...(source.renderer ? { renderer: source.renderer } : {}),
-    ...(source.player ? { player: { name: source.player.name, url: source.player.url } } : {}),
+    ...(source.portal ? { portal: { name: source.portal.name, url: source.portal.url } } : {}),
     ...(source.asks?.length ? { asks: source.asks } : {}),
     needs: source.needs ?? [],
   };
 }
 
-/** @param {unknown} player @returns {player is RealmPlayer} */
-function isPlayer(player) {
-  const a = /** @type {any} */ (player);
+/** @param {unknown} portal @returns {portal is RealmPortal} */
+function isPortal(portal) {
+  const a = /** @type {any} */ (portal);
   return Boolean(a) && typeof a.name === "string" && a.name.length > 0 && a.name.length <= 80 &&
     typeof a.url === "string" && a.url.length <= 300 && /^https:\/\/[^\s<>"']+$/.test(a.url);
 }
@@ -243,5 +243,5 @@ export function isManifestBody(body) {
     if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return false;
   }
   if (m.asks !== undefined && !(Array.isArray(m.asks) && m.asks.length <= 16 && m.asks.every(isAddress))) return false;
-  return m.player === undefined || isPlayer(m.player);
+  return m.portal === undefined || isPortal(m.portal);
 }

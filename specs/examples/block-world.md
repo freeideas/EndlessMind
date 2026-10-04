@@ -20,5 +20,5 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 
 ## What limits it today
 
-- **Saved state:** the reference player does not save realm state yet, so the world's changes last only while its referee runs.
+- **Saved state:** the reference portal does not save realm state yet, so the world's changes last only while its referee runs.
 - **One referee:** a home connection serves tens of actors, and every change passes through it.

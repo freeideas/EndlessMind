@@ -81,7 +81,7 @@ Deno.test("strict JSON rejects duplicate names, deep nesting and huge text", () 
   assertEquals(parseStrictJson("{not json}"), undefined);
 });
 
-Deno.test("a manifest may leave out private rules or a browser renderer, and may name the realm's own player", async () => {
+Deno.test("a manifest may leave out private rules or a browser renderer, and may name the realm's own portal", async () => {
   const keys = await generateKeyPair();
   const hashes = { "view.js": await hashOf("x") };
   const check = async (/** @type {any} */ body) => (await checkAnnouncement(await makeAnnouncement(keys, await makeManifest(keys, body))))?.manifest;
@@ -90,12 +90,12 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
   assertEquals([hidden.main, hidden.renderer], [undefined, "view.js"]);
   assert(await check(hidden));
 
-  const player = { name: "Harbor", url: "https://example.org/get" };
-  const engine = manifestBody({ name: "Harbor", main: "server", privateRules: true, player }, {});
-  assertEquals([engine.renderer, engine.player], [undefined, player]);
+  const portal = { name: "Harbor", url: "https://example.org/get" };
+  const engine = manifestBody({ name: "Harbor", main: "server", privateRules: true, portal }, {});
+  assertEquals([engine.renderer, engine.portal], [undefined, portal]);
   assert(await check(engine));
 
-  assertEquals(await check({ ...engine, player: { name: "x", url: "javascript:alert(1)" } }), undefined);
+  assertEquals(await check({ ...engine, portal: { name: "x", url: "javascript:alert(1)" } }), undefined);
   assertEquals(await check({ ...hidden, renderer: "missing.js" }), undefined);
   let refused = false;
   try {
@@ -103,7 +103,7 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
   } catch {
     refused = true;
   }
-  assert(refused, "a realm needs a renderer or a player");
+  assert(refused, "a realm needs a renderer or a portal");
 });
 
 Deno.test("an actor has a different, steady address in each realm", async () => {

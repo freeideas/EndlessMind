@@ -13,7 +13,7 @@ A technical example of how a realm on the Endless Mind model described in [DESIG
 ## Putting it online
 
 - `deno task host --server <web address> --realm examples/listening-well` uploads the renderer (never the rules), announces the realm and referees it, printing its link. The realm is online while that program runs.
-- Visitors open the link in a browser like any other realm. The player tells them the rules are private, so they trust the well the way they trust a website's server.
+- Visitors open the link in a browser like any other realm. The portal tells them the rules are private, so they trust the well the way they trust a website's server.
 - A browser tab cannot publish or referee this realm, since it never has the rules.
 
 A working version of this example is in this repository under `examples/listening-well/`.

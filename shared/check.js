@@ -1,5 +1,5 @@
 // Checking a referee. When a realm's rules are public and repeatable (the same
-// moves in the same order always give the same state), a visitor's player runs its
+// moves in the same order always give the same state), a visitor's portal runs its
 // own copy of the rules, feeds it the moves the referee says it applied, and
 // compares what that copy would show the actor with what the referee sent.
 // A referee that strays from the public rules in any way the actor can see is
@@ -52,7 +52,7 @@ export function makeChecker(replay, me, alarm, notice = () => {}) {
       return;
     }
     if (started) {
-      // Entering and leaving happen between sessions, never inside one, and every move must be one this player sent.
+      // Entering and leaving happen between sessions, never inside one, and every move must be one this portal sent.
       for (const [kind, actor, data] of check.inputs ?? []) {
         if (actor !== me) continue;
         if (kind !== "act") return fail("made you leave or enter without your asking");

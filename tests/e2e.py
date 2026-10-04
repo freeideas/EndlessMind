@@ -238,9 +238,9 @@ def regressions(browser, base, remote):
     page.frame_locator('iframe.renderer').locator('button').click()
     wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
     wait_for(lambda: page.evaluate("a => import('/store.js').then(m => m.realmStorage(a).get('count'))", address) == 1)
-    # The realm signed a claim for the visitor, and the player kept it in the actor's record.
+    # The realm signed a claim for the visitor, and the portal kept it in the actor's record.
     wait_for(lambda: page.evaluate("a => import('/claims.js').then(m => m.held(a)).then(l => l.map(e => e.body.says))", address) == ['opened the counter'], what='a signed claim in the record')
-    assert page.url.startswith(base), 'visiting another server moved the player origin'
+    assert page.url.startswith(base), 'visiting another server moved the portal origin'
     assert secret == page.evaluate("import('/character.js').then(m => m.myCharacter()).then(c => c.secret)")
     page.goto(base + '/#')
     page.click('#owned .host-toggle')
@@ -277,7 +277,7 @@ def regressions(browser, base, remote):
     page.click('#owned a')
     wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
     link = page.evaluate('location.href')
-    # A dead server named first in a link is skipped: the player tries each hint in turn.
+    # A dead server named first in a link is skipped: the portal tries each hint in turn.
     moved.goto(link.replace('via=', 'via=http%3A%2F%2Flocalhost%3A9,'))
     wait_for(lambda: moved.evaluate('globalThis.endlessmindLastView?.count') == 1, what='opening past a dead server hint')
     moved.goto(base + '/#')

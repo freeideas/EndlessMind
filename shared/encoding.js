@@ -1,4 +1,4 @@
-// Small byte helpers shared by the browser player and Deno. No dependencies.
+// Small byte helpers shared by the browser portal and Deno. No dependencies.
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();

@@ -1,6 +1,6 @@
 # Guide for AI agents building Endless Mind realms
 
-You are an AI coding agent helping a person make a realm (a game, a place, a shop, a tool, anything) for Endless Mind, an open network where anyone can make anything and anyone can use it from a link. Read this, then build what they describe. In these documents an **actor** is whoever plays in a realm, a person or an AI, and a **player** is the software that gets an actor in.
+You are an AI coding agent helping a person make a realm (a game, a place, a shop, a tool, anything) for Endless Mind, an open network where anyone can make anything and anyone can use it from a link. Read this, then build what they describe. In these documents an **actor** is whoever plays in a realm, a person or an AI, and a **portal** is the software that gets an actor in.
 
 ## What to build
 
@@ -22,13 +22,13 @@ Some realms need their referee run by the host program (see "Hosting without a b
 ## Rules to follow
 
 - **Original work only.** Build original designs with invented names. Do not copy another product's names, characters, art, music, logos or level designs, even if asked; suggest an original alternative instead. The maker is responsible for holding the rights to what they publish.
-- **Treat everything from outside as untrusted.** Character descriptions and actions can come from any player or renderer. Check and clean them in the rules; never let them crash the rules.
+- **Treat everything from outside as untrusted.** Character descriptions and actions can come from any portal or renderer. Check and clean them in the rules; never let them crash the rules.
 - **Let reputation be earned.** An actor has the same address every time they return, and nobody can fake it, but anyone can make a new one. So a ban alone costs a troublemaker nothing. In a realm where actors can spoil things for each other, let new addresses do less (look before building, move before speaking), widen that with time played, and consider invitations from members. A ban then costs what was earned. A lasting realm can also sign what actors did in it (`claim`), and can ask to see what they did in realms it trusts (`asks` in `realm.json`, and the `claims` given to `enter`). See "Signed claims" and "Standing, bans and invitations" in [RUNTIME.md](RUNTIME.md).
 - **Send each actor only what they may see** in `view`. Anything sent counts as seen.
 - **Keep views small** (a few KB): they are signed and sent to every actor many times a second.
 - **No network, no outside files** in the renderer or in public rules, which run in a sandbox. Embed images and sounds as `data:` URLs, or draw them. Inline any library you need into the module.
 - **Make sense with one actor.** Public rules can be played alone (each actor runs their own copy from the release link) or in a room one actor hosts for friends, as well as in the maker's lasting realm. Do not assume other actors are present, or that saved data from a room lasts.
-- **Make the rules repeatable when you can.** If the realm hides nothing from its actors, needs nothing from outside and saves nothing, write the rules so the same moves always give the same state (random numbers from the `seed`, kept in the state; no `async`; no clock) and set `repeatable: true`. Every actor's player can then check the referee, so nobody has to trust whoever hosts. See "Checking the referee" in [RUNTIME.md](RUNTIME.md) and the maze example.
+- **Make the rules repeatable when you can.** If the realm hides nothing from its actors, needs nothing from outside and saves nothing, write the rules so the same moves always give the same state (random numbers from the `seed`, kept in the state; no `async`; no clock) and set `repeatable: true`. Every actor's portal can then check the referee, so nobody has to trust whoever hosts. See "Checking the referee" in [RUNTIME.md](RUNTIME.md) and the maze example.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
 ## Testing
@@ -44,7 +44,7 @@ rules.tick(s);
 console.log(rules.view(s, "a"));
 ```
 
-To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The player saves the key and original files locally, then publishes copies. Choose **Start hosting** under **Your realms**, then open its link to visit. Opening alone never starts hosting. Hosting continues while the owner browses within the tab. See [RUNNING.md](RUNNING.md).
+To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The portal saves the key and original files locally, then publishes copies. Choose **Start hosting** under **Your realms**, then open its link to visit. Opening alone never starts hosting. Hosting continues while the owner browses within the tab. See [RUNNING.md](RUNNING.md).
 
 For private rules, `await` the calls in your test instead. To try them, run the server, then from the Endless Mind repository run `deno task host --server http://localhost:8000 --realm <the realm's folder>` and open the link it prints in a browser.
 
@@ -54,7 +54,7 @@ Tell the person you are helping:
 
 - how to publish (the steps above) and that they must explicitly choose **Start hosting** and keep that tab open for others to play; or, for private rules or always-on hosting, the host program command, which must keep running, runs the rules with no sandbox on their machine, and publishes a new version under the same link each time it starts;
 - that the realm's key lives in that browser (with the host program, in a key file under `keys/` in the Endless Mind repository) unless they save it with "Save my keys" (and anyone with that file controls the realm); **Save full backup** also carries local files and committed storage; importing is local, and **Publish here** or **Start hosting** publishes that same realm to the chosen helper server. Publishing a fresh folder creates a new realm;
-- that everything they publish is public and anyone can remix it, except rules kept private, and that the player tells visitors when a realm's rules are private.
+- that everything they publish is public and anyone can remix it, except rules kept private, and that the portal tells visitors when a realm's rules are private.
 
 ## Optional persistence
 

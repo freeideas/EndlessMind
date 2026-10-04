@@ -25,7 +25,7 @@
   <main id="home" hidden>
     <section>
       <h2>Helper server</h2>
-      <p>Your keys stay in this player when you connect to other servers.</p>
+      <p>Your keys stay in this portal when you connect to other servers.</p>
       <form id="server-form" class="row"><input id="server-address" aria-label="Helper server" type="url" required><button>Use server</button></form>
       <form id="open-link-form" class="row"><input id="realm-link" aria-label="Realm link" placeholder="Paste a realm link"><button>Open here</button></form>
     </section>
@@ -83,8 +83,8 @@
 
     <section id="links-section" hidden>
       <h2>Links</h2>
-      <p class="hint">Realm links look like <code>emind:ed25519-...</code>. Let this player open them when you click one.</p>
-      <div class="row"><button id="register-links">Open emind links with this player</button></div>
+      <p class="hint">Realm links look like <code>emind:ed25519-...</code>. Let this portal open them when you click one.</p>
+      <div class="row"><button id="register-links">Open emind links with this portal</button></div>
     </section>
   </main>
 
@@ -94,6 +94,6 @@
 
   <div id="status" role="status"></div>
   <div id="hosts" hidden></div>
-  <script type="module" src="/player.js"></script>
+  <script type="module" src="/portal.js"></script>
 </body>
 </html>

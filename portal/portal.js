@@ -1,4 +1,4 @@
-// The reference Endless Mind player: the page actors open. It keeps the actor's
+// The reference Endless Mind portal: the page actors open. It keeps the actor's
 // keys and character, finds and publishes realms, and runs realms and
 // renderers in sandboxes. Its menu ("More realms") is always there, outside
 // any realm's control.
@@ -191,7 +191,7 @@ async function showRealm(address, release, via = []) {
   const controller = new AbortController();
   visiting = controller;
   // A renderer stuck in an endless loop can freeze the page, and reloading
-  // would open the same realm again. So the player notes which realm it is in and
+  // would open the same realm again. So the portal notes which realm it is in and
   // clears the note when leaving; finding the note still there means the last
   // visit did not end cleanly, and the actor is asked before going back in.
   if (entering() === address) {
@@ -206,7 +206,7 @@ async function showRealm(address, release, via = []) {
     return;
   }
   noteEntering(address);
-  // The link's hints first, then servers this player remembers for the realm, then the chosen server.
+  // The link's hints first, then servers this portal remembers for the realm, then the chosen server.
   /** @type {string[]} */
   let servers = [];
   for (const hint of [...via, ...(await get("servers:" + address).catch(() => []) ?? []), selectedServer]) {
@@ -264,10 +264,10 @@ async function showRealm(address, release, via = []) {
     if (/** @type {any} */ (error).code === "release-changed") {
       message.append(" ", el("a", { href: realmLink(address, undefined, server) }, ["Open the current version"]));
     }
-    const player = /** @type {any} */ (error).player;
-    if (player) {
+    const portal = /** @type {any} */ (error).portal;
+    if (portal) {
       // Only the https address the realm's own key signed, and only as a link the actor chooses to follow.
-      message.append(` It is played in its own player, ${player.name}: `, el("a", { href: player.url, rel: "noopener" }, [player.url]),
+      message.append(` It is played in its own portal, ${portal.name}: `, el("a", { href: portal.url, rel: "noopener" }, [portal.url]),
         ". A program you install runs outside any sandbox and can do anything on your computer, so get it only if you trust this realm's maker.");
     }
     stage.replaceChildren(message);

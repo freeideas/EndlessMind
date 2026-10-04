@@ -20,7 +20,7 @@
 // With --realm, the realm's files are read from that folder each time, so
 // starting again publishes the folder's current version under the same key.
 // Without it, the realm comes from the key file alone (one written by this
-// program, or by "Save full backup" in the browser player). The rules run directly,
+// program, or by "Save full backup" in the browser portal). The rules run directly,
 // not in a sandbox: host only realms you wrote or trust.
 
 import { checkAnnouncement, checkPass, makeAnnouncement, makeManifest, makePass, manifestBody, releaseOf } from "../shared/announce.js";
