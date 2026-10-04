@@ -81,7 +81,7 @@ Deno.test("strict JSON rejects duplicate names, deep nesting and huge text", () 
   assertEquals(parseStrictJson("{not json}"), undefined);
 });
 
-Deno.test("a manifest may leave out private rules or a browser renderer, and may name the realm's own app", async () => {
+Deno.test("a manifest may leave out private rules or a browser renderer, and may name the realm's own player", async () => {
   const keys = await generateKeyPair();
   const hashes = { "view.js": await hashOf("x") };
   const check = async (/** @type {any} */ body) => (await checkAnnouncement(await makeAnnouncement(keys, await makeManifest(keys, body))))?.manifest;
@@ -90,12 +90,12 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
   assertEquals([hidden.main, hidden.renderer], [undefined, "view.js"]);
   assert(await check(hidden));
 
-  const app = { name: "Harbor", url: "https://example.org/get" };
-  const engine = manifestBody({ name: "Harbor", main: "server", privateRules: true, app }, {});
-  assertEquals([engine.renderer, engine.app], [undefined, app]);
+  const player = { name: "Harbor", url: "https://example.org/get" };
+  const engine = manifestBody({ name: "Harbor", main: "server", privateRules: true, player }, {});
+  assertEquals([engine.renderer, engine.player], [undefined, player]);
   assert(await check(engine));
 
-  assertEquals(await check({ ...engine, app: { name: "x", url: "javascript:alert(1)" } }), undefined);
+  assertEquals(await check({ ...engine, player: { name: "x", url: "javascript:alert(1)" } }), undefined);
   assertEquals(await check({ ...hidden, renderer: "missing.js" }), undefined);
   let refused = false;
   try {
@@ -103,10 +103,10 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
   } catch {
     refused = true;
   }
-  assert(refused, "a realm needs a renderer or an app");
+  assert(refused, "a realm needs a renderer or a player");
 });
 
-Deno.test("a player has a different, steady address in each realm", async () => {
+Deno.test("an actor has a different, steady address in each realm", async () => {
   const { secret } = await newPortableKey();
   const realmA = await addressOf((await generateKeyPair()).publicKey);
   const realmB = await addressOf((await generateKeyPair()).publicKey);
@@ -118,8 +118,8 @@ Deno.test("a player has a different, steady address in each realm", async () => 
     await addressOf((await keyPairFromSecret(secret)).publicKey),
     await addressOf((await keyPairForRealm((await newPortableKey()).secret, realmA)).publicKey),
   ]);
-  assertEquals(addresses.size, 4, "each realm, the secret itself, and another player must all differ");
-  assert(addresses.has(again), "the same player in the same realm must keep one address");
+  assertEquals(addresses.size, 4, "each realm, the secret itself, and another actor must all differ");
+  assert(addresses.has(again), "the same actor in the same realm must keep one address");
   const env = await seal(inA, realmA, "emind.enter", {});
   assertEquals((await open(env))?.from, again);
 });

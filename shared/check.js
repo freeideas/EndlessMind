@@ -1,13 +1,13 @@
 // Checking a referee. When a realm's rules are public and repeatable (the same
-// moves in the same order always give the same state), a visitor's app runs its
+// moves in the same order always give the same state), a visitor's player runs its
 // own copy of the rules, feeds it the moves the referee says it applied, and
-// compares what that copy would show the player with what the referee sent.
-// A referee that strays from the public rules in any way the player can see is
+// compares what that copy would show the actor with what the referee sent.
+// A referee that strays from the public rules in any way the actor can see is
 // caught at once. See specs/RUNTIME.md ("Checking the referee").
 //
 // What it cannot do: a copy has to start from the referee's own account of the
 // state, at the start of every session. Between those points nothing gets past
-// it; each new starting point after the first is told to the player.
+// it; each new starting point after the first is told to the actor.
 
 import { canonicalJson } from "./encoding.js";
 
@@ -17,13 +17,13 @@ const plain = (value) => canonicalJson(JSON.parse(JSON.stringify(value ?? null))
 /**
  * @param {(check: any, me: string, adopt: boolean) => { view: unknown, differs: boolean } | Promise<{ view: unknown, differs: boolean }>} replay
  *   applies a check to the visitor's own copy of the rules (RulesDriver.replay)
- * @param {string} me     this player's address in the realm
+ * @param {string} me     this actor's address in the realm
  * @param {(why: string) => void} alarm    called once, with what the referee did, if it is caught
  * @param {(what: string) => void} [notice]  called when checking is weaker than usual, though nothing is wrong
  */
 export function makeChecker(replay, me, alarm, notice = () => {}) {
   let started = false, everStarted = false, failed = false, off = false, waited = 0;
-  /** This player's own recent moves, oldest first, to spot a move made in their name. @type {string[]} */
+  /** This actor's own recent moves, oldest first, to spot a move made in their name. @type {string[]} */
   const mine = [];
   /** @type {Promise<unknown>} */
   let chain = Promise.resolve();
@@ -52,9 +52,9 @@ export function makeChecker(replay, me, alarm, notice = () => {}) {
       return;
     }
     if (started) {
-      // Entering and leaving happen between sessions, never inside one, and every move must be one this app sent.
-      for (const [kind, player, data] of check.inputs ?? []) {
-        if (player !== me) continue;
+      // Entering and leaving happen between sessions, never inside one, and every move must be one this player sent.
+      for (const [kind, actor, data] of check.inputs ?? []) {
+        if (actor !== me) continue;
         if (kind !== "act") return fail("made you leave or enter without your asking");
         const at = mine.indexOf(plain(data));
         if (at < 0) return fail("made a move in your name that you did not make");
@@ -73,7 +73,7 @@ export function makeChecker(replay, me, alarm, notice = () => {}) {
   }
 
   return {
-    /** Note a move this player is sending. @param {unknown} action */
+    /** Note a move this actor is sending. @param {unknown} action */
     sent(action) {
       mine.push(plain(action));
       if (mine.length > 1000) mine.shift();

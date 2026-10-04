@@ -1,6 +1,6 @@
-// The player's record: signed claims that realms gave this character,
+// The actor's record: signed claims that realms gave this character,
 // kept in this browser with its keys. Keeping them, and showing them, is the
-// player's choice. See shared/claim.js.
+// actor's choice. See shared/claim.js.
 
 import { addressesIn } from "./character.js";
 import { checkClaim } from "../shared/claim.js";
@@ -23,7 +23,7 @@ export async function held(realm) {
 }
 
 /**
- * Keep a claim a realm signed for this player, if it is what it says it is.
+ * Keep a claim a realm signed for this actor, if it is what it says it is.
  * A newer one that says the same thing replaces the older.
  * @param {string} realm  the realm it must come from
  * @param {string} me     the address it must be about (omit when restoring a backup)

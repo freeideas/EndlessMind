@@ -1,4 +1,4 @@
-// The reference Endless Mind app: the page players open. It keeps the player's
+// The reference Endless Mind player: the page actors open. It keeps the actor's
 // keys and character, finds and publishes realms, and runs realms and
 // renderers in sandboxes. Its menu ("More realms") is always there, outside
 // any realm's control.
@@ -139,7 +139,7 @@ async function showOwned() {
   if (!list.children.length) list.append(el("li", {}, ["None yet."]));
 }
 
-/** The player's record: what realms have signed about this character. */
+/** The actor's record: what realms have signed about this character. */
 async function showRecord() {
   const list = $("record");
   const all = (await record()).filter((r) => r.list.length);
@@ -191,9 +191,9 @@ async function showRealm(address, release, via = []) {
   const controller = new AbortController();
   visiting = controller;
   // A renderer stuck in an endless loop can freeze the page, and reloading
-  // would open the same realm again. So the app notes which realm it is in and
+  // would open the same realm again. So the player notes which realm it is in and
   // clears the note when leaving; finding the note still there means the last
-  // visit did not end cleanly, and the player is asked before going back in.
+  // visit did not end cleanly, and the actor is asked before going back in.
   if (entering() === address) {
     $("home").hidden = true;
     $("realm").hidden = false;
@@ -206,7 +206,7 @@ async function showRealm(address, release, via = []) {
     return;
   }
   noteEntering(address);
-  // The link's hints first, then servers this app remembers for the realm, then the chosen server.
+  // The link's hints first, then servers this player remembers for the realm, then the chosen server.
   /** @type {string[]} */
   let servers = [];
   for (const hint of [...via, ...(await get("servers:" + address).catch(() => []) ?? []), selectedServer]) {
@@ -229,14 +229,14 @@ async function showRealm(address, release, via = []) {
   stage.replaceChildren();
   try {
     const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal,
-      // The player answers once for each realm whose claims are asked for, and is asked again
+      // The actor answers once for each realm whose claims are asked for, and is asked again
       // whenever this realm starts asking for another.
       mayShow: async (name, realms) => {
         /** @type {{ address: string, answers: Record<string, boolean> }} */
         const kept = await get("show:" + address) ?? { address, answers: {} };
         const fresh = realms.filter((r) => !(r in kept.answers));
         if (fresh.length) {
-          const answer = confirm(`${name} asks to see what is said of you in ${fresh.length} other realm(s) you have played:\n${fresh.join("\n")}\nShowing your signed claims tells it which player you are in those realms. Show them?`);
+          const answer = confirm(`${name} asks to see what is said of you in ${fresh.length} other realm(s) you have played:\n${fresh.join("\n")}\nShowing your signed claims tells it which actor you are in those realms. Show them?`);
           for (const r of fresh) kept.answers[r] = answer;
           await put("show:" + address, kept);
         }
@@ -264,10 +264,10 @@ async function showRealm(address, release, via = []) {
     if (/** @type {any} */ (error).code === "release-changed") {
       message.append(" ", el("a", { href: realmLink(address, undefined, server) }, ["Open the current version"]));
     }
-    const app = /** @type {any} */ (error).app;
-    if (app) {
-      // Only the https address the realm's own key signed, and only as a link the player chooses to follow.
-      message.append(` It is played in its own app, ${app.name}: `, el("a", { href: app.url, rel: "noopener" }, [app.url]),
+    const player = /** @type {any} */ (error).player;
+    if (player) {
+      // Only the https address the realm's own key signed, and only as a link the actor chooses to follow.
+      message.append(` It is played in its own player, ${player.name}: `, el("a", { href: player.url, rel: "noopener" }, [player.url]),
         ". A program you install runs outside any sandbox and can do anything on your computer, so get it only if you trust this realm's maker.");
     }
     stage.replaceChildren(message);

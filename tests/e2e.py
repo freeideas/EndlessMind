@@ -82,15 +82,15 @@ def steps(host, guest, base, browser_name):
         wait_for(lambda: host.locator('#owned .host-toggle').inner_text() == 'Stop hosting', what='explicit hosting')
         host.click('#owned a')
         link = host.evaluate("location.href")
-        wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.players?.length") == 1, what="host view")
+        wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.actors?.length") == 1, what="host view")
 
         guest.goto(link)
-        wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, what="guest view")
-        wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, what="host sees guest")
+        wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.actors?.length") == 2, what="guest view")
+        wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.actors?.length") == 2, what="host sees guest")
 
         # The guest moves; the host must see the guest's position change.
         def guest_pos():
-            return host.evaluate("JSON.stringify(globalThis.endlessmindLastView.players.filter(p => !p.me).map(p => [p.x, p.y]))")
+            return host.evaluate("JSON.stringify(globalThis.endlessmindLastView.actors.filter(p => !p.me).map(p => [p.x, p.y]))")
 
         frame = guest.frame_locator("iframe.renderer")
         frame.locator("canvas").click()
@@ -129,7 +129,7 @@ def steps(host, guest, base, browser_name):
         host.goto(base + '/#')
         # Browsing home does not stop the referee.
         guest.evaluate('globalThis.endlessmindLastView = null')
-        wait_for(lambda: guest.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='hosting while owner browses')
+        wait_for(lambda: guest.evaluate('globalThis.endlessmindLastView?.actors?.length') == 1, what='hosting while owner browses')
         host.reload()
         host.wait_for_selector('body[data-ready]')
         host.click('#owned .host-toggle')
@@ -137,7 +137,7 @@ def steps(host, guest, base, browser_name):
         host.click('#owned a')
         time.sleep(1)
         guest.evaluate("globalThis.endlessmindLastView = null")
-        wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest rejoining after host reload")
+        wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.actors?.length") == 2, timeout=40, what="guest rejoining after host reload")
 
         # The realm's key is the realm: another browser loads the saved keys and takes over hosting.
         keys = host.evaluate("import('/keyfile.js').then((m) => m.saveKeys({files:true,storage:true}))")
@@ -150,13 +150,13 @@ def steps(host, guest, base, browser_name):
         mover.wait_for_selector('body[data-ready]')
         mover.goto(link)
         # Merely opening a realm whose key we hold must not take over hosting.
-        wait_for(lambda: mover.evaluate('globalThis.endlessmindLastView?.players?.length') == 2, what='owner visiting existing host')
+        wait_for(lambda: mover.evaluate('globalThis.endlessmindLastView?.actors?.length') == 2, what='owner visiting existing host')
         assert 'hosted from somewhere else' not in host.locator('#status').inner_text()
         mover.goto(base + '/#')
         mover.click('#owned .host-toggle')
         wait_for(lambda: mover.locator('#owned .host-toggle').inner_text() == 'Stop hosting', what='explicit takeover')
         mover.click('#owned a')
-        wait_for(lambda: mover.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest joining the moved realm")
+        wait_for(lambda: mover.evaluate("globalThis.endlessmindLastView?.actors?.length") == 2, timeout=40, what="guest joining the moved realm")
         wait_for(lambda: "hosted from somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
 
 
@@ -173,19 +173,19 @@ def alone_and_room(browser, base, link):
     here = lambda: one.evaluate('location.href')
     wait_for(lambda: 'emind:sha256-' in here(), what='the release link')
     wait_for(lambda: 'your own copy' in one.locator('#status').inner_text(), what='playing alone')
-    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='a view of the solo game')
+    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.actors?.length') == 1, what='a view of the solo game')
     alone = here()
     one.locator('#start-room').click()
     wait_for(lambda: 'emind:ed25519-' in here() and here() != link, what='the room link')
     one.evaluate('globalThis.endlessmindLastView = null')
-    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='the room host inside')
+    wait_for(lambda: one.evaluate('globalThis.endlessmindLastView?.actors?.length') == 1, what='the room host inside')
     two = browser.new_context().new_page()
     two.goto(here())
-    wait_for(lambda: two.evaluate('globalThis.endlessmindLastView?.players?.length') == 2, what='a friend in the room')
+    wait_for(lambda: two.evaluate('globalThis.endlessmindLastView?.actors?.length') == 2, what='a friend in the room')
     # The release link alone is enough for anyone, with no host anywhere.
     two.goto(alone)
     two.evaluate('globalThis.endlessmindLastView = null')
-    wait_for(lambda: two.evaluate('globalThis.endlessmindLastView?.players?.length') == 1, what='a stranger playing alone')
+    wait_for(lambda: two.evaluate('globalThis.endlessmindLastView?.actors?.length') == 1, what='a stranger playing alone')
     one.context.close()
     two.context.close()
 
@@ -238,9 +238,9 @@ def regressions(browser, base, remote):
     page.frame_locator('iframe.renderer').locator('button').click()
     wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
     wait_for(lambda: page.evaluate("a => import('/store.js').then(m => m.realmStorage(a).get('count'))", address) == 1)
-    # The realm signed a claim for the visitor, and the app kept it in the player's record.
+    # The realm signed a claim for the visitor, and the player kept it in the actor's record.
     wait_for(lambda: page.evaluate("a => import('/claims.js').then(m => m.held(a)).then(l => l.map(e => e.body.says))", address) == ['opened the counter'], what='a signed claim in the record')
-    assert page.url.startswith(base), 'visiting another server moved the app origin'
+    assert page.url.startswith(base), 'visiting another server moved the player origin'
     assert secret == page.evaluate("import('/character.js').then(m => m.myCharacter()).then(c => c.secret)")
     page.goto(base + '/#')
     page.click('#owned .host-toggle')
@@ -277,7 +277,7 @@ def regressions(browser, base, remote):
     page.click('#owned a')
     wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
     link = page.evaluate('location.href')
-    # A dead server named first in a link is skipped: the app tries each hint in turn.
+    # A dead server named first in a link is skipped: the player tries each hint in turn.
     moved.goto(link.replace('via=', 'via=http%3A%2F%2Flocalhost%3A9,'))
     wait_for(lambda: moved.evaluate('globalThis.endlessmindLastView?.count') == 1, what='opening past a dead server hint')
     moved.goto(base + '/#')

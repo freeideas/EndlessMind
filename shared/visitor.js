@@ -21,7 +21,7 @@ export function relayUrl(server) {
  * shown?: unknown[], onClaim?: (signed: unknown) => unknown, enterKey?: string}} options
  *   `address` is whoever referees; `patienceMs` is how long silence is borne; `onCheck` receives what a
  *   referee of repeatable rules sends with each view (see shared/check.js); `shown` are claims the
- *   player chose to show this realm, and `onClaim` receives ones the realm signs for the player, returning (or resolving to) true for each
+ *   actor chose to show this realm, and `onClaim` receives ones the realm signs for the actor, returning (or resolving to) true for each
  *   it keeps; those are signed in return, so the realm holds a claim signed by both
  *   (see shared/claim.js); `enterKey` is the referee's exchange key from the realm's announcement, with
  *   which the character and anything shown are locked on the way in
@@ -81,13 +81,13 @@ export async function visit(
     if (session && old) send("emind.leave", { session }).finally(() => old.close());
     else old?.close();
   }
-  /** Claims kept, each with this player's own signature, to send the referee with the next ping. @type {{ sig: string, seen: string }[]} */
+  /** Claims kept, each with this actor's own signature, to send the referee with the next ping. @type {{ sig: string, seen: string }[]} */
   let seen = [];
   async function enter() {
     const personal = { character, ...(shown?.length ? { shown } : {}) };
     const asked = request;
     if (!exchange || !enterKey) return send("emind.enter", { request, release, ...personal, ...(exchange ? { key: exchange.publicText } : {}) });
-    // Who the player is, and what they show, is for the referee alone: a relay sees only a locked box.
+    // Who the actor is, and what they show, is for the referee alone: a relay sees only a locked box.
     const key = await sessionKey(exchange.privateKey, enterKey, `enter\n${address}\n${me}\n${asked}`).catch(() => null);
     if (!key) return send("emind.enter", { request: asked, release, ...personal, key: exchange.publicText });
     return send("emind.enter", { request: asked, release, key: exchange.publicText, box: await lock(key, ENTERING, 0, JSON.stringify(personal)) });
@@ -142,7 +142,7 @@ export async function visit(
       const hasView = Object.hasOwn(inner, "view");
       if (hasView) onView(inner.view);
       for (const signed of Array.isArray(inner.claims) ? inner.claims.slice(0, 16) : []) {
-        // A claim the player keeps is signed in return: both parties then hold the same claim.
+        // A claim the actor keeps is signed in return: both parties then hold the same claim.
         if (signed?.to !== me || typeof signed.sig !== "string" || seen.length >= 64) continue;
         if (await onClaim?.(signed) === true) seen.push({ sig: signed.sig, seen: await countersign(keys, signed) });
       }
@@ -151,7 +151,7 @@ export async function visit(
   }
   const replaced = (/** @type {Event} */ event) => {
     if (/** @type {CustomEvent} */ (event).detail === me) {
-      // Do not send a leave for the new holder's player.
+      // Do not send a leave for the new holder's actor.
       session = "";
       stop();
       status(

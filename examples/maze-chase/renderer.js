@@ -27,7 +27,7 @@ export default {
       lastTick = v.tick;
       before = after;
       after = new Map();
-      v.players.forEach((/** @type {any} */ p, /** @type {number} */ i) => after.set("p" + p.name + i, [p.x, p.y]));
+      v.actors.forEach((/** @type {any} */ p, /** @type {number} */ i) => after.set("p" + p.name + i, [p.x, p.y]));
       v.spirits.forEach((/** @type {number[]} */ s, /** @type {number} */ i) => after.set("s" + i, s));
       tickAt = performance.now();
       view = v;
@@ -126,7 +126,7 @@ export default {
 
       ctx.textAlign = "center";
       ctx.font = `${Math.max(10, Math.floor(cell * 0.45))}px system-ui`;
-      view.players.forEach((/** @type {any} */ p, /** @type {number} */ i) => {
+      view.actors.forEach((/** @type {any} */ p, /** @type {number} */ i) => {
         const [x, y] = lerp("p" + p.name + i, [p.x, p.y], t);
         const cx = ox + (x + 0.5) * cell;
         const cy = oy + (y + 0.5) * cell;
@@ -146,7 +146,7 @@ export default {
 
       ctx.textAlign = "left";
       ctx.font = "14px system-ui";
-      const board = [...view.players].sort((a, b) => b.score - a.score)
+      const board = [...view.actors].sort((a, b) => b.score - a.score)
         .map((p) => `${p.me ? "▶ " : ""}${p.name} ${p.score}`).join("   ");
       ctx.fillStyle = "#dde";
       ctx.fillText(`Round ${view.round}   ${board}`, 10, 22);

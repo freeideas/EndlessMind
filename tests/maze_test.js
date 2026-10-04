@@ -4,7 +4,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import rules from "../examples/maze-chase/rules.js";
 
-Deno.test("players enter, move, collect seeds and see each other", () => {
+Deno.test("actors enter, move, collect seeds and see each other", () => {
   const s = rules.init({ seed: 42 });
   assertEquals(rules.enter(s, "a", { name: "Ann", color: "red" }), true);
   assertEquals(rules.enter(s, "b", { name: "Bo", color: "blue" }), true);
@@ -13,17 +13,17 @@ Deno.test("players enter, move, collect seeds and see each other", () => {
     rules.tick(s);
   }
   const view = rules.view(s, "a");
-  assertEquals(view.players.length, 2);
-  assert(view.players.find((p) => p.me)?.name === "Ann");
+  assertEquals(view.actors.length, 2);
+  assert(view.actors.find((p) => p.me)?.name === "Ann");
   assertEquals(view.grid.length, 15);
   rules.leave(s, "b");
-  assertEquals(rules.view(s, "a").players.length, 1);
+  assertEquals(rules.view(s, "a").actors.length, 1);
 });
 
 Deno.test("odd character data is cleaned up, not trusted", () => {
   const s = rules.init({ seed: 1 });
   rules.enter(s, "x", { name: "N".repeat(100), color: "<script>" });
-  const p = rules.view(s, "x").players[0];
+  const p = rules.view(s, "x").actors[0];
   assertEquals(p.name.length, 24);
   assertEquals(p.color, "#9cf");
 });

@@ -4,8 +4,8 @@ The code is open (MIT or Apache 2.0) and the protocol documents are in the publi
 
 ## You may, without asking
 
-- Build anything that works with Endless Mind: apps, servers, realms, renderers, directories, tools.
-- Say so plainly: "works with Endless Mind", "an Endless Mind app", "speaks the Endless Mind protocol", "a realm on Endless Mind".
+- Build anything that works with Endless Mind: players, servers, realms, renderers, directories, tools.
+- Say so plainly: "works with Endless Mind", "an Endless Mind player", "speaks the Endless Mind protocol", "a realm on Endless Mind".
 - Use the name in articles, tutorials, videos, talks and reviews.
 - Fork the code and change it however you like.
 
@@ -19,6 +19,6 @@ A fork is welcome; it just needs its own name.
 
 ## Why
 
-The name is how a newcomer finds the real reference app and documents. Keeping it from being used by impostors protects players, not control: the protocol works the same no matter whose software speaks it, and no one needs permission to build on it.
+The name is how a newcomer finds the real reference player and documents. Keeping it from being used by impostors protects actors, not control: the protocol works the same no matter whose software speaks it, and no one needs permission to build on it.
 
 Questions: open an issue in the repository.

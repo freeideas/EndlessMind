@@ -1,6 +1,6 @@
 // Connection to a helper server: hold addresses, send and receive signed
 // envelopes through its relay. Runs the same in a browser and in Deno, so the
-// app and the host program share it.
+// player and the host program share it.
 
 import { addressOf, sign } from "./crypto.js";
 import { MAX_MESSAGE_BYTES, parseStrictJson } from "./encoding.js";

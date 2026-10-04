@@ -126,7 +126,7 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     const keysFile = `${dir}/maze.json`;
     const host = await startHost({ server: base, realmDir: "examples/maze-chase", keysFile, log: () => {} });
     let visitor = await visit(base, host.address);
-    assertEquals((await visitor.until((v) => v.players.length === 1)).players[0].name, "Tester");
+    assertEquals((await visitor.until((v) => v.actors.length === 1)).actors[0].name, "Tester");
     visitor.close();
     host.stop();
     await new Promise((r) => setTimeout(r, 50));
@@ -145,7 +145,7 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     const moved = await startHost({ server: base, keysFile, log: () => {} });
     assertEquals(moved.address, host.address);
     visitor = await visit(base, moved.address);
-    await visitor.until((v) => v.players.length === 1);
+    await visitor.until((v) => v.actors.length === 1);
     visitor.close();
     moved.stop();
     await new Promise((r) => setTimeout(r, 50));
@@ -159,7 +159,7 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     const guest = await startHost({ server: base, keysFile: passFile, log: () => {} });
     assertEquals(guest.address, host.address, "the realm keeps its address under a pass");
     visitor = await visit(base, guest.address);
-    await visitor.until((v) => v.players.length === 1);
+    await visitor.until((v) => v.actors.length === 1);
     visitor.close();
     guest.stop();
     await new Promise((r) => setTimeout(r, 50));

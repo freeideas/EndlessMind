@@ -1,6 +1,6 @@
 // The Endless Mind helper server: a small program anyone can run.
 //
-// It serves the app's web page, keeps signed announcements and key-free
+// It serves the player's web page, keeps signed announcements and key-free
 // releases, stores the files they list by hash, and relays signed messages
 // between peers. It holds no game state and makes no rules. Everything it
 // keeps is signed or named by hash, so it cannot forge anything. See
@@ -18,12 +18,12 @@ import { PROTOCOL_VERSION } from "../shared/envelope.js";
 const MAX_BLOB_BYTES = 2 * 1024 * 1024;
 const ROOT = new URL("..", import.meta.url);
 
-/** Folders served as plain files, by URL prefix. The app is served at the root. */
+/** Folders served as plain files, by URL prefix. The player is served at the root. */
 /** @type {[string, URL][]} */
 const STATIC_DIRS = [
   ["/shared/", new URL("shared/", ROOT)],
   ["/examples/", new URL("examples/", ROOT)],
-  ["/", new URL("app/", ROOT)],
+  ["/", new URL("player/", ROOT)],
 ];
 
 const CONTENT_TYPES = {
@@ -226,7 +226,7 @@ export async function startServer(options = {}) {
   /**
    * The names this server goes by, as clients write them ("example.org:8000").
    * A proof must be signed for one of them, so the server cannot take its name
-   * from the request: a dishonest server could then pass a player's proof on.
+   * from the request: a dishonest server could then pass an actor's proof on.
    * @type {Set<string> | undefined}
    */
   let names;

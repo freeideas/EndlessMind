@@ -1,6 +1,6 @@
-// The app's local storage: one IndexedDB database holding the character, the
+// The player's local storage: one IndexedDB database holding the character, the
 // realms this browser has keys for, and their keys. Clearing the site's data
-// clears it, which is why the app offers "Save my keys" (keyfile.js).
+// clears it, which is why the player offers "Save my keys" (keyfile.js).
 
 const DB_NAME = "endlessmind";
 const STORE = "things";
@@ -48,8 +48,8 @@ export function put(key, value) {
 /**
  * A realm's optional JSON storage.
  * @param {string} address
- * @param {boolean} [bounded]  for rules the player did not choose to host (a realm played alone): at most
- *   64 values of 256 KB each, so a stranger's rules cannot fill the storage the player's keys live in
+ * @param {boolean} [bounded]  for rules the actor did not choose to host (a realm played alone): at most
+ *   64 values of 256 KB each, so a stranger's rules cannot fill the storage the actor's keys live in
  */
 export function realmStorage(address, bounded = false) {
   const prefix = `state:${address}:`;

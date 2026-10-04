@@ -1,5 +1,5 @@
-// The player's character: one portable secret plus a description, which the
-// app creates on first visit and keeps across visits. The secret is the
+// The actor's character: one portable secret plus a description, which the
+// player creates on first visit and keeps across visits. The secret is the
 // character's key, and its public half is the address the character is known
 // by everywhere. A realm can instead be entered privately, under a key made
 // from the secret and that realm's address (see keysIn). Realms read the

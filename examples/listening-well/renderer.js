@@ -1,5 +1,5 @@
 // The Listening Well: the default renderer. Shows what has been asked and
-// answered, and sends the player's question to the realm as a move. What
+// answered, and sends the actor's question to the realm as a move. What
 // answers is on the referee's side; this code never sees how.
 
 export default {

@@ -1,4 +1,4 @@
-// Signed claims: a realm signs what a player did there, the player keeps
+// Signed claims: a realm signs what an actor did there, the actor keeps
 // it, and shows it to another realm that trusts the first.
 
 import { assert, assertEquals } from "jsr:@std/assert@1";
@@ -25,7 +25,7 @@ export default {
       remove(p, "Kicked for rudeness.");
     }
   },
-  seen(s, p, both) { (s.both ??= []).push(both); },   // the player signed it too
+  seen(s, p, both) { (s.both ??= []).push(both); },   // the actor signed it too
   view(s) { return { kicks: s.kicks, both: s.both ?? [] }; },
 };`;
 
@@ -56,7 +56,7 @@ async function until(test) {
   assert(test(), "timed out");
 }
 
-Deno.test("claims are signed by a realm, kept by the player, and shown to another realm with proof", async () => {
+Deno.test("claims are signed by a realm, kept by the actor, and shown to another realm with proof", async () => {
   const dir = await Deno.makeTempDir();
   const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/data` });
   const base = `http://127.0.0.1:${s.port}`;
@@ -75,7 +75,7 @@ Deno.test("claims are signed by a realm, kept by the player, and shown to anothe
     const guildAt = await lookUp(guild.address), clubAt = await lookUp(clubHost.address);
     assertEquals(clubAt.asks, [guild.address], "the manifest says whose claims the realm would like to see");
 
-    // The player has a different key in each realm.
+    // The actor has a different key in each realm.
     const inGuild = await generateKeyPair(), inClub = await generateKeyPair();
     const meInGuild = await addressOf(inGuild.publicKey), meInClub = await addressOf(inClub.publicKey);
     /** @type {any[]} */
@@ -102,12 +102,12 @@ Deno.test("claims are signed by a realm, kept by the player, and shown to anothe
       [guild.address, meInGuild, "pulled the sword from the stone", false],
     ]);
 
-    // The guild now holds each claim with the player's signature beside its own.
+    // The guild now holds each claim with the actor's signature beside its own.
     await until(() => guildViews.at(-1)?.both.length === 3);
     const both = await Promise.all(guildViews.at(-1).both.map((/** @type {unknown} */ b) => checkBoth(b)));
     assertEquals(both.map((c) => c?.about), [meInGuild, meInGuild, meInGuild]);
 
-    // Shown with proof, the club lets the player in and its rules see what was shown.
+    // Shown with proof, the club lets the actor in and its rules see what was shown.
     const audience = `${clubHost.address}\n${meInClub}`;
     const shown = await Promise.all(record.map((signed) => showClaim(inGuild, signed, audience)));
     /** @param {CryptoKeyPair} keys @param {unknown[]} [show] */
@@ -128,7 +128,7 @@ Deno.test("claims are signed by a realm, kept by the player, and shown to anothe
     assertEquals((await tryClub(inClub, [...shown, shown[0]])).shown, ["entered the guild hall", { standing: "good" }, "pulled the sword from the stone"]);
     assert(String(await tryClub(await generateKeyPair())).includes("Members of the guild only"), "nothing shown, not let in");
 
-    // Someone else cannot use the player's claims: not as they are, and not with a proof of their own.
+    // Someone else cannot use the actor's claims: not as they are, and not with a proof of their own.
     const thief = await generateKeyPair(), thiefInClub = await addressOf(thief.publicKey);
     assert(String(await tryClub(thief, shown)).includes("Members"), "a proof made for another visitor was accepted");
     const forged = await Promise.all(record.map((signed) => showClaim(thief, signed, `${clubHost.address}\n${thiefInClub}`)));
@@ -140,7 +140,7 @@ Deno.test("claims are signed by a realm, kept by the player, and shown to anothe
     assertEquals((await tryClub(inGuild, bare)).shown.length, 3);
     assert(String(await tryClub(thief, bare)).includes("Members"), "a claim about someone else was accepted without proof");
 
-    // Kicked out: the realm keeps its own signed note of it. The player is gone before it could be handed over.
+    // Kicked out: the realm keeps its own signed note of it. The actor is gone before it could be handed over.
     visitGuild.act({ rude: true });
     await until(() => statuses.some((t) => t.includes("Kicked for rudeness")));
     const other = await visit({
@@ -150,7 +150,7 @@ Deno.test("claims are signed by a realm, kept by the player, and shown to anothe
     await until(() => guildViews.at(-1)?.kicks.length === 1);
     const kick = await checkClaim(guildViews.at(-1).kicks[0]);
     assertEquals([kick?.issuer, kick?.about, kick?.says], [guild.address, meInGuild, { kicked: "for rudeness" }]);
-    assertEquals(record.length, 3, "the kicked player was not handed the note");
+    assertEquals(record.length, 3, "the kicked actor was not handed the note");
     other.stop();
     guild.stop();
     clubHost.stop();
@@ -173,9 +173,9 @@ Deno.test("a claim lost on the way is sent again in the next session, until the 
   const relay = new TestRelay();
   /** @type {(views: Record<string, unknown>) => void} */
   let views = () => {};
-  /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
+  /** @type {(actor: string, says: unknown, days?: number) => Promise<unknown>} */
   let record = () => Promise.resolve(null);
-  const keys = await generateKeyPair(), playerKeys = await generateKeyPair(), player = await addressOf(playerKeys.publicKey);
+  const keys = await generateKeyPair(), actorKeys = await generateKeyPair(), actor = await addressOf(actorKeys.publicKey);
   /** @type {any[]} */
   const agreed = [];
   const ref = await referee({
@@ -189,13 +189,13 @@ Deno.test("a claim lost on the way is sent again in the next session, until the 
     },
   });
   const message = (/** @type {string} */ kind, /** @type {unknown} */ body) =>
-    relay.dispatchEvent(new CustomEvent("message", { detail: { from: player, to: "realm", kind, body } }));
+    relay.dispatchEvent(new CustomEvent("message", { detail: { from: actor, to: "realm", kind, body } }));
   const turn = () => new Promise((r) => setTimeout(r, 20));
   const states = () => relay.sent.filter((m) => m.kind === "emind.state");
   try {
     message("emind.enter", { request: "a".repeat(26), release: "release" });
     await turn();
-    const signed = /** @type {any} */ (await record(player, "won"));
+    const signed = /** @type {any} */ (await record(actor, "won"));
     views({});
     views({});
     assertEquals(states().map((m) => m.body.claims?.length), [1], "sent once in a session, even with no view to send");
@@ -209,10 +209,10 @@ Deno.test("a claim lost on the way is sent again in the next session, until the 
     message("emind.ping", { session, seen: [{ sig: signed.sig, seen: "ed25519-" + "a".repeat(103) }] });
     await turn();
     assertEquals(agreed, [], "a second signature that does not check is not taken");
-    const seen = await countersign(playerKeys, signed);
+    const seen = await countersign(actorKeys, signed);
     message("emind.ping", { session, seen: [{ sig: signed.sig, seen }] });
     await turn();
-    assertEquals(agreed.map(([who]) => who), [player]);
+    assertEquals(agreed.map(([who]) => who), [actor]);
     assertEquals((await checkBoth(agreed[0][1]))?.says, "won");
     assertEquals(await checkBoth({ claim: signed, seen: await countersign(keys, signed) }), null, "only the one it is about can sign it in return");
     message("emind.enter", { request: "c".repeat(26), release: "release" });
@@ -225,18 +225,18 @@ Deno.test("a claim lost on the way is sent again in the next session, until the 
 });
 
 Deno.test("a claim cannot be altered, outlive its date, or say too much", async () => {
-  const realm = await generateKeyPair(), player = await addressOf((await generateKeyPair()).publicKey);
-  const signed = await makeClaim(realm, player, { award: "spring champion" }, 1000);
+  const realm = await generateKeyPair(), actor = await addressOf((await generateKeyPair()).publicKey);
+  const signed = await makeClaim(realm, actor, { award: "spring champion" }, 1000);
   assert(await checkClaim(signed));
   assertEquals(await checkClaim({ ...signed, body: { .../** @type {any} */ (signed.body), says: { award: "everything" } } }), null);
   assertEquals(await checkClaim({ ...signed, to: await addressOf(realm.publicKey) }), null);
-  assertEquals(await checkClaim(await makeClaim(realm, player, "old news", -1000)), null);
+  assertEquals(await checkClaim(await makeClaim(realm, actor, "old news", -1000)), null);
   let refused = false;
-  await Promise.resolve().then(() => makeClaim(realm, player, "x".repeat(2000))).catch(() => refused = true);
+  await Promise.resolve().then(() => makeClaim(realm, actor, "x".repeat(2000))).catch(() => refused = true);
   assert(refused);
   // Extra fields an issuer adds are signed too, but the whole must stay small.
   const { seal } = await import("../shared/envelope.js");
-  assertEquals(await checkClaim(await seal(realm, player, "emind.claim", { says: "x", padding: "y".repeat(5000) })), null);
+  assertEquals(await checkClaim(await seal(realm, actor, "emind.claim", { says: "x", padding: "y".repeat(5000) })), null);
 });
 
 Deno.test("who a visitor is, and what they show, is locked on the way in; an old key is corrected", async () => {

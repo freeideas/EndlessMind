@@ -63,7 +63,7 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
   const pending = new Promise((resolve) => finish = resolve);
   /** @type {(views: Record<string, unknown>) => void} */
   let views = () => {};
-  /** @type {(player: string, reason: string) => void} */
+  /** @type {(actor: string, reason: string) => void} */
   let remove = () => {};
   /** @type {import('../shared/referee.js').RulesDriver} */
   const rules = {
@@ -100,7 +100,7 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
   });
   const message = (/** @type {string} */ kind, /** @type {unknown} */ body) =>
     relay.dispatchEvent(
-      new CustomEvent("message", { detail: { from: "player", to: "realm", kind, body } }),
+      new CustomEvent("message", { detail: { from: "actor", to: "realm", kind, body } }),
     );
   try {
     const request = "a".repeat(26);
@@ -116,16 +116,16 @@ Deno.test("referee deduplicates pending entry and rejects stale sessions and act
     message("emind.act", { session, seq: 2, action: {} });
     message("emind.act", { session, seq: 1, action: {} });
     assertEquals(actions, 1);
-    views({ player: { n: 1 } });
-    views({ player: { n: 2 } });
+    views({ actor: { n: 1 } });
+    views({ actor: { n: 2 } });
     assertEquals(relay.sent.filter((m) => m.kind === "emind.state").map((m) => m.body.seq), [1, 2]);
     message("emind.leave", { session: "old" });
     message("emind.act", { session, seq: 3, action: {} });
     assertEquals(actions, 2);
-    remove("player", "Idle too long.");
-    assertEquals(relay.sent.at(-1), { to: "player", kind: "emind.refused", body: { request, reason: "Idle too long." } });
+    remove("actor", "Idle too long.");
+    assertEquals(relay.sent.at(-1), { to: "actor", kind: "emind.refused", body: { request, reason: "Idle too long." } });
     message("emind.act", { session, seq: 9, action: {} });
-    assertEquals(actions, 2, "a removed player's session is over");
+    assertEquals(actions, 2, "a removed actor's session is over");
     ref.stop();
     assert(stopped);
     message("emind.act", { session, seq: 4, action: {} });
@@ -195,7 +195,7 @@ Deno.test("visitor accepts only its session and increasing view numbers", async 
   const host = new Relay(relayUrl(base));
   let visitor;
   try {
-    const owner = await newPortableKey(), player = await newPortableKey();
+    const owner = await newPortableKey(), actor = await newPortableKey();
     await host.connect();
     const realm = await host.addKey(owner.keys);
     let target = "";
@@ -220,7 +220,7 @@ Deno.test("visitor accepts only its session and increasing view numbers", async 
     visitor = await visit({
       server: base,
       address: realm,
-      keys: player.keys,
+      keys: actor.keys,
       release: "version",
       character: {},
       onView: (v) => views.push(v),
@@ -289,9 +289,9 @@ Deno.test("messages are copied when sent, leave in order, and oversize ones are 
   }
 });
 
-Deno.test("rules can remove a player, skip a view, and survive one view failing", async () => {
+Deno.test("rules can remove an actor, skip a view, and survive one view failing", async () => {
   const { directRules } = await import("../shared/referee.js");
-  /** @type {(player: string, reason?: string) => void} */
+  /** @type {(actor: string, reason?: string) => void} */
   let remove = () => {};
   /** @type {unknown[]} */
   const errors = [];
@@ -310,7 +310,7 @@ Deno.test("rules can remove a player, skip a view, and survive one view failing"
   /** @type {string[][]} */
   const removed = [];
   driver.onViews((v) => views.push(v));
-  driver.onRemove((player, reason) => removed.push([player, reason]));
+  driver.onRemove((actor, reason) => removed.push([actor, reason]));
   for (const p of ["a", "quiet", "broken", "b"]) await driver.enter(p, {});
   driver.step();
   await delay();
@@ -348,24 +348,24 @@ Deno.test("a visitor that offers a key gets a private session the relay cannot r
     rules: {
       ticksPerSecond: 1,
       enter: () => Promise.resolve({ ok: true }),
-      act: (_player, action) => void actions.push(action),
+      act: (_actor, action) => void actions.push(action),
       leave() {}, step() {}, onRemove() {}, stop() {},
       onViews(fn) { views = fn; },
     },
   });
   const message = (/** @type {string} */ kind, /** @type {unknown} */ body) =>
-    relay.dispatchEvent(new CustomEvent("message", { detail: { from: "player", to: "realm", kind, body } }));
+    relay.dispatchEvent(new CustomEvent("message", { detail: { from: "actor", to: "realm", kind, body } }));
   try {
     const mine = await newExchangeKey();
     assert(mine);
     message("emind.enter", { request: "a".repeat(26), release: "release", key: mine.publicText });
-    views({ player: { hand: "dealt before the welcome" } });
+    views({ actor: { hand: "dealt before the welcome" } });
     for (let i = 0; i < 50 && !relay.sent.length; i++) await delay();
     assertEquals(relay.sent[0].kind, "emind.welcome", "nothing goes out before the welcome, when the key may not be ready");
     const welcome = relay.sent[0].body;
-    const cipher = await sessionKey(mine.privateKey, welcome.key, `realm\nplayer\n${welcome.session}`);
+    const cipher = await sessionKey(mine.privateKey, welcome.key, `realm\nactor\n${welcome.session}`);
 
-    views({ player: { hand: "the hidden ace" } });
+    views({ actor: { hand: "the hidden ace" } });
     for (let i = 0; i < 50 && relay.sent.length < 2; i++) await delay();
     const state = relay.sent[1].body;
     assert(!JSON.stringify(relay.sent).includes("hidden ace"), "the view crossed the relay in the clear");

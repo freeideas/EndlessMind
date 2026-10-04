@@ -15,7 +15,7 @@ addEventListener('unhandledrejection', e => report(e.reason));
 // The rules run in a worker inside the sandboxed frame, so rules stuck in an
 // endless loop cannot freeze the page, and removing the frame stops them. The
 // worker runs the same driver as the host program (directRules), inserted here
-// as source text because sandboxed code cannot import the app's files.
+// as source text because sandboxed code cannot import the player's files.
 const RULES_BRIDGE = `
 const directRules = ${directRules.toString()};
 function startRules(send, listen) {
@@ -42,19 +42,19 @@ function startRules(send, listen) {
         const rules = (await import("data:text/javascript;base64," + btoa(unescape(encodeURIComponent(m.code))))).default;
         driver = await directRules(rules, storage, report);
         driver.onViews((views, checks) => send({type:"views", views, checks}));
-        driver.onRemove((player, reason) => send({type:"remove", player, reason}));
-        driver.onClaim((player, says, days) => new Promise((resolve, reject) => {
+        driver.onRemove((actor, reason) => send({type:"remove", actor, reason}));
+        driver.onClaim((actor, says, days) => new Promise((resolve, reject) => {
           const storageId = ++nextStorageId;
           waiting.set(storageId, {resolve, reject});
-          send({type:"claim", storageId, player, says, days});
+          send({type:"claim", storageId, actor, says, days});
         }));
         value = {rate: driver.ticksPerSecond, repeatable: driver.repeatable};
-      } else if (m.type === "enter") value = await driver.enter(m.player, m.character, m.claims);
+      } else if (m.type === "enter") value = await driver.enter(m.actor, m.character, m.claims);
       else if (m.type === "replay") value = driver.replay(m.check, m.me, m.adopt);
-      else if (m.type === "resync") driver.resync(m.player);
-      else if (m.type === "act") driver.act(m.player, m.action);
-      else if (m.type === "leave") driver.leave(m.player);
-      else if (m.type === "seen") driver.seen(m.player, m.both);
+      else if (m.type === "resync") driver.resync(m.actor);
+      else if (m.type === "act") driver.act(m.actor, m.action);
+      else if (m.type === "leave") driver.leave(m.actor);
+      else if (m.type === "seen") driver.seen(m.actor, m.both);
       else if (m.type === "step") driver.step();
       if (m.id) send({type:"reply", id:m.id, value});
     } catch (e) { m.id ? send({type:"reply", id:m.id, error:String(e)}) : report(e); }
@@ -162,15 +162,15 @@ export async function startRules(container, code, storage, signal) {
   const f = makeFrame(container, RULES, false, signal);
   /** @type {(views: Record<string, unknown>, checks?: Record<string, unknown>) => void} */
   let onViews = () => {};
-  /** @type {(player: string, reason: string) => void} */
+  /** @type {(actor: string, reason: string) => void} */
   let onRemove = () => {};
-  /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
+  /** @type {(actor: string, says: unknown, days?: number) => Promise<unknown>} */
   let onClaim = () => Promise.resolve(null);
   f.listen((m) => {
     if (m.type === "views") onViews(m.views, m.checks);
-    if (m.type === "remove") onRemove(m.player, m.reason);
+    if (m.type === "remove") onRemove(m.actor, m.reason);
     if (m.type === "claim") {
-      Promise.resolve().then(() => onClaim(m.player, m.says, m.days)).then(
+      Promise.resolve().then(() => onClaim(m.actor, m.says, m.days)).then(
         (value) => f.post({ type: "stored", storageId: m.storageId, value }),
         (error) => f.post({ type: "stored", storageId: m.storageId, error: String(error) }),
       );
@@ -193,33 +193,33 @@ export async function startRules(container, code, storage, signal) {
     return {
       ticksPerSecond: Math.min(Math.max(Number(loaded.rate) || 10, 1), 60),
       repeatable: Boolean(loaded.repeatable),
-      /** @param {string} player */
-      resync(player) {
-        f.post({ type: "resync", player });
+      /** @param {string} actor */
+      resync(actor) {
+        f.post({ type: "resync", actor });
       },
       /** @param {unknown} check @param {string} me @param {boolean} adopt @returns {Promise<{ view: unknown, differs: boolean }>} */
       replay(check, me, adopt) {
         return f.call({ type: "replay", check, me, adopt });
       },
-      /** @param {string} player @param {unknown} character @param {unknown[]} [claims] */
-      enter(player, character, claims) {
-        return f.call({ type: "enter", player, character, claims });
+      /** @param {string} actor @param {unknown} character @param {unknown[]} [claims] */
+      enter(actor, character, claims) {
+        return f.call({ type: "enter", actor, character, claims });
       },
-      /** @param {(player: string, says: unknown, days?: number) => Promise<unknown>} fn */
+      /** @param {(actor: string, says: unknown, days?: number) => Promise<unknown>} fn */
       onClaim(fn) {
         onClaim = fn;
       },
-      /** @param {string} player @param {unknown} action */
-      act(player, action) {
-        f.post({ type: "act", player, action });
+      /** @param {string} actor @param {unknown} action */
+      act(actor, action) {
+        f.post({ type: "act", actor, action });
       },
-      /** @param {string} player */
-      leave(player) {
-        f.post({ type: "leave", player });
+      /** @param {string} actor */
+      leave(actor) {
+        f.post({ type: "leave", actor });
       },
-      /** @param {string} player @param {{ claim: unknown, seen: string }} both */
-      seen(player, both) {
-        f.post({ type: "seen", player, both });
+      /** @param {string} actor @param {{ claim: unknown, seen: string }} both */
+      seen(actor, both) {
+        f.post({ type: "seen", actor, both });
       },
       step() {
         f.post({ type: "step" });
@@ -228,7 +228,7 @@ export async function startRules(container, code, storage, signal) {
       onViews(fn) {
         onViews = fn;
       },
-      /** @param {(player: string, reason: string) => void} fn */
+      /** @param {(actor: string, reason: string) => void} fn */
       onRemove(fn) {
         onRemove = fn;
       },

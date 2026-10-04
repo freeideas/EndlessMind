@@ -36,7 +36,7 @@ async function firstOf(servers, attempt, signal, nothing) {
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal,
  *   mayShow?: (name: string, realms: string[]) => Promise<string[]>}} ui
- *   `mayShow` asks the player which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
+ *   `mayShow` asks the actor which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this player remembers for the realm */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
   const { server, value: found } = await firstOf(ui.servers, (s) => lookUp(address, s, ui.signal), ui.signal,
@@ -51,15 +51,15 @@ export async function play(address, character, container, ui) {
   if (manifest.needs.length) throw new Error(`Unknown permissions: ${manifest.needs.join(", ")}`);
   if (!manifest.renderer) {
     throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), {
-      app: manifest.app,
+      player: manifest.player,
     });
   }
   const code = await fetchFile(manifest.files[manifest.renderer], server, ui.signal);
   const keys = await keysIn(character, address);
   const me = await addressOf(keys.publicKey);
   ui.signal.throwIfAborted();
-  // The realm may ask to see what the player has done elsewhere. The player decides; each claim
-  // goes with proof, made with the player's key in the realm that signed it, that it is theirs.
+  // The realm may ask to see what the actor has done elsewhere. The actor decides; each claim
+  // goes with proof, made with the actor's key in the realm that signed it, that it is theirs.
   /** @type {{ realm: string, signed: import("../shared/envelope.js").Envelope, by: CryptoKeyPair }[]} */
   const mine = [];
   for (const realm of (manifest.asks ?? []).filter((r) => r !== address)) {
@@ -100,7 +100,7 @@ export async function play(address, character, container, ui) {
   );
   try {
     if (manifest.main) {
-      // Public rules that are repeatable can be checked: this app runs its own copy and compares.
+      // Public rules that are repeatable can be checked: this player runs its own copy and compares.
       const nothing = { get: () => Promise.resolve(undefined), put: () => Promise.resolve() };
       const mine = copy = await startRules(container, await fetchFile(manifest.files[manifest.main], server, ui.signal), nothing, ui.signal);
       if (mine.repeatable) {
@@ -158,7 +158,7 @@ export async function play(address, character, container, ui) {
 
 /**
  * A realm with no key: its release hash names it, and its rules are public, so
- * this app runs the rules and the renderer itself. No referee, no relay, and
+ * this player runs the rules and the renderer itself. No referee, no relay, and
  * nothing anyone else can take away.
  * @param {string} release @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string) => void, signal: AbortSignal}} ui
@@ -169,7 +169,7 @@ async function playAlone(release, character, container, ui) {
   const body = parseStrictJson(fromUtf8(bytes));
   if (!isManifestBody(body) || !body.main) throw new Error("This link does not name a realm that can be played alone.");
   if (body.needs.length) throw new Error(`Unknown permissions: ${body.needs.join(", ")}`);
-  if (!body.renderer) throw Object.assign(new Error(`${body.name} cannot be played in a browser.`), { app: body.app });
+  if (!body.renderer) throw Object.assign(new Error(`${body.name} cannot be played in a browser.`), { player: body.player });
   const [rulesCode, code] = await Promise.all(
     [body.main, body.renderer].map((name) => fetchFile(body.files[name], server, ui.signal)),
   );
@@ -196,7 +196,7 @@ async function playAlone(release, character, container, ui) {
       /** @type {any} */ (globalThis).endlessmindLastView = views[me];
       renderer?.show(views[me]);
     });
-    rules.onRemove((_player, reason) => {
+    rules.onRemove((_actor, reason) => {
       stop();
       ui.status(`The realm ended your visit: ${reason || "no reason given"}`);
     });

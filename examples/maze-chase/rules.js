@@ -9,8 +9,8 @@ const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAFE_TICKS = 14;
 const SPIRITS = 3;
 
-/** @typedef {{ name: string, color: string, x: number, y: number, dir: string | null, next: string | null, score: number, safe: number, spawn: number }} Player */
-/** @typedef {{ grid: string[][], players: Record<string, Player>, spirits: number[][], tick: number, round: number, seed: number, joined: number }} State */
+/** @typedef {{ name: string, color: string, x: number, y: number, dir: string | null, next: string | null, score: number, safe: number, spawn: number }} Actor */
+/** @typedef {{ grid: string[][], actors: Record<string, Actor>, spirits: number[][], tick: number, round: number, seed: number, joined: number }} State */
 
 /** Small seeded random numbers, so a maze can be rebuilt from its seed. @param {State} s */
 function random(s) {
@@ -101,7 +101,7 @@ function stepToward(s, x, y, targets) {
   return null;
 }
 
-/** @param {State} s @param {Player} p */
+/** @param {State} s @param {Actor} p */
 function respawn(s, p) {
   const [x, y] = SPAWNS[p.spawn % SPAWNS.length];
   p.x = x;
@@ -113,7 +113,7 @@ function respawn(s, p) {
 
 /** @param {State} s */
 function catches(s) {
-  for (const p of Object.values(s.players)) {
+  for (const p of Object.values(s.actors)) {
     if (p.safe > 0) continue;
     if (s.spirits.some(([x, y]) => x === p.x && y === p.y)) {
       p.score = Math.floor(p.score / 2);
@@ -125,13 +125,13 @@ function catches(s) {
 export default {
   ticksPerSecond: 7,
   // The same moves in the same order always give the same maze (its random numbers come from the seed
-  // kept in the state), and nothing in the state is secret, so every player's app can check the referee.
+  // kept in the state), and nothing in the state is secret, so every actor's player can check the referee.
   repeatable: true,
 
   /** @param {{ seed: number }} options @returns {State} */
   init({ seed }) {
     /** @type {State} */
-    const s = { grid: [], players: {}, spirits: [], tick: 0, round: 1, seed, joined: 0 };
+    const s = { grid: [], actors: {}, spirits: [], tick: 0, round: 1, seed, joined: 0 };
     buildMaze(s);
     const [hx, hy] = home(s);
     for (let i = 0; i < SPIRITS; i++) s.spirits.push([hx, hy]);
@@ -140,31 +140,31 @@ export default {
 
   /** Make an in-realm form from the character's general description. @param {State} s @param {string} who @param {any} character */
   enter(s, who, character) {
-    if (Object.keys(s.players).length >= 12) return "This maze is full (12 players).";
+    if (Object.keys(s.actors).length >= 12) return "This maze is full (12 actors).";
     const name = String(character?.name ?? "Visitor").slice(0, 24);
     const color = /^[#\w(),.%\s-]{1,40}$/.test(String(character?.color)) ? String(character.color) : "#9cf";
-    /** @type {Player} */
+    /** @type {Actor} */
     const p = { name, color, x: 1, y: 1, dir: null, next: null, score: 0, safe: 0, spawn: s.joined++ };
     respawn(s, p);
-    s.players[who] = p;
+    s.actors[who] = p;
     return true;
   },
 
   /** @param {State} s @param {string} who @param {any} action */
   act(s, who, action) {
-    const p = s.players[who];
+    const p = s.actors[who];
     if (p && action && Object.hasOwn(DIRS, action.dir)) p.next = action.dir;
   },
 
   /** @param {State} s @param {string} who */
   leave(s, who) {
-    delete s.players[who];
+    delete s.actors[who];
   },
 
   /** @param {State} s */
   tick(s) {
     s.tick++;
-    for (const p of Object.values(s.players)) {
+    for (const p of Object.values(s.actors)) {
       if (p.safe > 0) p.safe--;
       const want = p.next && DIRS[/** @type {keyof DIRS} */ (p.next)];
       if (want && open(s, p.x + want[0], p.y + want[1])) p.dir = p.next;
@@ -182,7 +182,7 @@ export default {
 
     // Spirits move on two ticks out of three, so a careful runner can escape.
     if (s.tick % 3 !== 0) {
-      const targets = new Set(Object.values(s.players).filter((p) => p.safe === 0).map((p) => `${p.x},${p.y}`));
+      const targets = new Set(Object.values(s.actors).filter((p) => p.safe === 0).map((p) => `${p.x},${p.y}`));
       s.spirits = s.spirits.map(([x, y]) => {
         const moves = Object.values(DIRS).map(([dx, dy]) => [x + dx, y + dy]).filter(([nx, ny]) => open(s, nx, ny));
         const wander = moves[Math.floor(random(s) * moves.length)] ?? [x, y];
@@ -198,11 +198,11 @@ export default {
     }
   },
 
-  /** What one player is sent: everything here is public, so the whole board. @param {State} s @param {string} who */
+  /** What one actor is sent: everything here is public, so the whole board. @param {State} s @param {string} who */
   view(s, who) {
     return {
       grid: s.grid.map((row) => row.join("")),
-      players: Object.entries(s.players).map(([id, p]) => ({
+      actors: Object.entries(s.actors).map(([id, p]) => ({
         name: p.name,
         color: p.color,
         x: p.x,

@@ -5,7 +5,7 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 ## One realm, refereed in one place
 
 - The city ("Harborlight" in this example) is one realm. Its rules hold the map, traffic signals, time of day, vehicles, traffic and passers-by, all as state, and run on its referee.
-- Visitors send only moves ("steer left", "brake", "enter shop"). The rules decide what happens, so a modified app cannot drive faster or carry more than the rules allow.
+- Visitors send only moves ("steer left", "brake", "enter shop"). The rules decide what happens, so a modified player cannot drive faster or carry more than the rules allow.
 - Vehicles are realm state. Who is driving which vehicle, who owns it, and whether a parked one may be taken are all the city's rules.
 - Each visitor gets only their share of the city in their view: the nearby streets, not the whole map.
 
@@ -16,6 +16,6 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 
 ## What limits it today
 
-- **One referee carries everything.** A home connection can serve tens of visitors, not a whole city's worth. Splitting a city across several referees would need realms inside realms, which the reference app does not have.
+- **One referee carries everything.** A home connection can serve tens of visitors, not a whole city's worth. Splitting a city across several referees would need realms inside realms, which the reference player does not have.
 - **Fast movement waits on the referee.** Every move goes to the referee and back through a relay, so steering feels as fast as that round trip.
 - **The referee must stay up.** A busy city needs an always-on machine running the host program with its key, not a browser tab.

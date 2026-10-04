@@ -13,7 +13,7 @@ import { visit } from "../shared/visitor.js";
 
 const turn = () => new Promise((r) => setTimeout(r, 0));
 
-/** A referee's driver, and one player's checking copy fed from it. @param {(message: any) => any} [meddle] */
+/** A referee's driver, and one actor's checking copy fed from it. @param {(message: any) => any} [meddle] */
 async function table(meddle = (m) => m) {
   const host = await directRules(maze);
   const copy = await directRules(maze);
@@ -54,10 +54,10 @@ Deno.test("a copy of repeatable rules agrees with an honest referee through entr
   host.stop();
 });
 
-Deno.test("a referee that changes a view, or makes a move in a player's name, is caught", async () => {
+Deno.test("a referee that changes a view, or makes a move in an actor's name, is caught", async () => {
   let tick = 0;
   const cheat = await table((m) => {
-    if (++tick === 5) m.view.players[0].score += 100;
+    if (++tick === 5) m.view.actors[0].score += 100;
     return m;
   });
   await cheat.host.enter("ann", {});
@@ -72,7 +72,7 @@ Deno.test("a referee that changes a view, or makes a move in a player's name, is
   await forge.host.enter("ann", {});
   forge.host.step();
   await forge.settle();
-  forge.host.act("ann", { dir: "left" }); // ann's app never sent this
+  forge.host.act("ann", { dir: "left" }); // ann's player never sent this
   forge.host.step();
   await forge.settle();
   assertEquals(forge.alarms, ["made a move in your name that you did not make"]);
@@ -130,7 +130,7 @@ Deno.test("a visitor checks a real host over the network, in a private session",
   }
 });
 
-/** One player's checker fed by hand, as a referee of these rules would feed it. @param {any} rules */
+/** One actor's checker fed by hand, as a referee of these rules would feed it. @param {any} rules */
 async function byHand(rules) {
   const host = await directRules(rules), copy = await directRules(rules);
   /** @type {string[]} */
@@ -188,7 +188,7 @@ Deno.test("honest quirks raise no alarm: tidied moves, a view that throws, a sta
   host.stop();
 });
 
-Deno.test("a referee cannot skip the starting point, slip in a false one, or move a player in and out", async () => {
+Deno.test("a referee cannot skip the starting point, slip in a false one, or move an actor in and out", async () => {
   const never = await byHand(counter);
   await never.host.enter("ann", {});
   for (let i = 0; i < 22; i++) {
@@ -201,7 +201,7 @@ Deno.test("a referee cannot skip the starting point, slip in a false one, or mov
   await doctored.host.enter("ann", {});
   let m = await doctored.tick();
   await doctored.checker.state(m.check, m.view, true, true);
-  const lie = JSON.stringify({ state: { score: { ann: 5000 } }, players: ["ann"] });
+  const lie = JSON.stringify({ state: { score: { ann: 5000 } }, actors: ["ann"] });
   await doctored.checker.state({ start: lie, inputs: [["tick"]] }, { score: 5000 }, true, false);
   assertEquals(doctored.alarms, ["described a state that the moves it sent do not lead to"]);
 
@@ -212,7 +212,7 @@ Deno.test("a referee cannot skip the starting point, slip in a false one, or mov
   await puppet.checker.state({ inputs: [["leave", "ann"], ["enter", "ann", {}], ["tick"]] }, { score: 0 }, true, false);
   assertEquals(puppet.alarms, ["made you leave or enter without your asking"]);
 
-  // After a break the copy must take the referee's word for the state, and the player is told so.
+  // After a break the copy must take the referee's word for the state, and the actor is told so.
   const again = await byHand(counter);
   await again.host.enter("ann", {});
   m = await again.tick();
@@ -224,7 +224,7 @@ Deno.test("a referee cannot skip the starting point, slip in a false one, or mov
   for (const t of [never, doctored, puppet, again]) t.host.stop();
 });
 
-Deno.test("one player's oversize move is not passed on to everyone", async () => {
+Deno.test("one actor's oversize move is not passed on to everyone", async () => {
   const { host, tick } = await byHand(counter);
   await host.enter("ann", {});
   await host.enter("bo", {});

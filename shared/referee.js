@@ -10,22 +10,22 @@ import { verify } from "./crypto.js";
 /**
  * @typedef {object} RulesDriver
  * @property {number} ticksPerSecond
- * @property {(player: string, character: unknown, claims?: unknown[]) => Promise<{ok: boolean, reason?: string}>} enter
+ * @property {(actor: string, character: unknown, claims?: unknown[]) => Promise<{ok: boolean, reason?: string}>} enter
  *   `claims` are the ones the visitor chose to show, already checked
- * @property {(fn: (player: string, says: unknown, days?: number) => Promise<unknown>) => void} [onClaim]  the
- *   rules want a claim signed about a player; the function returns the signed claim
- * @property {(player: string, action: unknown) => void} act
- * @property {(player: string) => void} leave
+ * @property {(fn: (actor: string, says: unknown, days?: number) => Promise<unknown>) => void} [onClaim]  the
+ *   rules want a claim signed about an actor; the function returns the signed claim
+ * @property {(actor: string, action: unknown) => void} act
+ * @property {(actor: string) => void} leave
  * @property {() => void} step
  * @property {(fn: (views: Record<string, unknown>, checks?: Record<string, unknown>) => void) => void} onViews
- *   `checks` is given by repeatable rules: for each player, what their app needs to check the referee
- * @property {(player: string, both: { claim: unknown, seen: string }) => void} [seen]  a player signed a claim in return
+ *   `checks` is given by repeatable rules: for each actor, what their player needs to check the referee
+ * @property {(actor: string, both: { claim: unknown, seen: string }) => void} [seen]  an actor signed a claim in return
  * @property {boolean} [repeatable]  the rules promise: the same moves in the same order always give the same state
- * @property {(player: string) => void} [resync]  send this player a fresh starting point with the next tick
+ * @property {(actor: string) => void} [resync]  send this actor a fresh starting point with the next tick
  * @property {(check: any, me: string, adopt: boolean) => { view: unknown, differs: boolean } | Promise<{ view: unknown, differs: boolean }>} [replay]  apply a check
  *   to this copy and return the view it gives `me`. With `adopt`, a starting point in the check becomes this
  *   copy's state; without, the copy applies the moves and `differs` tells whether its state then matches
- * @property {(fn: (player: string, reason: string) => void) => void} onRemove  the rules ended a visit
+ * @property {(fn: (actor: string, reason: string) => void) => void} onRemove  the rules ended a visit
  * @property {() => void} stop
  */
 
@@ -51,71 +51,71 @@ export async function referee(
    * @property {number} seq
    * @property {number} actionSeq
    * @property {number} lastHeard
-   * @property {Set<string>} handed     the claims owed to its player that this session has been sent
+   * @property {Set<string>} handed     the claims owed to its actor that this session has been sent
    * @property {boolean} welcomed       nothing is sent in a session before its welcome
    * @property {Promise<void>} ready   settles once the session's key (if any) is worked out
    * @property {string} [key]          this side's public half, when the visitor offered one
    * @property {CryptoKey} [cipher]    locks views and unlocks moves for this session
-   * @property {Promise<unknown>} work keeps this player's locked messages in order
+   * @property {Promise<unknown>} work keeps this actor's locked messages in order
    */
   /** @type {Map<string, Session>} */
-  const players = new Map();
+  const actors = new Map();
   /** @type {Map<string, Promise<{ok: boolean, reason?: string}>>} */
   const entering = new Map();
   /** @param {string} to @param {string} kind @param {unknown} body */
   const send = (to, kind, body) => relay.send(keys, to, kind, body).catch(console.error);
   /**
-   * Claims signed for players and not yet known to have arrived. They are sent once in each session
+   * Claims signed for actors and not yet known to have arrived. They are sent once in each session
    * until the visitor says it has them, so a lost message does not lose one for good.
    * @type {Map<string, Envelope[]>}
    */
   const owed = new Map();
-  rules.onClaim?.(async (player, says, days) => {
-    const signed = await makeClaim(keys, player, says, days ? days * 24 * 60 * 60 * 1000 : undefined, pass);
-    // The rules get the signed claim to keep if they wish. The player gets it too if they are here
+  rules.onClaim?.(async (actor, says, days) => {
+    const signed = await makeClaim(keys, actor, says, days ? days * 24 * 60 * 60 * 1000 : undefined, pass);
+    // The rules get the signed claim to keep if they wish. The actor gets it too if they are here
     // or on their way in, inside their session; what they do with it is up to them.
-    const list = owed.get(player) ?? [], p = players.get(player);
-    if (!stopped && (p || entering.has(player)) && list.length < 16) owed.set(player, [...list, signed]);
+    const list = owed.get(actor) ?? [], p = actors.get(actor);
+    if (!stopped && (p || entering.has(actor)) && list.length < 16) owed.set(actor, [...list, signed]);
     return signed;
   });
   rules.onViews((views, checks) => {
     if (stopped) return;
-    // With repeatable rules every player hears every tick, view or not, so their copy never misses a move.
-    for (const player of owed.keys()) if (!players.has(player) && !entering.has(player)) owed.delete(player);
-    /** @param {string} player */
-    const unsent = (player) => {
-      const p = players.get(player);
-      return p ? (owed.get(player) ?? []).filter((signed) => !p.handed.has(signed.sig)) : [];
+    // With repeatable rules every actor hears every tick, view or not, so their copy never misses a move.
+    for (const actor of owed.keys()) if (!actors.has(actor) && !entering.has(actor)) owed.delete(actor);
+    /** @param {string} actor */
+    const unsent = (actor) => {
+      const p = actors.get(actor);
+      return p ? (owed.get(actor) ?? []).filter((signed) => !p.handed.has(signed.sig)) : [];
     };
-    const waiting = [...owed.keys()].filter((player) => unsent(player).length);
-    for (const player of new Set([...Object.keys(checks ?? views), ...waiting])) {
-      const p = players.get(player);
+    const waiting = [...owed.keys()].filter((actor) => unsent(actor).length);
+    for (const actor of new Set([...Object.keys(checks ?? views), ...waiting])) {
+      const p = actors.get(actor);
       // Until the welcome has gone out the session's key may not be ready, and a view must never go unlocked.
       if (!p?.welcomed) continue;
       const seq = ++p.seq, cipher = p.cipher;
-      const claims = unsent(player);
+      const claims = unsent(actor);
       for (const signed of claims) p.handed.add(signed.sig);
       const inner = {
-        ...(Object.hasOwn(views, player) ? { view: views[player] } : {}),
-        ...(checks && Object.hasOwn(checks, player) ? { check: checks[player] } : {}),
+        ...(Object.hasOwn(views, actor) ? { view: views[actor] } : {}),
+        ...(checks && Object.hasOwn(checks, actor) ? { check: checks[actor] } : {}),
         ...(claims.length ? { claims } : {}),
       };
       if (!cipher) {
-        send(player, "emind.state", { session: p.session, seq, ...inner });
+        send(actor, "emind.state", { session: p.session, seq, ...inner });
         continue;
       }
       // Copy the view as text now, lock it, and send in order: the relay sees only the locked box.
       const text = JSON.stringify(inner);
-      p.work = p.work.then(async () => send(player, "emind.state", { session: p.session, seq, box: await lock(cipher, TO_VISITOR, seq, text) }))
+      p.work = p.work.then(async () => send(actor, "emind.state", { session: p.session, seq, box: await lock(cipher, TO_VISITOR, seq, text) }))
         .catch(console.error);
     }
   });
 
-  rules.onRemove((player, reason) => {
-    const p = players.get(player);
+  rules.onRemove((actor, reason) => {
+    const p = actors.get(actor);
     if (stopped || !p) return;
-    players.delete(player);
-    send(player, "emind.refused", { request: p.request, reason });
+    actors.delete(actor);
+    send(actor, "emind.refused", { request: p.request, reason });
   });
 
   /** @param {Event} event */
@@ -123,7 +123,7 @@ export async function referee(
     const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
     if (stopped || env.to !== address) return;
     const b = /** @type {any} */ (env.body) ?? {};
-    let p = players.get(env.from);
+    let p = actors.get(env.from);
     if (env.kind === "emind.enter") {
       if (typeof b.request !== "string" || b.request.length < 16 || b.request.length > 64) return;
       if (b.box !== undefined) {
@@ -138,7 +138,7 @@ export async function referee(
           return;
         }
         if (stopped) return;
-        p = players.get(env.from);
+        p = actors.get(env.from);
       }
       if (b.release !== release) {
         send(env.from, "emind.refused", {
@@ -169,7 +169,7 @@ export async function referee(
           send(env.from, "emind.refused", { request: b.request, reason: verdict.reason ?? "" });
           return;
         }
-        p = players.get(env.from);
+        p = actors.get(env.from);
       }
       if (!p || p.request !== b.request) {
         // An actor has one session in a realm. One that enters again from elsewhere (another tab or
@@ -197,12 +197,12 @@ export async function referee(
             fresh.key = mine.publicText;
           })().catch(() => {});
         }
-        players.set(env.from, p);
+        actors.set(env.from, p);
       }
       p.lastHeard = Date.now();
       const current = p;
       await current.ready;
-      if (stopped || players.get(env.from) !== current) return;
+      if (stopped || actors.get(env.from) !== current) return;
       current.welcomed = true;
       // A session starts from a full copy of the state, when the rules can be checked.
       rules.resync?.(env.from);
@@ -224,7 +224,7 @@ export async function referee(
           // In a private session only locked moves count, taken in the order they came.
           p.work = p.work.then(async () => {
             const { action } = JSON.parse(await unlock(cipher, TO_REALM, b.seq, b.box));
-            if (!stopped && players.get(env.from) === session) rules.act(env.from, action);
+            if (!stopped && actors.get(env.from) === session) rules.act(env.from, action);
           }).catch(() => {});
         }
       } else if (env.kind === "emind.ping") {
@@ -240,7 +240,7 @@ export async function referee(
           rules.seen?.(env.from, { claim, seen: one.seen });
         }
       } else if (env.kind === "emind.leave") {
-        players.delete(env.from);
+        actors.delete(env.from);
         rules.leave(env.from);
       }
     }
@@ -257,10 +257,10 @@ export async function referee(
   };
   relay.addEventListener("replaced", replaced);
   const ticker = setInterval(() => {
-    for (const [player, p] of players) {
+    for (const [actor, p] of actors) {
       if (Date.now() - p.lastHeard > 20_000) {
-        players.delete(player);
-        rules.leave(player);
+        actors.delete(actor);
+        rules.leave(actor);
       }
     }
     rules.step();
@@ -275,7 +275,7 @@ export async function referee(
     relay.removeEventListener("replaced", replaced);
     relay.release(address);
     rules.stop();
-    players.clear();
+    actors.clear();
     onStop?.();
   }
   return { stop, instance };
@@ -284,7 +284,7 @@ export async function referee(
 /**
  * The one driver for a rules module (specs/RUNTIME.md), used by the host
  * program directly and by the browser inside a sandbox. It must stay
- * self-contained: app/sandbox.js inserts this function's source text into
+ * self-contained: player/sandbox.js inserts this function's source text into
  * the sandbox, so it may use nothing outside itself.
  * @param {any} rules
  * @param {RealmStorage} [storage]
@@ -292,82 +292,82 @@ export async function referee(
  * @returns {Promise<RulesDriver>}
  */
 export async function directRules(rules, storage, report = (error) => console.error("[rules]", error)) {
-  const players = new Set();
+  const actors = new Set();
   /** @type {(views: Record<string, unknown>, checks?: Record<string, unknown>) => void} */
   let onViews = () => {};
-  /** @type {(player: string, reason: string) => void} */
+  /** @type {(actor: string, reason: string) => void} */
   let onRemove = () => {};
-  /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
+  /** @type {(actor: string, says: unknown, days?: number) => Promise<unknown>} */
   let onClaim = () => Promise.resolve(null);
   /**
-   * The rules ask for a signed claim about a player. It resolves to the signed claim, which the
+   * The rules ask for a signed claim about an actor. It resolves to the signed claim, which the
    * rules may keep, or to null if it could not be signed.
-   * @param {string} player @param {unknown} says @param {number} [days]
+   * @param {string} actor @param {unknown} says @param {number} [days]
    */
-  const claim = (player, says, days) => {
-    if (typeof player !== "string" || stopped) return Promise.resolve(null);
+  const claim = (actor, says, days) => {
+    if (typeof actor !== "string" || stopped) return Promise.resolve(null);
     return Promise.resolve()
-      .then(() => onClaim(player, JSON.parse(JSON.stringify(says ?? null)), typeof days === "number" && days > 0 ? days : undefined))
+      .then(() => onClaim(actor, JSON.parse(JSON.stringify(says ?? null)), typeof days === "number" && days > 0 ? days : undefined))
       .catch((error) => (report(error), null));
   };
   let stepping = false;
   let stopped = false;
   // Repeatable rules can be checked: the driver notes every move it applies, in order, and hands each
-  // player those moves (or, to start, a full copy of the state) so their own copy of the rules can follow.
+  // actor those moves (or, to start, a full copy of the state) so their own copy of the rules can follow.
   const repeatable = Boolean(rules.repeatable);
   /** @type {unknown[][]} */
   let inputs = [];
   const fresh = new Set();
-  // Every move is passed on to every player, so one player's moves must stay small: at most 4,096
+  // Every move is passed on to every actor, so one actor's moves must stay small: at most 4,096
   // characters each as JSON, and 65,536 in all per tick. Larger ones are not applied.
   let noted = 0;
   /**
-   * Note a move for the players who check. What travels is JSON, so the referee applies the same plain
+   * Note a move for the actors who check. What travels is JSON, so the referee applies the same plain
    * copy their copies will get, and a later change by the rules cannot alter what was noted.
-   * @param {string} kind @param {string} player @param {unknown} data @param {number} [limit]
+   * @param {string} kind @param {string} actor @param {unknown} data @param {number} [limit]
    * @returns {{ value: unknown } | null} null when the move is too large
    */
-  const note = (kind, player, data, limit = 4096) => {
+  const note = (kind, actor, data, limit = 4096) => {
     const text = JSON.stringify(data ?? null);
     if (text.length > limit || noted + text.length > 65536) return null;
     noted += text.length;
-    inputs.push([kind, player, JSON.parse(text)]);
+    inputs.push([kind, actor, JSON.parse(text)]);
     return { value: JSON.parse(text) };
   };
-  const snapshot = () => JSON.stringify({ state, players: [...players] });
+  const snapshot = () => JSON.stringify({ state, actors: [...actors] });
   /** @param {() => unknown} call */
   const safely = (call) => (async () => await call())().catch(report);
-  /** The rules end a player's visit. @param {string} player @param {unknown} [reason] */
-  const remove = (player, reason) => {
-    if (!players.delete(player)) return;
-    fresh.delete(player);
-    onRemove(player, typeof reason === "string" ? reason : "");
+  /** The rules end an actor's visit. @param {string} actor @param {unknown} [reason] */
+  const remove = (actor, reason) => {
+    if (!actors.delete(actor)) return;
+    fresh.delete(actor);
+    onRemove(actor, typeof reason === "string" ? reason : "");
   };
   const seed = Math.floor(Math.random() * 2 ** 31);
   let state = rules.init ? await rules.init({ seed, storage, remove, claim }) : {};
   /** Apply one noted move to this copy, exactly as the referee did. @param {unknown[]} input */
-  const apply = ([kind, player, data, more]) => {
+  const apply = ([kind, actor, data, more]) => {
     if (kind === "enter") {
-      const verdict = rules.enter ? rules.enter(state, player, data, more ?? []) : true;
-      if (verdict === true || verdict === undefined) players.add(player);
+      const verdict = rules.enter ? rules.enter(state, actor, data, more ?? []) : true;
+      if (verdict === true || verdict === undefined) actors.add(actor);
     } else if (kind === "act") {
-      if (players.has(player) && rules.act) rules.act(state, player, data);
+      if (actors.has(actor) && rules.act) rules.act(state, actor, data);
     } else if (kind === "leave") {
-      if (players.delete(player) && rules.leave) rules.leave(state, player);
+      if (actors.delete(actor) && rules.leave) rules.leave(state, actor);
     } else if (kind === "tick" && rules.tick) rules.tick(state);
   };
   return {
     repeatable,
-    resync(player) {
-      if (repeatable && players.has(player)) fresh.add(player);
+    resync(actor) {
+      if (repeatable && actors.has(actor)) fresh.add(actor);
     },
     replay(check, me, adopt) {
       let differs = false;
       if (adopt && typeof check?.start === "string") {
         const from = JSON.parse(check.start);
         state = from.state;
-        players.clear();
-        for (const player of from.players) players.add(player);
+        actors.clear();
+        for (const actor of from.actors) actors.add(actor);
       } else {
         for (const input of check?.inputs ?? []) {
           // The referee carries on past rules that throw, so this copy does too.
@@ -382,44 +382,44 @@ export async function directRules(rules, storage, report = (error) => console.er
       return { view, differs };
     },
     ticksPerSecond: Math.min(Math.max(Number(rules.ticksPerSecond) || 10, 1), 60),
-    async enter(player, character, claims = []) {
+    async enter(actor, character, claims = []) {
       try {
         if (repeatable) {
-          // Every player's copy needs what the rules were given, so the signed originals stay behind.
-          const kept = note("enter", player, [character, claims.map((/** @type {any} */ e) => ({ ...e, signed: undefined }))], 32768);
+          // Every actor's copy needs what the rules were given, so the signed originals stay behind.
+          const kept = note("enter", actor, [character, claims.map((/** @type {any} */ e) => ({ ...e, signed: undefined }))], 32768);
           if (!kept) return { ok: false, reason: "Your character's description and shown claims are too large for this realm, or the realm is too busy just now." };
           [character, claims] = /** @type {any[]} */ (kept.value);
-          inputs[inputs.length - 1] = ["enter", player, character, claims];
+          inputs[inputs.length - 1] = ["enter", actor, character, claims];
         }
-        const verdict = rules.enter ? await rules.enter(state, player, character, claims) : true;
+        const verdict = rules.enter ? await rules.enter(state, actor, character, claims) : true;
         const ok = verdict === true || verdict === undefined;
         if (ok && !stopped) {
-          players.add(player);
-          if (repeatable) fresh.add(player);
+          actors.add(actor);
+          if (repeatable) fresh.add(actor);
         }
         return { ok, reason: typeof verdict === "string" ? verdict : undefined };
       } catch (e) {
         return { ok: false, reason: String(e) };
       }
     },
-    act(player, action) {
-      if (!stopped && players.has(player) && rules.act) {
+    act(actor, action) {
+      if (!stopped && actors.has(actor) && rules.act) {
         if (repeatable) {
-          const kept = note("act", player, action);
+          const kept = note("act", actor, action);
           if (!kept) return;
           action = kept.value;
         }
-        safely(() => rules.act(state, player, action));
+        safely(() => rules.act(state, actor, action));
       }
     },
-    seen(player, both) {
-      if (!stopped && rules.seen) safely(() => rules.seen(state, player, both));
+    seen(actor, both) {
+      if (!stopped && rules.seen) safely(() => rules.seen(state, actor, both));
     },
-    leave(player) {
-      if (!players.delete(player)) return;
-      fresh.delete(player);
-      if (repeatable) inputs.push(["leave", player]);
-      if (rules.leave) safely(() => rules.leave(state, player));
+    leave(actor) {
+      if (!actors.delete(actor)) return;
+      fresh.delete(actor);
+      if (repeatable) inputs.push(["leave", actor]);
+      if (rules.leave) safely(() => rules.leave(state, actor));
     },
     step() {
       if (stepping || stopped) return;
@@ -429,11 +429,11 @@ export async function directRules(rules, storage, report = (error) => console.er
         if (rules.tick) await rules.tick(state);
         /** @type {Record<string, unknown>} */
         const views = {};
-        for (const player of [...players]) {
-          // One player's view failing must not blank everyone else's. No view means nothing to send.
+        for (const actor of [...actors]) {
+          // One actor's view failing must not blank everyone else's. No view means nothing to send.
           try {
-            const view = rules.view ? rules.view(state, player) : state;
-            if (view !== undefined) views[player] = view;
+            const view = rules.view ? rules.view(state, actor) : state;
+            if (view !== undefined) views[actor] = view;
           } catch (e) {
             report(e);
           }
@@ -446,7 +446,7 @@ export async function directRules(rules, storage, report = (error) => console.er
           const start = fresh.size ? snapshot() : "";
           const first = start.length > 180_000 ? { unchecked: "its state is too large to send" } : { start, inputs };
           checks = {};
-          for (const player of players) checks[player] = fresh.has(player) ? first : { inputs };
+          for (const actor of actors) checks[actor] = fresh.has(actor) ? first : { inputs };
           inputs = [];
           noted = 0;
           fresh.clear();
@@ -465,7 +465,7 @@ export async function directRules(rules, storage, report = (error) => console.er
     },
     stop() {
       stopped = true;
-      players.clear();
+      actors.clear();
     },
   };
 }

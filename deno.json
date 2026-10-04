@@ -3,7 +3,7 @@
     "start": "deno run --allow-net --allow-read=. --allow-write=./data --allow-sys=networkInterfaces server/server.js",
     "host": "deno run --allow-net --allow-read --allow-env --allow-sys --allow-write=./keys host/host.js",
     "test": "deno test --allow-net --allow-read --allow-env --allow-write=./data,/tmp,/var/folders tests/",
-    "check": "deno check server/server.js host/*.js shared/*.js app/*.js examples/*/*.js tests/*.js"
+    "check": "deno check server/server.js host/*.js shared/*.js player/*.js examples/*/*.js tests/*.js"
   },
   "compilerOptions": {
     "checkJs": true,
