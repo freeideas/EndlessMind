@@ -26,7 +26,7 @@ async function connect(base, keys) {
   socket.onmessage = async (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "challenge") {
-      socket.send(JSON.stringify({ type: "prove", address: m.address, sig: await sign(keys.privateKey, "claim", `${new URL(base).host}\n${m.nonce}`) }));
+      socket.send(JSON.stringify({ type: "prove", address: m.address, sig: await sign(keys.privateKey, "hold", `${new URL(base).host}\n${m.nonce}`) }));
       return;
     }
     const w = waiters.shift();
@@ -36,8 +36,8 @@ async function connect(base, keys) {
   await new Promise((r) => (socket.onopen = r));
   const next = () => inbox.length ? Promise.resolve(inbox.shift()) : new Promise((r) => waiters.push(r));
   assertEquals((await next()).type, "welcome");
-  socket.send(JSON.stringify({ type: "claim", address: await addressOf(keys.publicKey) }));
-  assertEquals((await next()).type, "claimed");
+  socket.send(JSON.stringify({ type: "hold", address: await addressOf(keys.publicKey) }));
+  assertEquals((await next()).type, "held");
   return { socket, next, close: () => socket.close() };
 }
 
@@ -97,7 +97,7 @@ Deno.test("a release with no key is kept under its hash, listed, and may bring i
     await secret.body?.cancel();
   }));
 
-Deno.test("a claim passed on through another server is refused, and a flood does not disconnect its target", async () => {
+Deno.test("a proof passed on through another server is refused, and a flood does not disconnect its target", async () => {
   const dataDir = await Deno.makeTempDir();
   const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir, bytesPerSecond: 600_000 });
   // A dishonest server in the middle: it forwards every byte to the honest one.
@@ -115,7 +115,7 @@ Deno.test("a claim passed on through another server is refused, and a flood does
     await victim.connect();
     let refused = "";
     await victim.addKey(await generateKeyPair()).catch((e) => refused = String(e));
-    assert(refused.includes("--origin"), "the honest server must not accept a claim made under another name");
+    assert(refused.includes("--origin"), "the honest server must not accept a proof made under another name");
     victim.close();
 
     const a = await generateKeyPair(), b = await generateKeyPair();
@@ -190,7 +190,7 @@ Deno.test("the relay delivers signed messages and refuses to send as someone els
     await new Promise((r) => setTimeout(r, 50));
   }));
 
-Deno.test("a claim signed for another server is refused", () =>
+Deno.test("a proof signed for another server is refused", () =>
   withServer(async (base) => {
     const keys = await generateKeyPair();
     const address = await addressOf(keys.publicKey);
@@ -201,12 +201,12 @@ Deno.test("a claim signed for another server is refused", () =>
       socket.onmessage = async (e) => {
         const m = JSON.parse(e.data);
         replies.push(m.type);
-        if (m.type === "welcome") socket.send(JSON.stringify({ type: "claim", address }));
+        if (m.type === "welcome") socket.send(JSON.stringify({ type: "hold", address }));
         if (m.type === "challenge") {
-          const sig = await sign(keys.privateKey, "claim", `other.example:443\n${m.nonce}`);
+          const sig = await sign(keys.privateKey, "hold", `other.example:443\n${m.nonce}`);
           socket.send(JSON.stringify({ type: "prove", address, sig }));
         }
-        if (m.type === "error" || m.type === "claimed") resolve(undefined);
+        if (m.type === "error" || m.type === "held") resolve(undefined);
       };
     });
     await done;
@@ -227,7 +227,7 @@ Deno.test("the server serves the app page", () =>
     await outside.body?.cancel();
   }));
 
-Deno.test("the most recent claim of an address wins, and an address can be released", () =>
+Deno.test("the most recent holder of an address wins, and an address can be released", () =>
   withServer(async (base) => {
     const realm = await generateKeyPair();
     const address = await addressOf(realm.publicKey);

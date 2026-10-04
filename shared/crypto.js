@@ -7,7 +7,7 @@
 // Each starts with a label naming the method that made it, so stronger methods
 // can be added in later protocol versions without changing anything else.
 //
-// Every signature also covers a purpose label ("emind-envelope", "emind-claim"),
+// Every signature also covers a purpose label ("emind-envelope", "emind-hold"),
 // so a signature made for one purpose can never be passed off as another.
 
 import { fromBase32, toBase32, utf8 } from "./encoding.js";
@@ -140,7 +140,7 @@ function signedBytes(purpose, text) {
 
 /**
  * @param {CryptoKey} privateKey
- * @param {string} purpose  what the signature is for, e.g. "envelope" or "claim"
+ * @param {string} purpose  what the signature is for, e.g. "envelope" or "hold"
  * @param {string} text
  * @returns {Promise<string>} labeled signature
  */

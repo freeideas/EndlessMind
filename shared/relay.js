@@ -1,4 +1,4 @@
-// Connection to a helper server: claim addresses, send and receive signed
+// Connection to a helper server: hold addresses, send and receive signed
 // envelopes through its relay. Runs the same in a browser and in Deno, so the
 // app and the host program share it.
 
@@ -18,7 +18,7 @@ export class Relay extends EventTarget {
     /** Key pairs this connection speaks for. @type {Map<string, CryptoKeyPair>} */
     this.keys = new Map();
     /** @type {Map<string, { done: () => void, fail: (e: Error) => void }>} */
-    this.pendingClaims = new Map();
+    this.pendingHolds = new Map();
     /** @type {Promise<void> | null} */
     this.ready = null;
     this.closedByUs = false;
@@ -33,7 +33,7 @@ export class Relay extends EventTarget {
     this.receiving = Promise.resolve();
   }
 
-  /** Connect (or reconnect) and re-claim every address. */
+  /** Connect (or reconnect) and hold every address again. */
   connect() {
     if (this.closedByUs) return Promise.reject(new Error("Connection closed"));
     this.ready = new Promise((resolve, reject) => {
@@ -42,7 +42,7 @@ export class Relay extends EventTarget {
       const deadline = setTimeout(() => { reject(new Error("Connection timed out")); socket.close(); }, 10_000);
       socket.onopen = async () => {
         try {
-          await Promise.all([...this.keys.values()].map((k) => this.#claim(k)));
+          await Promise.all([...this.keys.values()].map((k) => this.#hold(k)));
           clearTimeout(deadline);
           resolve();
         } catch (e) {
@@ -57,8 +57,8 @@ export class Relay extends EventTarget {
       socket.onclose = () => {
         clearTimeout(deadline);
         reject(new Error("The connection closed"));
-        for (const claim of this.pendingClaims.values()) claim.fail(new Error("the connection to the server closed"));
-        this.pendingClaims.clear();
+        for (const pending of this.pendingHolds.values()) pending.fail(new Error("the connection to the server closed"));
+        this.pendingHolds.clear();
         this.dispatchEvent(new Event("close"));
         if (!this.closedByUs) this.reconnectTimer = setTimeout(() => this.connect().catch(() => {}), 2000);
       };
@@ -76,24 +76,24 @@ export class Relay extends EventTarget {
   async addKey(keyPair) {
     const address = await addressOf(keyPair.publicKey);
     this.keys.set(address, keyPair);
-    if (this.socket?.readyState === WebSocket.OPEN) await this.#claim(keyPair);
+    if (this.socket?.readyState === WebSocket.OPEN) await this.#hold(keyPair);
     return address;
   }
 
   /** @param {CryptoKeyPair} keyPair */
-  async #claim(keyPair) {
+  async #hold(keyPair) {
     const address = await addressOf(keyPair.publicKey);
     const done = new Promise((resolve, reject) => {
       const deadline = setTimeout(() => {
-        this.pendingClaims.delete(address);
-        reject(new Error("Address claim timed out"));
+        this.pendingHolds.delete(address);
+        reject(new Error("Holding the address timed out"));
       }, 10_000);
-      this.pendingClaims.set(address, {
+      this.pendingHolds.set(address, {
         done: () => { clearTimeout(deadline); resolve(undefined); },
         fail: (e) => { clearTimeout(deadline); reject(e); },
       });
     });
-    this.#raw({ type: "claim", address });
+    this.#raw({ type: "hold", address });
     await done;
   }
 
@@ -139,18 +139,18 @@ export class Relay extends EventTarget {
     } else if (msg.type === "challenge") {
       const keyPair = this.keys.get(msg.address);
       if (!keyPair) return;
-      const sig = await sign(keyPair.privateKey, "claim", `${new URL(this.url).host}\n${msg.nonce}`);
+      const sig = await sign(keyPair.privateKey, "hold", `${new URL(this.url).host}\n${msg.nonce}`);
       this.#raw({ type: "prove", address: msg.address, sig });
-    } else if (msg.type === "claimed") {
-      this.pendingClaims.get(msg.address)?.done();
-      this.pendingClaims.delete(msg.address);
+    } else if (msg.type === "held") {
+      this.pendingHolds.get(msg.address)?.done();
+      this.pendingHolds.delete(msg.address);
     } else if (msg.type === "error" && msg.address) {
-      this.pendingClaims.get(msg.address)?.fail(new Error(msg.error));
-      this.pendingClaims.delete(msg.address);
+      this.pendingHolds.get(msg.address)?.fail(new Error(msg.error));
+      this.pendingHolds.delete(msg.address);
     } else if (msg.type === "error") {
       console.warn("The helper server refused a message:", msg.error);
     } else if (msg.type === "replaced") {
-      // Another holder of this key claimed it after us: the most recent claim wins.
+      // Another holder of this key took it after us: the most recent holder wins.
       if (this.keys.delete(msg.address)) this.dispatchEvent(new CustomEvent("replaced", { detail: msg.address }));
     } else if (msg.type === "deliver") {
       const envelope = await open(msg.envelope);

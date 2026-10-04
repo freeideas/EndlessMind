@@ -43,17 +43,18 @@ function startRules(send, listen) {
         driver = await directRules(rules, storage, report);
         driver.onViews((views, checks) => send({type:"views", views, checks}));
         driver.onRemove((player, reason) => send({type:"remove", player, reason}));
-        driver.onRecord((player, says, days) => new Promise((resolve, reject) => {
+        driver.onClaim((player, says, days) => new Promise((resolve, reject) => {
           const storageId = ++nextStorageId;
           waiting.set(storageId, {resolve, reject});
-          send({type:"record", storageId, player, says, days});
+          send({type:"claim", storageId, player, says, days});
         }));
         value = {rate: driver.ticksPerSecond, repeatable: driver.repeatable};
-      } else if (m.type === "enter") value = await driver.enter(m.player, m.character, m.experiences);
+      } else if (m.type === "enter") value = await driver.enter(m.player, m.character, m.claims);
       else if (m.type === "replay") value = driver.replay(m.check, m.me, m.adopt);
       else if (m.type === "resync") driver.resync(m.player);
       else if (m.type === "act") driver.act(m.player, m.action);
       else if (m.type === "leave") driver.leave(m.player);
+      else if (m.type === "seen") driver.seen(m.player, m.both);
       else if (m.type === "step") driver.step();
       if (m.id) send({type:"reply", id:m.id, value});
     } catch (e) { m.id ? send({type:"reply", id:m.id, error:String(e)}) : report(e); }
@@ -164,12 +165,12 @@ export async function startRules(container, code, storage, signal) {
   /** @type {(player: string, reason: string) => void} */
   let onRemove = () => {};
   /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
-  let onRecord = () => Promise.resolve(null);
+  let onClaim = () => Promise.resolve(null);
   f.listen((m) => {
     if (m.type === "views") onViews(m.views, m.checks);
     if (m.type === "remove") onRemove(m.player, m.reason);
-    if (m.type === "record") {
-      Promise.resolve().then(() => onRecord(m.player, m.says, m.days)).then(
+    if (m.type === "claim") {
+      Promise.resolve().then(() => onClaim(m.player, m.says, m.days)).then(
         (value) => f.post({ type: "stored", storageId: m.storageId, value }),
         (error) => f.post({ type: "stored", storageId: m.storageId, error: String(error) }),
       );
@@ -200,13 +201,13 @@ export async function startRules(container, code, storage, signal) {
       replay(check, me, adopt) {
         return f.call({ type: "replay", check, me, adopt });
       },
-      /** @param {string} player @param {unknown} character @param {unknown[]} [experiences] */
-      enter(player, character, experiences) {
-        return f.call({ type: "enter", player, character, experiences });
+      /** @param {string} player @param {unknown} character @param {unknown[]} [claims] */
+      enter(player, character, claims) {
+        return f.call({ type: "enter", player, character, claims });
       },
       /** @param {(player: string, says: unknown, days?: number) => Promise<unknown>} fn */
-      onRecord(fn) {
-        onRecord = fn;
+      onClaim(fn) {
+        onClaim = fn;
       },
       /** @param {string} player @param {unknown} action */
       act(player, action) {
@@ -215,6 +216,10 @@ export async function startRules(container, code, storage, signal) {
       /** @param {string} player */
       leave(player) {
         f.post({ type: "leave", player });
+      },
+      /** @param {string} player @param {{ claim: unknown, seen: string }} both */
+      seen(player, both) {
+        f.post({ type: "seen", player, both });
       },
       step() {
         f.post({ type: "step" });

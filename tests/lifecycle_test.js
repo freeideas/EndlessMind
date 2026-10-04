@@ -404,7 +404,7 @@ Deno.test("one server cannot stop a realm that is on several, and a quiet realm 
         onRemove() {}, stop() {},
       },
     });
-    // A server claims another holder took over (here, by a second connection proving the key on it).
+    // A server says another holder took over (here, by a second connection proving the key on it).
     const { Relay } = await import("../shared/relay.js");
     const other = new Relay(urls[0]);
     await other.connect();

@@ -24,8 +24,8 @@ export async function buildVectors() {
     main: "rules.js", renderer: "rules.js", needs: [],
   }, { id: "bbbbbbbbbbbbbbbbbbbbbbbbbb", time: 1790000000000 });
 
-  // An experience the key signs about itself, and the proof of showing it to a realm (the all-zero address).
-  const experience = await seal(keys, address, "emind.experience", { says: "pulled the sword from the stone" }, { id: "dddddddddddddddddddddddddd", time: 1790000000000 });
+  // An claim the key signs about itself, and the proof of showing it to a realm (the all-zero address).
+  const claim = await seal(keys, address, "emind.claim", { says: "pulled the sword from the stone" }, { id: "dddddddddddddddddddddddddd", time: 1790000000000 });
   const audience = `${to}\n${address}`;
 
   const canonicalInputs = ['{"b":1,"a":[true,null,{"d":2,"c":"x"}]}', '{"n":[1e30,4.50,0.002,-0,1e-7]}', '{"\\u20ac":1,"\\r":2,"\\ud83d\\ude00":3,"1":4}'];
@@ -40,18 +40,20 @@ export async function buildVectors() {
     hash: [{ utf8: "abc", hash: await hashOf("abc") }, { utf8: "", hash: await hashOf("") }],
     key: { seedHex, publicKeyHex: "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a", address },
     signature: {
-      purpose: "claim",
+      purpose: "hold",
       text: "example.org:8000\nchallenge-nonce",
-      signedBytesUtf8: "emind-claim\nexample.org:8000\nchallenge-nonce",
-      sig: await sign(keys.privateKey, "claim", "example.org:8000\nchallenge-nonce"),
+      signedBytesUtf8: "emind-hold\nexample.org:8000\nchallenge-nonce",
+      sig: await sign(keys.privateKey, "hold", "example.org:8000\nchallenge-nonce"),
     },
     envelope: { envelope, signedBytesUtf8: "emind-envelope\n" + canonicalJson(unsigned) },
     release: { manifest, release: await releaseOf(manifest) },
-    experience: {
-      experience,
+    claim: {
+      claim,
       audience,
-      proofSignedBytesUtf8: `emind-show\n${audience}\n${experience.sig}`,
-      proof: await sign(keys.privateKey, "show", `${audience}\n${experience.sig}`),
+      proofSignedBytesUtf8: `emind-show\n${audience}\n${claim.sig}`,
+      proof: await sign(keys.privateKey, "show", `${audience}\n${claim.sig}`),
+      seenSignedBytesUtf8: `emind-seen\n${claim.sig}`,
+      seen: await sign(keys.privateKey, "seen", claim.sig),
     },
     realmKey: {
       secret: toBase32(fromHex(seedHex)),

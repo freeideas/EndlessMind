@@ -22,7 +22,7 @@ import { open, seal } from "./envelope.js";
  * @property {string} [renderer]  file name of the default browser renderer; left out when the
  *                                realm cannot be played in a browser
  * @property {RealmApp} [app]     the realm's own app, for realms made with an engine
- * @property {string[]} [asks]  addresses of realms whose signed experiences this realm would like to be
+ * @property {string[]} [asks]  addresses of realms whose signed claims this realm would like to be
  *                              shown; the app offers what the player holds from them, if the player agrees
  * @property {string[]} needs   permissions the realm asks the player's app for; none are
  *                              defined in version 0, so this is empty for now
@@ -48,7 +48,7 @@ import { open, seal } from "./envelope.js";
  * @property {string} [renderer]  default browser renderer file
  * @property {string[]} [files]   other public files
  * @property {RealmApp} [app]
- * @property {string[]} [asks]    realms whose signed experiences this realm would like to be shown
+ * @property {string[]} [asks]    realms whose signed claims this realm would like to be shown
  * @property {string[]} [needs]   permissions asked for (none exist yet)
  */
 

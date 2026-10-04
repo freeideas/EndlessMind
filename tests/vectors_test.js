@@ -16,6 +16,6 @@ Deno.test("the vector key matches RFC 8032 and its envelope opens", async () => 
   const seed = new Uint8Array(v.key.seedHex.match(/../g)?.map((h) => parseInt(h, 16)) ?? []);
   assertEquals(await addressOf((await keyPairFromSeed(seed)).publicKey), v.key.address);
   assertEquals((await open(v.envelope.envelope))?.id, "aaaaaaaaaaaaaaaaaaaaaaaaaa");
-  const { checkShown } = await import("../shared/experience.js");
-  assertEquals((await checkShown(v.experience, v.experience.audience))?.says, "pulled the sword from the stone");
+  const { checkShown } = await import("../shared/claim.js");
+  assertEquals((await checkShown(v.claim, v.claim.audience))?.says, "pulled the sword from the stone");
 });

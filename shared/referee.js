@@ -1,7 +1,8 @@
 // One referee and one session path for every visitor, including its owner.
 import { ENTERING, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
 import { randomId } from "./encoding.js";
-import { checkShown, makeExperience } from "./experience.js";
+import { checkShown, makeClaim } from "./claim.js";
+import { verify } from "./crypto.js";
 
 /** @typedef {import("./relay.js").Relay | import("./relay.js").Relays} Relay */
 /** @typedef {import("./envelope.js").Envelope} Envelope */
@@ -9,15 +10,16 @@ import { checkShown, makeExperience } from "./experience.js";
 /**
  * @typedef {object} RulesDriver
  * @property {number} ticksPerSecond
- * @property {(player: string, character: unknown, experiences?: unknown[]) => Promise<{ok: boolean, reason?: string}>} enter
- *   `experiences` are the ones the visitor chose to show, already checked
- * @property {(fn: (player: string, says: unknown, days?: number) => Promise<unknown>) => void} [onRecord]  the
- *   rules want an experience signed about a player; the function returns the signed experience
+ * @property {(player: string, character: unknown, claims?: unknown[]) => Promise<{ok: boolean, reason?: string}>} enter
+ *   `claims` are the ones the visitor chose to show, already checked
+ * @property {(fn: (player: string, says: unknown, days?: number) => Promise<unknown>) => void} [onClaim]  the
+ *   rules want a claim signed about a player; the function returns the signed claim
  * @property {(player: string, action: unknown) => void} act
  * @property {(player: string) => void} leave
  * @property {() => void} step
  * @property {(fn: (views: Record<string, unknown>, checks?: Record<string, unknown>) => void) => void} onViews
  *   `checks` is given by repeatable rules: for each player, what their app needs to check the referee
+ * @property {(player: string, both: { claim: unknown, seen: string }) => void} [seen]  a player signed a claim in return
  * @property {boolean} [repeatable]  the rules promise: the same moves in the same order always give the same state
  * @property {(player: string) => void} [resync]  send this player a fresh starting point with the next tick
  * @property {(check: any, me: string, adopt: boolean) => { view: unknown, differs: boolean } | Promise<{ view: unknown, differs: boolean }>} [replay]  apply a check
@@ -48,7 +50,7 @@ export async function referee(
    * @property {number} seq
    * @property {number} actionSeq
    * @property {number} lastHeard
-   * @property {Set<string>} handed     the experiences owed to its player that this session has been sent
+   * @property {Set<string>} handed     the claims owed to its player that this session has been sent
    * @property {boolean} welcomed       nothing is sent in a session before its welcome
    * @property {Promise<void>} ready   settles once the session's key (if any) is worked out
    * @property {string} [key]          this side's public half, when the visitor offered one
@@ -62,14 +64,14 @@ export async function referee(
   /** @param {string} to @param {string} kind @param {unknown} body */
   const send = (to, kind, body) => relay.send(keys, to, kind, body).catch(console.error);
   /**
-   * Experiences signed for players and not yet known to have arrived. They are sent once in each session
+   * Claims signed for players and not yet known to have arrived. They are sent once in each session
    * until the visitor says it has them, so a lost message does not lose one for good.
    * @type {Map<string, Envelope[]>}
    */
   const owed = new Map();
-  rules.onRecord?.(async (player, says, days) => {
-    const signed = await makeExperience(keys, player, says, days ? days * 24 * 60 * 60 * 1000 : undefined, pass);
-    // The rules get the signed experience to keep if they wish. The player gets it too if they are here
+  rules.onClaim?.(async (player, says, days) => {
+    const signed = await makeClaim(keys, player, says, days ? days * 24 * 60 * 60 * 1000 : undefined, pass);
+    // The rules get the signed claim to keep if they wish. The player gets it too if they are here
     // or on their way in, inside their session; what they do with it is up to them.
     const list = owed.get(player) ?? [], p = players.get(player);
     if (!stopped && (p || entering.has(player)) && list.length < 16) owed.set(player, [...list, signed]);
@@ -90,12 +92,12 @@ export async function referee(
       // Until the welcome has gone out the session's key may not be ready, and a view must never go unlocked.
       if (!p?.welcomed) continue;
       const seq = ++p.seq, cipher = p.cipher;
-      const experiences = unsent(player);
-      for (const signed of experiences) p.handed.add(signed.sig);
+      const claims = unsent(player);
+      for (const signed of claims) p.handed.add(signed.sig);
       const inner = {
         ...(Object.hasOwn(views, player) ? { view: views[player] } : {}),
         ...(checks && Object.hasOwn(checks, player) ? { check: checks[player] } : {}),
-        ...(experiences.length ? { experiences } : {}),
+        ...(claims.length ? { claims } : {}),
       };
       if (!cipher) {
         send(player, "emind.state", { session: p.session, seq, ...inner });
@@ -124,7 +126,7 @@ export async function referee(
     if (env.kind === "emind.enter") {
       if (typeof b.request !== "string" || b.request.length < 16 || b.request.length > 64) return;
       if (b.box !== undefined) {
-        // The private part of the request (the character, and any experiences shown) is locked to this
+        // The private part of the request (the character, and any claims shown) is locked to this
         // referee's exchange key. If it will not open, the visitor has an old key: tell it the current one.
         try {
           if (!exchange) throw new Error("no exchange key");
@@ -148,12 +150,12 @@ export async function referee(
       if (!p) {
         let pending = entering.get(env.from);
         if (!pending) {
-          // Experiences the visitor chose to show are checked here, so the rules see only true ones:
+          // Claims the visitor chose to show are checked here, so the rules see only true ones:
           // signed by their issuer, in date, about this visitor, and shown to this realm.
           const shown = Array.isArray(b.shown) ? b.shown.slice(0, 16) : [];
           const seen = new Set();
           pending = Promise.all(shown.map((/** @type {unknown} */ one) => checkShown(one, `${realm}\n${env.from}`).catch(() => null)))
-            // The same experience shown twice counts once.
+            // The same claim shown twice counts once.
             .then((checked) => checked.filter((e) => e && !seen.has(e.signed.sig) && seen.add(e.signed.sig)))
             .then((checked) => rules.enter(env.from, b.character ?? {}, checked))
             .catch((error) => ({ ok: false, reason: String(error) }));
@@ -224,10 +226,14 @@ export async function referee(
       } else if (env.kind === "emind.ping") {
         // Answered, so a visitor can tell a quiet realm (no views to send) from a dead referee.
         send(env.from, "emind.pong", { session: p.session });
-        // The visitor names the experiences that have arrived; those need not be sent again.
-        if (Array.isArray(b.got) && owed.has(env.from)) {
-          const left = /** @type {Envelope[]} */ (owed.get(env.from)).filter((signed) => !b.got.includes(signed.sig));
+        // The visitor signs the claims it keeps. Those need not be sent again, and the rules are told:
+        // a claim signed by both parties is one they both hold.
+        for (const one of Array.isArray(b.seen) ? b.seen.slice(0, 64) : []) {
+          const claim = owed.get(env.from)?.find((signed) => signed.sig === one?.sig);
+          if (!claim || !await verify(env.from, "seen", claim.sig, one.seen)) continue;
+          const left = (owed.get(env.from) ?? []).filter((signed) => signed !== claim);
           left.length ? owed.set(env.from, left) : owed.delete(env.from);
+          rules.seen?.(env.from, { claim, seen: one.seen });
         }
       } else if (env.kind === "emind.leave") {
         players.delete(env.from);
@@ -288,16 +294,16 @@ export async function directRules(rules, storage, report = (error) => console.er
   /** @type {(player: string, reason: string) => void} */
   let onRemove = () => {};
   /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
-  let onRecord = () => Promise.resolve(null);
+  let onClaim = () => Promise.resolve(null);
   /**
-   * The rules ask for a signed experience about a player. It resolves to the signed experience, which the
+   * The rules ask for a signed claim about a player. It resolves to the signed claim, which the
    * rules may keep, or to null if it could not be signed.
    * @param {string} player @param {unknown} says @param {number} [days]
    */
-  const record = (player, says, days) => {
+  const claim = (player, says, days) => {
     if (typeof player !== "string" || stopped) return Promise.resolve(null);
     return Promise.resolve()
-      .then(() => onRecord(player, JSON.parse(JSON.stringify(says ?? null)), typeof days === "number" && days > 0 ? days : undefined))
+      .then(() => onClaim(player, JSON.parse(JSON.stringify(says ?? null)), typeof days === "number" && days > 0 ? days : undefined))
       .catch((error) => (report(error), null));
   };
   let stepping = false;
@@ -334,7 +340,7 @@ export async function directRules(rules, storage, report = (error) => console.er
     onRemove(player, typeof reason === "string" ? reason : "");
   };
   const seed = Math.floor(Math.random() * 2 ** 31);
-  let state = rules.init ? await rules.init({ seed, storage, remove, record }) : {};
+  let state = rules.init ? await rules.init({ seed, storage, remove, claim }) : {};
   /** Apply one noted move to this copy, exactly as the referee did. @param {unknown[]} input */
   const apply = ([kind, player, data, more]) => {
     if (kind === "enter") {
@@ -372,16 +378,16 @@ export async function directRules(rules, storage, report = (error) => console.er
       return { view, differs };
     },
     ticksPerSecond: Math.min(Math.max(Number(rules.ticksPerSecond) || 10, 1), 60),
-    async enter(player, character, experiences = []) {
+    async enter(player, character, claims = []) {
       try {
         if (repeatable) {
           // Every player's copy needs what the rules were given, so the signed originals stay behind.
-          const kept = note("enter", player, [character, experiences.map((/** @type {any} */ e) => ({ ...e, signed: undefined }))], 32768);
-          if (!kept) return { ok: false, reason: "Your character's description and shown experiences are too large for this realm, or the realm is too busy just now." };
-          [character, experiences] = /** @type {any[]} */ (kept.value);
-          inputs[inputs.length - 1] = ["enter", player, character, experiences];
+          const kept = note("enter", player, [character, claims.map((/** @type {any} */ e) => ({ ...e, signed: undefined }))], 32768);
+          if (!kept) return { ok: false, reason: "Your character's description and shown claims are too large for this realm, or the realm is too busy just now." };
+          [character, claims] = /** @type {any[]} */ (kept.value);
+          inputs[inputs.length - 1] = ["enter", player, character, claims];
         }
-        const verdict = rules.enter ? await rules.enter(state, player, character, experiences) : true;
+        const verdict = rules.enter ? await rules.enter(state, player, character, claims) : true;
         const ok = verdict === true || verdict === undefined;
         if (ok && !stopped) {
           players.add(player);
@@ -401,6 +407,9 @@ export async function directRules(rules, storage, report = (error) => console.er
         }
         safely(() => rules.act(state, player, action));
       }
+    },
+    seen(player, both) {
+      if (!stopped && rules.seen) safely(() => rules.seen(state, player, both));
     },
     leave(player) {
       if (!players.delete(player)) return;
@@ -447,8 +456,8 @@ export async function directRules(rules, storage, report = (error) => console.er
     onRemove(fn) {
       onRemove = fn;
     },
-    onRecord(fn) {
-      onRecord = fn;
+    onClaim(fn) {
+      onClaim = fn;
     },
     stop() {
       stopped = true;

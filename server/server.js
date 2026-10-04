@@ -194,15 +194,15 @@ export async function startServer(options = {}) {
 
   /**
    * The socket that most recently proved it holds each address. A key can be
-   * carried anywhere, so two holders may turn up; the most recent claim wins
+   * carried anywhere, so two holders may turn up; the most recent holder wins
    * and the earlier holder is told it was replaced.
    * @type {Map<string, WebSocket>}
    */
-  const claims = new Map();
+  const holders = new Map();
 
   /** @param {string} address */
   function isOnline(address) {
-    return claims.has(spoken.get(address)?.referee ?? address);
+    return holders.has(spoken.get(address)?.referee ?? address);
   }
 
   /**
@@ -218,8 +218,8 @@ export async function startServer(options = {}) {
 
   /**
    * The names this server goes by, as clients write them ("example.org:8000").
-   * A claim must be signed for one of them, so the server cannot take its name
-   * from the request: a dishonest server could then pass a player's claim on.
+   * A proof must be signed for one of them, so the server cannot take its name
+   * from the request: a dishonest server could then pass a player's proof on.
    * @type {Set<string> | undefined}
    */
   let names;
@@ -273,11 +273,11 @@ export async function startServer(options = {}) {
       const msg = /** @type {any} */ (parseStrictJson(event.data));
       if (!msg || typeof msg !== "object") return;
 
-      // Claiming an address: the socket proves it holds the private key by
+      // Holding an address: the socket proves it holds the private key by
       // signing a random challenge together with this server's name, so a
-      // dishonest server cannot pass the signature on to claim the address
+      // dishonest server cannot pass the signature on to hold the address
       // elsewhere. Then messages for that address come here.
-      if (msg.type === "claim" && isAddress(msg.address)) {
+      if (msg.type === "hold" && isAddress(msg.address)) {
         if (!isMyName(host)) {
           const error = `This server does not go by the name ${host}. Its operator must start it with --origin ${host}.`;
           console.warn(error);
@@ -291,29 +291,29 @@ export async function startServer(options = {}) {
       } else if (msg.type === "prove" && challenges.has(msg.address)) {
         const nonce = challenges.get(msg.address);
         challenges.delete(msg.address);
-        if (await verify(msg.address, "claim", `${host}\n${nonce}`, msg.sig)) {
+        if (await verify(msg.address, "hold", `${host}\n${nonce}`, msg.sig)) {
           if (socket.readyState !== WebSocket.OPEN) return;
           mine.add(msg.address);
-          const earlier = claims.get(msg.address);
+          const earlier = holders.get(msg.address);
           if (earlier && earlier !== socket) sendTo(earlier, { type: "replaced", address: msg.address });
-          claims.set(msg.address, socket);
-          sendTo(socket, { type: "claimed", address: msg.address });
+          holders.set(msg.address, socket);
+          sendTo(socket, { type: "held", address: msg.address });
         } else {
           sendTo(socket, { type: "error", error: "bad proof", address: msg.address });
         }
       } else if (msg.type === "release" && mine.has(msg.address)) {
         // Giving an address up, for example a referee leaving its realm.
         mine.delete(msg.address);
-        if (claims.get(msg.address) === socket) claims.delete(msg.address);
+        if (holders.get(msg.address) === socket) holders.delete(msg.address);
       } else if (msg.type === "send") {
-        // Relay. The server checks only that the sender claimed the "from"
+        // Relay. The server checks only that the sender holds the "from"
         // address; receivers check the signature themselves.
         const env = msg.envelope;
-        if (!env || claims.get(env.from) !== socket || !isAddress(env.to)) {
+        if (!env || holders.get(env.from) !== socket || !isAddress(env.to)) {
           sendTo(socket, { type: "error", error: "cannot send", ref: msg.ref });
           return;
         }
-        const target = claims.get(env.to);
+        const target = holders.get(env.to);
         if (!target || !sendTo(target, { type: "deliver", envelope: env })) {
           sendTo(socket, { type: "undeliverable", to: env.to, ref: msg.ref });
         }
@@ -323,7 +323,7 @@ export async function startServer(options = {}) {
     socket.onclose = () => {
       sockets.delete(socket);
       for (const address of mine) {
-        if (claims.get(address) === socket) claims.delete(address);
+        if (holders.get(address) === socket) holders.delete(address);
       }
     };
   }

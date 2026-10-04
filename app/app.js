@@ -8,7 +8,7 @@ import { exampleFiles, ownedRealms, publish, publishOwned, search, serverOrigin 
 import { play, startHosting, startRoom } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
 import { askToPersist, get, list, put } from "./store.js";
-import { record } from "./experiences.js";
+import { record } from "./claims.js";
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -154,7 +154,7 @@ async function showRecord() {
 
 $("forget-showing").onclick = async () => {
   for (const kept of await list("show:")) await put("show:" + kept.address, undefined);
-  status("Forgotten. Realms that ask to see your experiences will be asked about again.");
+  status("Forgotten. Realms that ask to see your claims will be asked about again.");
 };
 
 async function showHome() {
@@ -228,14 +228,14 @@ async function showRealm(address, release, via = []) {
   stage.replaceChildren();
   try {
     const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal,
-      // The player answers once for each realm whose experiences are asked for, and is asked again
+      // The player answers once for each realm whose claims are asked for, and is asked again
       // whenever this realm starts asking for another.
       mayShow: async (name, realms) => {
         /** @type {{ address: string, answers: Record<string, boolean> }} */
         const kept = await get("show:" + address) ?? { address, answers: {} };
         const fresh = realms.filter((r) => !(r in kept.answers));
         if (fresh.length) {
-          const answer = confirm(`${name} asks to see what you have done in ${fresh.length} other realm(s) you have played:\n${fresh.join("\n")}\nShowing your signed experiences tells it which player you are in those realms. Show them?`);
+          const answer = confirm(`${name} asks to see what is said of you in ${fresh.length} other realm(s) you have played:\n${fresh.join("\n")}\nShowing your signed claims tells it which player you are in those realms. Show them?`);
           for (const r of fresh) kept.answers[r] = answer;
           await put("show:" + address, kept);
         }

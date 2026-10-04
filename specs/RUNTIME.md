@@ -44,8 +44,8 @@ export default {
   ticksPerSecond: 10,                 // how often tick() runs, 1 to 60
   repeatable: false,                  // true lets every player's app check the referee (see below)
 
-  init({ seed, storage, remove, record }) { return state; }, // make the starting state; seed is a random integer
-  enter(state, player, character, experiences) { // a player asks to come in
+  init({ seed, storage, remove, claim }) { return state; }, // make the starting state; seed is a random integer
+  enter(state, player, character, claims) { // a player asks to come in
     return true;                      // true lets them in; a string refuses, giving the reason
   },
   act(state, player, action) {},      // a player's move, exactly as their renderer sent it
@@ -60,8 +60,9 @@ export default {
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick. A view is copied as plain JSON at the moment `view` returns it, so later changes to the state never leak into a view already made. A message over 256 KB cannot be carried: it is not sent, and the referee logs an error naming its size.
 - **`remove(player, reason)`**, given to `init`, ends a player's visit: the player is told the reason, gets no more views, and their moves are ignored. `leave` is not called for a player the rules removed. They may ask to enter again, and `enter` decides. Use it for an idle limit, a full realm, or someone the rules no longer want inside.
-- **`record(player, says, days)`**, given to `init`, has the referee sign an experience about a player: `says` is any short JSON (at most 1,024 characters), and `days` is how long it counts, left out for something that simply happened. The player's app receives it if the player is inside or on the way in. The call returns a promise of the signed experience, which the rules may keep (but not in the state of repeatable rules, whose copies on players' devices get nothing back and would then differ). See "Signed experiences" below.
-- **`experiences`**, the fourth argument of `enter`, lists the experiences the visitor chose to show, already checked by the referee: each is `{ issuer, about, says, time, expires, signed }`, where `issuer` is the address of the realm that signed it and `signed` the signed original (left out for repeatable rules). It is an empty list when nothing was shown. Decide for yourself which issuers you trust.
+- **`claim(player, says, days)`**, given to `init`, has the referee sign a claim about a player: `says` is any short JSON (at most 1,024 characters), and `days` is how long it counts, left out for something that simply happened. The player's app receives it if the player is inside or on the way in. The call returns a promise of the signed claim, which the rules may keep (but not in the state of repeatable rules, whose copies on players' devices get nothing back and would then differ). See "Signed claims" below.
+- **`seen(state, player, both)`**, an optional function beside `enter` and `act`, is called when a player's app signs a claim in return: `both` is `{ claim, seen }`, a claim signed by both parties, which the rules may keep. (Repeatable rules should not change their state here, for the same reason.)
+- **`claims`**, the fourth argument of `enter`, lists the claims the visitor chose to show, already checked by the referee: each is `{ issuer, about, says, time, expires, signed }`, where `issuer` is the address of the realm that signed it and `signed` the signed original (left out for repeatable rules). It is an empty list when nothing was shown. Decide for yourself which issuers you trust.
 - **State** lives in the referee process. Rules choose what to preserve using `storage.get(key)` and `storage.put(key, value)`, both asynchronous. Keys are strings, values are JSON data, and a missing key reads as `undefined`. Only this realm's rules receive its storage; renderers do not. A completed write replaces one value atomically. Browser storage uses IndexedDB transactions; host storage replaces a JSON file beside its key file. This is not a multi-key transaction or an automatic snapshot of the running state. Rules own save timing, schema changes, and correctness. Full backups include committed storage; clearing site data can still erase browser storage.
 - **Waiting, and the outside world.** `init`, `enter`, `act` and `tick` may return promises in both hosting modes. The host program has no sandbox, so rules there can also use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. Actions and entry may overlap other work; the runtime does not serialize state mutations or manage transactions. Rules are responsible for that. Browser rules can await their provided storage but still have no general network access. Startup and entry errors reject their pending calls. Closing a visit cancels pending calls and removes its frame; the runtime imposes no execution deadline on realm code and does not interrupt endless loops. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
 
@@ -85,7 +86,7 @@ Public rules are normally a statement, not a proof: nobody can see what a refere
 
 The referee then sends each player, with every view, the moves it applied since the last one (and, at the start of a session, a full copy of the state). The player's app runs its own copy of the public rules in a sandbox, applies the same moves, and compares the view its copy gives with the view the referee sent. A referee that strays from the rules in any way the player can see, or makes a move in the player's name, is caught at once, and the app warns the player. This holds in a room and in a lasting realm alike: the host still decides the order of moves and who gets in, but cannot bend the rules while a player is following.
 
-Known limits. A copy has to begin somewhere, and it begins from the referee's own account of the state at the start of each session, so a referee can misstate things to a player who has only just arrived, or after a break long enough that the app had to start a fresh session (at least 15 seconds of silence, or a lost message). The app tells the player each time checking starts over. A starting point sent to a copy that is already following is not taken on trust: it must match the copy's own state exactly. A state too large to send (about 180,000 characters as JSON) cannot be checked, and the app says so. Because every move is passed on to every player, a move larger than 4,096 characters as JSON is not applied in a repeatable realm, an entry whose character description and shown experiences together pass 32,768 is refused, and so is anything beyond 65,536 characters in one tick.
+Known limits. A copy has to begin somewhere, and it begins from the referee's own account of the state at the start of each session, so a referee can misstate things to a player who has only just arrived, or after a break long enough that the app had to start a fresh session (at least 15 seconds of silence, or a lost message). The app tells the player each time checking starts over. A starting point sent to a copy that is already following is not taken on trust: it must match the copy's own state exactly. A state too large to send (about 180,000 characters as JSON) cannot be checked, and the app says so. Because every move is passed on to every player, a move larger than 4,096 characters as JSON is not applied in a repeatable realm, an entry whose character description and shown claims together pass 32,768 is refused, and so is anything beyond 65,536 characters in one tick.
 
 Leave `repeatable` out for rules that hide information (cards in a hand), use the outside world, or save data. Those are trusted the old way.
 
@@ -121,12 +122,12 @@ This is the safety floor: players can open any realm without trusting its author
 
 These are the "entering and leaving" extension (prefix `emind.`), carried in signed envelopes (see [PROTOCOL.md](PROTOCOL.md)). The app handles them; realm code never sees them.
 
-- `emind.enter`, visitor to realm: `{ request, release, character }`, with `shown` added when the player shows experiences: a list of at most 16 `{ experience, proof }` (see "Experiences" in [PROTOCOL.md](PROTOCOL.md)). The visitor chooses a random request ID (16 to 64 characters), repeating it while waiting. A new visit or reconnection after silence chooses a fresh one. `release` is the expected manifest-body hash.
+- `emind.enter`, visitor to realm: `{ request, release, character }`, with `shown` added when the player shows claims: a list of at most 16 `{ claim, proof }` (see "Claims" in [PROTOCOL.md](PROTOCOL.md)). The visitor chooses a random request ID (16 to 64 characters), repeating it while waiting. A new visit or reconnection after silence chooses a fresh one. `release` is the expected manifest-body hash.
 - `emind.welcome`, realm to visitor: `{ request, session, instance, release, name }`. The referee creates a random instance ID on startup and a fresh session ID for this visitor's new request. Welcome must echo the expected request and release. Once accepted, a different session or instance cannot replace it without a fresh handshake.
 - `emind.refused`, realm to visitor: `{ request, reason }`. Ends that visit, whether it arrives in answer to `emind.enter` or later, when the rules remove a player. A release mismatch is refused.
 - `emind.act`, visitor to realm: `{ session, seq, action }`. Sequence numbers are positive safe integers that increase within this session; older or repeated actions are dropped. An app sends its messages in the order they were made and handles arriving ones in the order they came, so moves reach the rules in the order the player made them.
-- `emind.state`, realm to visitor: `{ session, seq, view }`. An independently increasing positive sequence number orders views. Only the accepted session's newer views are displayed. `experiences`, when present, lists experiences the realm has signed for this visitor; in a private session it travels inside the box. A referee of repeatable rules adds `check`, and then sends a message on every tick even when there is no `view`: `{ start, inputs }` for the first message of a session, where `start` is a JSON text of `{ state, players }` after the moves in `inputs`, or `{ unchecked: reason }` when the state is too large to send; and after that `{ inputs }`, the moves applied since the last message, in order, each one of `["enter", player, character, experiences]`, `["act", player, action]`, `["leave", player]` or `["tick"]`. Moves are passed on as the plain JSON the rules were given. A visitor that finds a gap in `seq` (the first message of a session is number 1) begins a fresh handshake, since its copy has missed moves. In a private session `check` travels inside the box with `view`.
-- `emind.ping`, visitor to realm: `{ session }`, every five seconds, with `got` added after experiences arrive: the `sig` of each. The referee sends an experience once in each session until it is named in `got`, so one lost on the way arrives in the next session. The referee answers `emind.pong`, `{ session }`, so a visitor can tell a realm with nothing to show from a referee that is gone.
+- `emind.state`, realm to visitor: `{ session, seq, view }`. An independently increasing positive sequence number orders views. Only the accepted session's newer views are displayed. `claims`, when present, lists claims the realm has signed for this visitor; in a private session it travels inside the box. A referee of repeatable rules adds `check`, and then sends a message on every tick even when there is no `view`: `{ start, inputs }` for the first message of a session, where `start` is a JSON text of `{ state, players }` after the moves in `inputs`, or `{ unchecked: reason }` when the state is too large to send; and after that `{ inputs }`, the moves applied since the last message, in order, each one of `["enter", player, character, claims]`, `["act", player, action]`, `["leave", player]` or `["tick"]`. Moves are passed on as the plain JSON the rules were given. A visitor that finds a gap in `seq` (the first message of a session is number 1) begins a fresh handshake, since its copy has missed moves. In a private session `check` travels inside the box with `view`.
+- `emind.ping`, visitor to realm: `{ session }`, every five seconds, with `seen` added after claims arrive: for each claim the visitor keeps, `{ sig, seen }`, where `seen` is the visitor's own signature on it (see "Claims" in [PROTOCOL.md](PROTOCOL.md)). The referee sends a claim once in each session until it comes back signed, so one lost on the way arrives in the next session. The referee answers `emind.pong`, `{ session }`, so a visitor can tell a realm with nothing to show from a referee that is gone.
 - `emind.leave`, visitor to realm: `{ session }`, ending this session.
 
 Every message is signed and checked against the expected sender and receiver. Referees ignore messages for other sessions. Repeated entry requests do not run a pending `enter` twice. Visitors hearing neither a view nor a pong for 15 seconds begin a fresh handshake, on the realm's next server if it has several; referees remove visitors unheard from for 20 seconds. The owner joins through this same path. Navigation cancels unfinished startup and disposes the visitor's frame, connection, timers and listeners; hosting is a separate lifetime.
@@ -135,24 +136,24 @@ Every message is signed and checked against the expected sender and receiver. Re
 
 **A private way in.** Who the visitor is and what they show should not be read by a relay either. An announcement may carry `key`, the referee's own X25519 public key for as long as it runs. A visitor that has it derives a key from its one-visit key and the referee's (same steps, with info `enter`, the referee's address, the visitor's address and the request ID, one per line) and sends `emind.enter` as `{ request, release, key, box }`, where `box` holds `{ character, shown }` locked with direction 3 and number 0. A referee that cannot open the box, because it has restarted since the announcement the visitor read, answers `emind.key`, `{ request, key }`, with its current key, and the visitor asks again. Session IDs distinguish running copies; they do not establish a worldwide winner between two holders of the same realm key. This draft session extension replaces the earlier unscoped messages. Update both visitors and referees together; keys and source modules remain usable.
 
-## Signed experiences
+## Signed claims
 
 A realm can sign what a player did in it, and another realm can ask to see it. This is how a good name earned in one realm counts in another (see "Reputation is earned" in [DESIGN.md](DESIGN.md)).
 
 ```js
-// A guild: signs experiences for its players.
-let record, remove;
+// A guild: signs claims for its players.
+let claim, remove;
 export default {
-  init(options) { ({ record, remove } = options); return { removed: [] }; },
+  init(options) { ({ claim, remove } = options); return { removed: [] }; },
   enter(state, player) {
-    record(player, "entered the guild hall");        // something that happened: it lasts
-    record(player, { standing: "good" }, 30);        // how things stand: counts for 30 days, so renew it
+    claim(player, "entered the guild hall");        // something that happened: it lasts
+    claim(player, { standing: "good" }, 30);        // how things stand: counts for 30 days, so renew it
     return true;
   },
   async act(state, player, action) {
-    if (action.sword) record(player, "pulled the sword from the stone");
+    if (action.sword) claim(player, "pulled the sword from the stone");
     if (action.grief) {
-      state.removed.push(await record(player, { removed: "griefing" }));  // the realm's own signed note
+      state.removed.push(await claim(player, { removed: "griefing" }));  // the realm's own signed note
       remove(player, "Removed for griefing.");
     }
   },
@@ -166,8 +167,8 @@ export default {
 const GUILD = "ed25519-...the guild's address...";
 export default {
   init() { return {}; },
-  enter(state, player, character, experiences) {
-    const good = experiences.find((e) => e.issuer === GUILD && e.says?.standing === "good");
+  enter(state, player, character, claims) {
+    const good = claims.find((e) => e.issuer === GUILD && e.says?.standing === "good");
     if (!good) return "Members of the guild only.";
     // One guild member, one player here: a member could sign proofs for friends, so remember who came as whom.
     state[good.about] ??= player;
@@ -177,12 +178,12 @@ export default {
 };
 ```
 
-- **The referee has already checked** each experience in the list: its issuer signed it, it is in date, whoever it is about agreed to its being shown here by this visitor, and none is listed twice. Rules only decide what it is worth.
-- **An experience can be lent, so count each holder once.** The proof shows that the holder of the address in `about` signed for this visitor. Nothing can show that the two are one person, so a member could vouch this way for a friend. `about` is the same every time, so rules can allow one visitor for each, as the club does.
+- **The referee has already checked** each claim in the list: its issuer signed it, it is in date, whoever it is about agreed to its being shown here by this visitor, and none is listed twice. Rules only decide what it is worth.
+- **A claim can be lent, so count each holder once.** The proof shows that the holder of the address in `about` signed for this visitor. Nothing can show that the two are one person, so a member could vouch this way for a friend. `about` is the same every time, so rules can allow one visitor for each, as the club does.
 - **Trust issuers by address.** Anyone can make a realm that signs anything, so name the realms whose word you accept.
 - **A player decides what to show.** The app asks once for each realm that asks, and a player may hold nothing from the realms you name. Leave a way in for newcomers if you want any.
 - **A note about a removal is yours to keep.** The player will not carry it. Its effect is that you stop renewing their standing.
-- **Only a lasting realm's word counts.** Played alone there is no key to sign with, and a room's key is thrown away. Under a referee pass, an experience ends when the pass does.
+- **Only a lasting realm's word counts.** Played alone there is no key to sign with, and a room's key is thrown away. Under a referee pass, a claim ends when the pass does.
 
 ## Standing, bans and invitations
 

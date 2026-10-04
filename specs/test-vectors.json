@@ -44,10 +44,10 @@
     "address": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena"
   },
   "signature": {
-    "purpose": "claim",
+    "purpose": "hold",
     "text": "example.org:8000\nchallenge-nonce",
-    "signedBytesUtf8": "emind-claim\nexample.org:8000\nchallenge-nonce",
-    "sig": "ed25519-aup6vhkau7ntkrpfzgmoqbu4k5wumsgaos5jarlnb6v4hyg5w3f6xs45n6ldrtbuhd7ew2rlgkd4r6uhjbbbh4nof5i43vrqfe7o4aq"
+    "signedBytesUtf8": "emind-hold\nexample.org:8000\nchallenge-nonce",
+    "sig": "ed25519-4cswp7vvcdlb7twevlmhlcx7ont43ot2uqo65ouv5ybeltgopnhkju7fup4lkjad5itw4m7hw66hh56nfneq6actysf4evd5te7toai"
   },
   "envelope": {
     "envelope": {
@@ -93,22 +93,24 @@
     },
     "release": "sha256-jybgvnsmhgrsvnevg5uu54w4htyfeul5fthb22emdd7klflkia5a"
   },
-  "experience": {
-    "experience": {
+  "claim": {
+    "claim": {
       "v": "emind/0",
       "id": "dddddddddddddddddddddddddd",
       "from": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
       "to": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
-      "kind": "emind.experience",
+      "kind": "emind.claim",
       "body": {
         "says": "pulled the sword from the stone"
       },
       "time": 1790000000000,
-      "sig": "ed25519-34jdogrbmioxwfvls6skw4kx3p2s74rdmkabhupl2do6vfc6nzjgwmmq232yrs67y3bapbjsz5nayndrwa3eukfl4sii7oeokyrpwcq"
+      "sig": "ed25519-53yua2ipupwtrcmxowxv2gtj2fxabksigolk5cw6j72irygl3ho2i46j2jqn4j4dliwe4ewdmf6ja5gjkmaqix57tunz2bwapdwbmby"
     },
     "audience": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ned25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
-    "proofSignedBytesUtf8": "emind-show\ned25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ned25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\ned25519-34jdogrbmioxwfvls6skw4kx3p2s74rdmkabhupl2do6vfc6nzjgwmmq232yrs67y3bapbjsz5nayndrwa3eukfl4sii7oeokyrpwcq",
-    "proof": "ed25519-tbabjbm6gbp6o3refcynnn3eq5pu76lblzfa7d7ardrudh6zuuzuk74cv2f45q2uuysxtoagjsk5y46kmhk7gl2phwvqpdfojhswiba"
+    "proofSignedBytesUtf8": "emind-show\ned25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ned25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\ned25519-53yua2ipupwtrcmxowxv2gtj2fxabksigolk5cw6j72irygl3ho2i46j2jqn4j4dliwe4ewdmf6ja5gjkmaqix57tunz2bwapdwbmby",
+    "proof": "ed25519-gnfnmtsfhugoyd273qvfwgdnw75f5us74erw5i4kzq26s4eojlaupmkcyvkfoay4tfueo5a2dcdlr6kapk6umakxf5cwasmsn47ggdi",
+    "seenSignedBytesUtf8": "emind-seen\ned25519-53yua2ipupwtrcmxowxv2gtj2fxabksigolk5cw6j72irygl3ho2i46j2jqn4j4dliwe4ewdmf6ja5gjkmaqix57tunz2bwapdwbmby",
+    "seen": "ed25519-3j5izcfaosj5kufr6w5s6wyj3ilme7hrloqupie47b5uhmi2fxtcl4lkcbarf6w2asp65hraggqpin6mbi3fwwer2tomirx6n6be6ay"
   },
   "realmKey": {
     "secret": "tvq3dhpp7vngbouejl2jf3bmyrcetrljpmzgsglqhowaghfop5qa",

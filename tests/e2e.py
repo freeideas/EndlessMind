@@ -214,9 +214,9 @@ def regressions(browser, base, remote):
       const enc = new TextEncoder();
       const files = new Map([
         ['realm.json', enc.encode(JSON.stringify({name:'Saved counter',main:'rules.js',renderer:'renderer.js'}))],
-        ['rules.js', enc.encode(`let storage, record; export default {
-          async init(o) { storage=o.storage; record=o.record; return {count:await storage.get('count') ?? 0}; },
-          enter(s, p) { record(p, 'opened the counter'); },
+        ['rules.js', enc.encode(`let storage, claim; export default {
+          async init(o) { storage=o.storage; claim=o.claim; return {count:await storage.get('count') ?? 0}; },
+          enter(s, p) { claim(p, 'opened the counter'); },
           async act(s) { s.count++; await storage.put('count',s.count); },
           view(s) { return {count:s.count}; }
         };`)],
@@ -238,8 +238,8 @@ def regressions(browser, base, remote):
     page.frame_locator('iframe.renderer').locator('button').click()
     wait_for(lambda: page.evaluate('globalThis.endlessmindLastView?.count') == 1)
     wait_for(lambda: page.evaluate("a => import('/store.js').then(m => m.realmStorage(a).get('count'))", address) == 1)
-    # The realm signed an experience for the visitor, and the app kept it in the player's record.
-    wait_for(lambda: page.evaluate("a => import('/experiences.js').then(m => m.held(a)).then(l => l.map(e => e.body.says))", address) == ['opened the counter'], what='a signed experience in the record')
+    # The realm signed a claim for the visitor, and the app kept it in the player's record.
+    wait_for(lambda: page.evaluate("a => import('/claims.js').then(m => m.held(a)).then(l => l.map(e => e.body.says))", address) == ['opened the counter'], what='a signed claim in the record')
     assert page.url.startswith(base), 'visiting another server moved the app origin'
     assert secret == page.evaluate("import('/character.js').then(m => m.myCharacter()).then(c => c.secret)")
     page.goto(base + '/#')
@@ -251,7 +251,7 @@ def regressions(browser, base, remote):
     keys = page.evaluate("import('/keyfile.js').then(m => m.saveKeys())")
     backup = page.evaluate("import('/keyfile.js').then(m => m.saveKeys({files:true,storage:true}))")
     assert 'files' not in json.loads(keys)['realms'][0]
-    assert len(json.loads(keys)['experiences']) == 1, 'the record must travel with the keys'
+    assert len(json.loads(keys)['claims']) == 1, 'the record must travel with the keys'
     page.unroute('**/blob/**')
     moved = browser.new_context().new_page()
     moved.goto(base)
@@ -261,7 +261,7 @@ def regressions(browser, base, remote):
     moved.evaluate("text => import('/keyfile.js').then(m => m.loadKeys(text))", backup)
     assert moved.evaluate("a => import('/realms.js').then(m => m.ownedRealm(a)).then(r => [...r.files['asset.bin']])", address) == [0,137,255,128]
     assert moved.evaluate("a => import('/store.js').then(m => m.realmStorage(a).get('count'))", address) == 1
-    assert moved.evaluate("a => import('/experiences.js').then(m => m.held(a)).then(l => l.length)", address) == 1, 'the record was not restored'
+    assert moved.evaluate("a => import('/claims.js').then(m => m.held(a)).then(l => l.length)", address) == 1, 'the record was not restored'
 
     # The owner can republish and host after the announcement has expired.
     page.evaluate('''async ({address,remote}) => {

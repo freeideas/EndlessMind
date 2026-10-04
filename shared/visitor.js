@@ -1,5 +1,6 @@
 // A visit has one lifetime, one handshake and one ordered stream of views.
 import { randomId } from "./encoding.js";
+import { countersign } from "./claim.js";
 import { addressOf, ENTERING, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
 import { Relay } from "./relay.js";
 
@@ -17,15 +18,16 @@ export function relayUrl(server) {
  * @param {{server?: string, servers?: string[], address: string, keys: CryptoKeyPair, release: string,
  * character: unknown, onView: (view: any) => void, status: (text: string) => void, signal?: AbortSignal,
  * patienceMs?: number, onCheck?: (check: unknown, view: unknown, hasView: boolean, first: boolean) => void,
- * shown?: unknown[], onExperience?: (signed: unknown) => void, enterKey?: string}} options
+ * shown?: unknown[], onClaim?: (signed: unknown) => unknown, enterKey?: string}} options
  *   `address` is whoever referees; `patienceMs` is how long silence is borne; `onCheck` receives what a
- *   referee of repeatable rules sends with each view (see shared/check.js); `shown` are experiences the
- *   player chose to show this realm, and `onExperience` receives ones the realm signs for the player
- *   (see shared/experience.js); `enterKey` is the referee's exchange key from the realm's announcement, with
+ *   referee of repeatable rules sends with each view (see shared/check.js); `shown` are claims the
+ *   player chose to show this realm, and `onClaim` receives ones the realm signs for the player, returning (or resolving to) true for each
+ *   it keeps; those are signed in return, so the realm holds a claim signed by both
+ *   (see shared/claim.js); `enterKey` is the referee's exchange key from the realm's announcement, with
  *   which the character and anything shown are locked on the way in
  */
 export async function visit(
-  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onExperience, enterKey },
+  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onClaim, enterKey },
 ) {
   const me = await addressOf(keys.publicKey);
   // Offered to the referee so the session can be private (see "Private sessions" in shared/crypto.js).
@@ -79,8 +81,8 @@ export async function visit(
     if (session && old) send("emind.leave", { session }).finally(() => old.close());
     else old?.close();
   }
-  /** Experiences that have arrived, to tell the referee with the next ping. @type {string[]} */
-  let got = [];
+  /** Claims kept, each with this player's own signature, to send the referee with the next ping. @type {{ sig: string, seen: string }[]} */
+  let seen = [];
   async function enter() {
     const personal = { character, ...(shown?.length ? { shown } : {}) };
     const asked = request;
@@ -139,9 +141,10 @@ export async function visit(
       lastHeard = Date.now();
       const hasView = Object.hasOwn(inner, "view");
       if (hasView) onView(inner.view);
-      for (const signed of Array.isArray(inner.experiences) ? inner.experiences.slice(0, 16) : []) {
-        if (typeof signed?.sig === "string" && got.length < 64) got.push(signed.sig);
-        onExperience?.(signed);
+      for (const signed of Array.isArray(inner.claims) ? inner.claims.slice(0, 16) : []) {
+        // A claim the player keeps is signed in return: both parties then hold the same claim.
+        if (signed?.to !== me || typeof signed.sig !== "string" || seen.length >= 64) continue;
+        if (await onClaim?.(signed) === true) seen.push({ sig: signed.sig, seen: await countersign(keys, signed) });
       }
       onCheck?.(inner.check, inner.view, hasView, first);
     }
@@ -194,8 +197,8 @@ export async function visit(
           }
         }
         if (session) {
-          send("emind.ping", { session, ...(got.length ? { got } : {}) });
-          got = [];
+          send("emind.ping", { session, ...(seen.length ? { seen } : {}) });
+          seen = [];
         } else enter();
       }, Math.min(5000, patienceMs / 3));
     }

@@ -6,8 +6,8 @@ import { Relay } from "../shared/relay.js";
 import { referee } from "../shared/referee.js";
 import { relayUrl, visit } from "../shared/visitor.js";
 import { makeChecker } from "../shared/check.js";
-import { showExperience } from "../shared/experience.js";
-import { held, keep } from "./experiences.js";
+import { showClaim } from "../shared/claim.js";
+import { held, keep } from "./claims.js";
 import { announce, fetchBytes, fetchFile, lookUp, postRelease, publishOwned } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
 import { put, realmStorage } from "./store.js";
@@ -35,7 +35,7 @@ async function firstOf(servers, attempt, signal, nothing) {
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal,
  *   mayShow?: (name: string, realms: string[]) => Promise<string[]>}} ui
- *   `mayShow` asks the player which of these realms' experiences this realm may be shown; `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
+ *   `mayShow` asks the player which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
   const { server, value: found } = await firstOf(ui.servers, (s) => lookUp(address, s, ui.signal), ui.signal,
@@ -57,7 +57,7 @@ export async function play(address, character, container, ui) {
   const keys = await keyPairForRealm(character.secret, address);
   const me = await addressOf(keys.publicKey);
   ui.signal.throwIfAborted();
-  // The realm may ask to see what the player has done elsewhere. The player decides; each experience
+  // The realm may ask to see what the player has done elsewhere. The player decides; each claim
   // goes with proof, made with the player's key in the realm that signed it, that it is theirs.
   /** @type {{ realm: string, signed: import("../shared/envelope.js").Envelope }[]} */
   const mine = [];
@@ -71,7 +71,7 @@ export async function play(address, character, container, ui) {
   const allowed = mine.length ? await ui.mayShow?.(manifest.name, [...new Set(mine.map((m) => m.realm))]) ?? [] : [];
   {
     for (const { realm, signed } of mine.filter((m) => allowed.includes(m.realm)).slice(0, 16)) {
-      shown.push(await showExperience(await keyPairForRealm(character.secret, realm), signed, `${address}\n${me}`));
+      shown.push(await showClaim(await keyPairForRealm(character.secret, realm), signed, `${address}\n${me}`));
     }
   }
   ui.signal.throwIfAborted();
@@ -122,7 +122,7 @@ export async function play(address, character, container, ui) {
       },
       shown,
       enterKey: found.key,
-      onExperience: (signed) => void keep(address, me, signed),
+      onClaim: (signed) => keep(address, me, signed),
       onCheck: checker && ((check, view, hasView, first) => void checker?.state(check, view, hasView, first)),
     });
     ui.signal.throwIfAborted();
