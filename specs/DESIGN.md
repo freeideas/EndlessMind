@@ -201,6 +201,18 @@ Simple enough that anyone can clone this repository and run their own server wit
 - **Every cost belongs to someone.** A file is kept only while an announced realm or a release lists it, and goes when none does, so the store cannot fill with files nobody answers for. A sender pays for its own traffic: over the limit, its messages are dropped. A receiver is never disconnected for being flooded.
 - **Size target:** a few hundred lines. Growing past that is a sign realm rules are leaking in.
 
+## Nothing depends on one place
+
+The aim is that every piece of software the network needs can be obtained by any means (a helper server, a mirror, the torrent network, a memory stick) and checked by its hash, so that nobody can take the network away by taking one place down.
+
+- **Realm files** already work this way: rules, renderers and art are named by hash, fetched from any helper server that has them, and checked on arrival.
+- **The helper server and the host program** are plain files run by Deno. A copy from anywhere works.
+- **The portal is the same, run on your own computer.** A browser cannot load a page from a torrent, but it can load one from your own machine. The portal is plain files with no build step, so a copy obtained by any means, served by a small local web server (`deno task start` does it today) and opened at `localhost`, is a full portal that depends on no web address. It reaches helper servers elsewhere directly. Keys kept by a portal belong to the address it is opened at, so keep using the same one.
+- **What is deliberately not public.** A realm with private rules keeps its rules and secrets on its maker's machine. That code is not on any network and is not meant to be; everything an actor's device runs still is.
+- **Outside the project:** the web browser and Deno come from their own makers.
+
+Not built yet: a hash for each published version of the project's own software, passed around the way a realm's is, so that a copy from a stranger can be checked; and a way to start only the portal, without the rest of a helper server.
+
 ## Safety and law
 
 - Safety has no central moderator, so it lives on each person's side: their agent can read a realm's public code and warn them, and their portal decides what it runs.
