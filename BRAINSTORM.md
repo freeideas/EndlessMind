@@ -61,7 +61,7 @@ A massively multiplayer world where both the code and the running of that code a
 
 - **Anything is possible.** The platform forbids nothing it does not have to.
 - **Meta-rules hold by consensus.** A rule exists because the software people choose to run follows it, the way the web works because browsers and servers follow the same conventions. No one can force a rule on anyone else's device. Unlike Bitcoin, no global agreement is needed: two objects only need to agree with each other to interact.
-- **The unavoidable minimum** is also consensus: the message format, key pairs, and how an object's API is published. Software that does not follow them simply cannot talk to the rest.
+- **The unavoidable minimum** is also consensus: the message format, key pairs, and how an object's API is published. Software that does not follow them simply cannot talk to the rest. See [PROTOCOL.md](PROTOCOL.md) for the outline, including how the protocol gets new versions as technology matures.
 - **Defaults instead of requirements.** Things like a basic way to describe position and looks ship as defaults in the reference software. Anyone may ignore or replace them; they stay useful only as long as most people keep using them.
 
 ## Protecting yourself: allow lists of code
@@ -395,7 +395,7 @@ EveryGame is a tool for making original worlds. The project must never suggest, 
 
 1. **Server.** Announcements, online list, message passing, and serving the web page.
 2. **The app.** Makes key pairs and characters, fetches and sandboxes object code, hands out input by permission, connects to peers, runs the chosen renderer, saves and restores characters.
-3. **Protocol draft.** Object API format, examining an object, signed commands and results, encrypted parts, hosting permissions, entering and leaving, the realm's state updates, giving an object.
+3. **Protocol draft** (outline in [PROTOCOL.md](PROTOCOL.md)). Object API format, examining an object, signed commands and results, encrypted parts, hosting permissions, entering and leaving, the realm's state updates, giving an object.
 4. **Agent guide.** An instructions file that any AI coding agent reads to build realms and objects for its player. The most important deliverable: players will not read specs, their agents will. It includes the "Original work only" rules above.
 5. **Demo content.** A sword-fighting arena (admits only objects that can take damage and die, lends swords to visitors while inside) and a calm garden (honor system). One fighter body and one wanderer body. Show a refused entry, an agent adding what was missing, a fight, an ejection for refusing to die, and a sword being given away.
 
