@@ -300,7 +300,10 @@ Many builders will want to use game engines such as Unreal, Godot or Unity. The 
 - **Renderers and clients may be native.** An Unreal, Godot or Unity app can join any realm and draw it with full engine graphics, since it speaks the same protocol. The realm cannot tell the difference, like any other renderer.
 - **Native code is never passed around as an object.** A native client is installed deliberately by the player, like any app. Objects stay JavaScript or WebAssembly, so the sandbox remains the safety floor.
 - **Each app does the browser's jobs too:** keeps private keys on the device (in the operating system's secure key store), runs each foreign object in its own sandbox, and asks first before giving any object camera, microphone or device access.
-- **A realm that requires a native app may exist** (freedom first); the browser app then says which app it needs.
+- **Shared engine players, plus programs of a realm's own.** Both exist side by side:
+  - **Shared players (the default).** One well-known player app per engine (an EveryGame Unreal player, Godot player, Unity player). Installed once, it runs every realm built for it with no further installs, because realms ship only data (models, sounds, scene descriptions) and sandboxed JavaScript or WebAssembly. The engine supplies graphics, physics and audio; the realm's behavior is in its portable code.
+  - **A realm's own program (allowed).** A builder who needs more than a shared player offers (for example Unreal's own C++ or Blueprints, its visual scripting) can ship a separate program for their realm. It runs outside any sandbox, so the app warns plainly before install: "This realm needs its own program, which can do anything on your computer."
+- **The manifest says how a realm can be played** (in the browser, in a shared player, or only in its own program), so the app and directories can show it before anyone clicks.
 - **Engine-made 3D models** come in as glTF files (the common web format for 3D models), which all these engines export.
 - **Unreal in a browser:** Unreal no longer runs in web pages, but its Pixel Streaming can run it on a server and stream video to the page, at the realm owner's cost.
 
