@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody } from "../shared/announce.js";
-import { addressOf, generateKeyPair, hashOf, isAddress, isHash, sign, verify } from "../shared/crypto.js";
+import { addressOf, generateKeyPair, hashOf, isAddress, isHash, keyPairForRealm, keyPairFromSecret, newPortableKey, sign, verify } from "../shared/crypto.js";
 import { canonicalJson, fromBase32, parseStrictJson, toBase32 } from "../shared/encoding.js";
 import { open, ReplayGuard, seal } from "../shared/envelope.js";
 
@@ -104,4 +104,22 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
     refused = true;
   }
   assert(refused, "a realm needs a renderer or an app");
+});
+
+Deno.test("a player has a different, steady address in each realm", async () => {
+  const { secret } = await newPortableKey();
+  const realmA = await addressOf((await generateKeyPair()).publicKey);
+  const realmB = await addressOf((await generateKeyPair()).publicKey);
+  const inA = await keyPairForRealm(secret, realmA);
+  const again = await addressOf((await keyPairForRealm(secret, realmA)).publicKey);
+  const addresses = new Set([
+    await addressOf(inA.publicKey),
+    await addressOf((await keyPairForRealm(secret, realmB)).publicKey),
+    await addressOf((await keyPairFromSecret(secret)).publicKey),
+    await addressOf((await keyPairForRealm((await newPortableKey()).secret, realmA)).publicKey),
+  ]);
+  assertEquals(addresses.size, 4, "each realm, the secret itself, and another player must all differ");
+  assert(addresses.has(again), "the same player in the same realm must keep one address");
+  const env = await seal(inA, realmA, "emind.enter", {});
+  assertEquals((await open(env))?.from, again);
 });

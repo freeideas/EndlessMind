@@ -1,8 +1,10 @@
-// The player's character: an object (a portable key plus a description)
-// that the app creates on first visit and keeps across visits. Realms read its
-// general description and make an in-realm form from it.
+// The player's character: one portable secret plus a description, which the
+// app creates on first visit and keeps across visits. The secret is never used
+// directly: inside each realm the character acts under a key made from the
+// secret and that realm's address (keyPairForRealm), so no two realms see the
+// same address. Realms read the description and make an in-realm form from it.
 
-import { addressOf, newPortableKey } from "../shared/crypto.js";
+import { newPortableKey } from "../shared/crypto.js";
 import * as store from "./store.js";
 
 /**
@@ -16,9 +18,7 @@ import * as store from "./store.js";
 
 /**
  * @typedef {object} Character
- * @property {string} address
- * @property {CryptoKeyPair} keys
- * @property {string} secret  the key's secret, so it can be saved and carried elsewhere
+ * @property {string} secret  the one secret all of the character's per-realm keys come from
  * @property {CharacterInfo} info
  */
 
@@ -34,13 +34,11 @@ function pick(list) {
 export async function myCharacter() {
   /** @type {Character | undefined} */
   const saved = await store.get("character");
-  if (saved) return saved;
-  const { keys, secret } = await newPortableKey();
+  if (saved?.secret) return saved;
+  const { secret } = await newPortableKey();
   const name = `${pick(ADJECTIVES)} ${pick(ANIMALS)}`;
   /** @type {Character} */
   const character = {
-    address: await addressOf(keys.publicKey),
-    keys,
     secret,
     info: {
       name,

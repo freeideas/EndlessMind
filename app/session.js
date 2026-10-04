@@ -3,6 +3,7 @@
 // host program (shared/referee.js); the message kinds are the "entering and
 // leaving" extension in specs/RUNTIME.md.
 
+import { addressOf, keyPairForRealm } from "../shared/crypto.js";
 import { referee } from "../shared/referee.js";
 import { announce, fetchFile, lookUp } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
@@ -43,6 +44,10 @@ export async function play(address, character, relay, container, ui) {
   }
   const rendererCode = await fetchFile(manifest.files[manifest.renderer]);
 
+  // Inside this realm the character acts under a key of its own, so realms cannot link a player across realms.
+  const myKeys = await keyPairForRealm(character.secret, address);
+  const me = await addressOf(myKeys.publicKey);
+
   // A realm with private rules is refereed by its host program; here its key holder is a visitor like anyone.
   const owned = ui.owned;
   const ownManifest = /** @type {import("../shared/announce.js").ManifestBody | undefined} */ (owned?.manifest.body);
@@ -58,24 +63,24 @@ export async function play(address, character, relay, container, ui) {
       status: ui.status,
     });
     announce(owned).catch(console.error);
-    const view = await startRenderer(container, rendererCode, character.address, character.info, (action) =>
-      ref.act(character.address, action));
-    const verdict = await ref.addLocalPlayer(character.address, character.info, (v) => (lastView(v), view.show(v)));
+    const view = await startRenderer(container, rendererCode, me, character.info, (action) =>
+      ref.act(me, action));
+    const verdict = await ref.addLocalPlayer(me, character.info, (v) => (lastView(v), view.show(v)));
     if (!verdict.ok) throw new Error(`The realm refused you: ${verdict.reason ?? "no reason given"}`);
     ui.status(`You are hosting ${manifest.name}. Keep this tab open so others can play.`);
     return { name: manifest.name, release: found.release, stop: () => (ref.stop(), view.stop()) };
   }
 
-  await relay.addKey(character.keys);
-  const view = await startRenderer(container, rendererCode, character.address, character.info, (action) =>
-    relay.send(character.keys, address, "emind.act", { action }));
+  await relay.addKey(myKeys);
+  const view = await startRenderer(container, rendererCode, me, character.info, (action) =>
+    relay.send(myKeys, address, "emind.act", { action }));
 
   let welcomed = false;
   let lastHeard = Date.now();
   /** @param {Event} event */
   function onMessage(event) {
     const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
-    if (env.from !== address || env.to !== character.address) return;
+    if (env.from !== address || env.to !== me) return;
     const body = /** @type {any} */ (env.body) ?? {};
     lastHeard = Date.now();
     if (env.kind === "emind.welcome" && !welcomed) {
@@ -99,19 +104,19 @@ export async function play(address, character, relay, container, ui) {
   relay.addEventListener("undeliverable", onUndeliverable);
   /** @param {Event} event */
   function onReplaced(event) {
-    if (/** @type {CustomEvent<string>} */ (event).detail !== character.address) return;
+    if (/** @type {CustomEvent<string>} */ (event).detail !== me) return;
     clearInterval(pinger);
     ui.status("Your character is now playing from another tab or device, so this one has stopped.", 60_000);
   }
   relay.addEventListener("replaced", onReplaced);
 
-  const enter = () => relay.send(character.keys, address, "emind.enter", { character: character.info });
+  const enter = () => relay.send(myKeys, address, "emind.enter", { character: character.info });
   await enter();
   ui.status(found.online ? `Entering ${manifest.name}...` : "This realm's referee is not online right now. Waiting for it...");
   const pinger = setInterval(() => {
     // A referee that restarted or moved no longer knows us: ask to come in again.
     if (welcomed && Date.now() - lastHeard > REFEREE_SILENT_MS) welcomed = false;
-    if (welcomed) relay.send(character.keys, address, "emind.ping", {});
+    if (welcomed) relay.send(myKeys, address, "emind.ping", {});
     else enter();
   }, PING_EVERY_MS);
 
@@ -120,7 +125,7 @@ export async function play(address, character, relay, container, ui) {
     release: found.release,
     stop() {
       clearInterval(pinger);
-      relay.send(character.keys, address, "emind.leave", {});
+      relay.send(myKeys, address, "emind.leave", {});
       relay.removeEventListener("message", onMessage);
       relay.removeEventListener("undeliverable", onUndeliverable);
       relay.removeEventListener("replaced", onReplaced);

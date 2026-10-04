@@ -49,7 +49,8 @@ The exact shapes used by the reference code ([shared/](../shared/)). These are t
 - **Limits:** a received message may be at most 256 KB of text and nested at most 32 levels deep, and an object may not repeat a field name (different languages' parsers disagree about repeats, which would let one message mean two things). Messages breaking these limits are dropped.
 - **Manifests** are envelopes of kind `manifest`, addressed to `null` and signed by the realm's key. The body has `name`, `description`, `tags`, `files` (file name to hash) and `needs`, plus three optional fields: `main` (the rules file, left out when the rules are private, known only to the referee), `renderer` (the default browser renderer, left out when the realm cannot be played in a browser) and `app` (`{ name, url }`, the realm's own app and the https address where players get it). `needs` names the permissions the realm asks the player's app for (storage, network, camera, and so on). Version 0 defines none, so the list is empty; an app must refuse to run a realm that needs something it does not know.
 - **Server:** a helper server answers these HTTP routes. `PUT /blob/<hash>` stores a file of at most 2 MB if its bytes match the hash, and `GET /blob/<hash>` returns it. `POST /announce` keeps a signed announcement, replacing an older one from the same address. `GET /announce/<address>` returns `{ announcement, online }`, where `online` says whether a connection has proved that address on the relay. `GET /announce?tag=<tag>` lists unexpired realms, online ones first, as `{ realms: [{ address, name, tags, online, time }] }` (all realms without `tag`). The relay is a WebSocket at `/ws` (see "Relay").
-- **Test vectors:** [test-vectors.json](test-vectors.json) gives fixed inputs and the exact outputs (base32, canonical JSON, hashes, an address, a signature, an envelope, a release hash) that every implementation must reproduce.
+- **Realm keys:** a player's app holds one 32-byte secret and uses a separate key in each realm, so realms cannot link a player by address. The key for a realm is the Ed25519 key whose 32-byte seed is HKDF-SHA-256 of the secret (as key material) with salt `emind-realm-key` and info the realm's address, both as UTF-8. Every app that follows this gives the same player the same address in the same realm.
+- **Test vectors:** [test-vectors.json](test-vectors.json) gives fixed inputs and the exact outputs (base32, canonical JSON, hashes, an address, a signature, an envelope, a release hash, a realm key) that every implementation must reproduce.
 - **Message kinds:** core kinds have no dot (`manifest`, `announce`). Extension kinds are dotted, following rule 3; the extensions written alongside these documents use the prefix `emind.` (for example `emind.enter`, listed in [RUNTIME.md](RUNTIME.md)).
 
 ## Shared habits: optional extensions
@@ -57,6 +58,7 @@ The exact shapes used by the reference code ([shared/](../shared/)). These are t
 These are not rules. They are optional extensions, and they matter only as long as people find them useful. The reference app uses them by default; anyone may ignore or replace them.
 
 - Entering and leaving a realm, realm state updates, and the character description layout (see [RUNTIME.md](RUNTIME.md))
+- A separate key in each realm, made from the player's one secret (see "Realm keys" above)
 - Signed announcements with tags, and tag search on a server
 
 ## Versions

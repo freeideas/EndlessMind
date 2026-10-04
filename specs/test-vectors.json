@@ -90,5 +90,10 @@
       "sig": "ed25519-7slm57yxehztz35c62jrs7funalw73t7dxpfywnk7bfys4kfo4wnhcn37imvdp2wz5haujygbchr5vnuah3gnh4rljgb6bf32tl22ci"
     },
     "release": "sha256-o67k5uis6yqwlnd4h3g6voi4c666qsua4pouaxdd57ho55yxznpa"
+  },
+  "realmKey": {
+    "secret": "tvq3dhpp7vngbouejl2jf3bmyrcetrljpmzgsglqhowaghfop5qa",
+    "realm": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "address": "ed25519-uix5t4y4ltub7hn5cndsf62o2b5v6twbunrnh546aqwtz45h6ooq"
   }
 }

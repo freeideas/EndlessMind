@@ -54,7 +54,7 @@ export default {
 };
 ```
 
-- **`player`** is the player's character address (a string such as `ed25519-...`). It is stable, so you can key state by it.
+- **`player`** is the address the player uses in this realm (a string such as `ed25519-...`). A returning player always has the same address here, so you can key state by it; in every other realm the same player has a different one.
 - **`character`** is the character's general description, sent by the visitor's app. The default layout is `{ name, color, description }`, but any field may be missing or strange. Treat it as untrusted input: use what you understand, clean it up, ignore the rest.
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick.

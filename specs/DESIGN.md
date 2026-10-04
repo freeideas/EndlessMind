@@ -14,7 +14,7 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 - **World:** a friendly word, used only in plain-language and pitch text, for a realm you can walk around in.
 - **Player:** always the person.
 - **App:** the software a player uses to reach realms. The reference app runs in the browser; anyone may write another, in any language or engine.
-- **Character:** the object that represents a player across realms: a key plus a description (name, look). Its **in-realm form** is what the realm turns it into while inside.
+- **Character:** the object that represents a player across realms: one secret plus a description (name, look). In each realm it acts under a separate key made from that secret. Its **in-realm form** is what the realm turns it into while inside.
 - **Renderer:** code that draws a realm's views on a player's device and turns the player's input into moves. A file, found by its hash.
 - **Referee:** whoever holds a realm's key and runs its rules, signing its official state.
 - **Agent:** an AI coding agent that writes realms for its player.
@@ -33,10 +33,11 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 
 **Objects and keys**
 
-- **Anything with a key is an object.** A character is a key plus a description; a realm is a key plus rules and files. The protocol treats both alike: an address and signed messages. All limits are set by realms' rules, never by the platform.
+- **Anything with a key is an object.** A character is a secret plus a description, with a key for each realm it enters; a realm is a key plus rules and files. The protocol treats both alike: an address and signed messages. All limits are set by realms' rules, never by the platform.
 - **Keys, not code, decide who operates an object.** Anyone can run a copy of an object's public code, but only messages and results signed by its key are official. Running a copy without the key makes a different object (a fork).
 - **The key is the object, wherever it is.** A private key is a 32-byte secret. Its holder can save it and carry it to any device, or to any server's copy of the app, at any time. Domain names and servers come and go, and people who dislike a realm can attack them; if the key alone can move an object anywhere, there is much less to attack.
 - **Whoever holds a copy of the key is the object.** A copied key cannot be un-copied or revoked, so a key is guarded like a password. Backing up is saving the key; hosting on an always-on machine is putting the key there, with the host program.
+- **A separate key in every realm.** The app makes the key a character uses in a realm from the character's one secret and that realm's address. A realm always sees the same address for a returning player, and no two realms see the same one, so realms cannot compare notes about a player by address. Known limits: a realm still sees whatever name and description the player sends, and a server can tell which addresses share one connection.
 - **Ownership that matters is recorded by realms.** With no shared ledger, nothing can be handed over for everyone (a giver who copies a key still has it). Who has which sword, coin or score is realm state, signed by the realm and trusted by whoever trusts that realm. In-realm forms are realm state the same way, lent to visitors while they are inside.
 
 **Realms and rules**
@@ -85,7 +86,7 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 | Piece             | What it is                             | Who owns it                | Where it runs            |
 | ----------------- | -------------------------------------- | -------------------------- | ------------------------ |
 | **The app**       | Opens links; runs everything else      | Its author                 | Browser or any device    |
-| **Character**     | Your name, look and description        | Whoever holds its key      | Wherever its key is      |
+| **Character**     | Your name, look and description        | Whoever holds its secret   | Wherever its secret is   |
 | **Realm**         | A place or game: rules and referee     | Whoever holds its key      | Rules on the referee     |
 | **In-realm form** | Your character as that realm shows it  | The realm, lent to you     | Realm state              |
 | **Renderer**      | Turns the realm's state into a picture | Its author; you pick it    | Your app, sandboxed      |
@@ -159,10 +160,6 @@ Endless Mind is a tool for making original things. The project never suggests, s
 
 Two people on two devices play the [maze chase](examples/maze-chase.md) through one small server. The host program referees realms with no browser, including the [listening well](examples/listening-well.md), whose private rules ask an AI model. Code: `app/` (the browser app), `shared/` (keys, hashes, signed messages, the relay client and the referee loop), `server/` (the helper server), `host/` (the host program), `examples/` (realm files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md); the calls realm code can make are in [RUNTIME.md](RUNTIME.md); the guide agents read is [AGENT-GUIDE.md](AGENT-GUIDE.md).
 
-**Needed before a public launch:** locking the key file with a passphrase, publishing new versions of a realm under the same key from the browser app (the host program does this), server limits and takedown support (a contact field and takedown lists), a decision on the privacy default (below), a test of the agent guide by an agent with nothing else to go on, and an always-on server.
+**Needed before a public launch:** locking the key file with a passphrase, publishing new versions of a realm under the same key from the browser app (the host program does this), server limits and takedown support (a contact field and takedown lists), a test of the agent guide by an agent with nothing else to go on, and an always-on server.
 
 **Success test:** two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.
-
-## Open questions
-
-- **Privacy default.** A character uses one key in every realm, so its activity is linkable across realms. The likely answer: the app derives a separate key per realm from the player's one secret, so realms cannot link a player across realms unless the player chooses.

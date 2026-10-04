@@ -50,6 +50,27 @@ export function keyPairFromSecret(secret) {
 }
 
 /**
+ * The key a player uses inside one realm, made from the player's one secret
+ * and the realm's address. Each realm sees a different address for the same
+ * player, always the same one, so realms cannot compare notes about a player,
+ * yet a returning player is recognized. HKDF-SHA-256 with the secret as key
+ * material, "emind-realm-key" as salt and the realm's address as info gives
+ * the 32-byte Ed25519 seed (see specs/PROTOCOL.md).
+ * @param {unknown} secret  a secret made by newPortableKey
+ * @param {string} realm    the realm's address
+ * @returns {Promise<CryptoKeyPair>}
+ */
+export async function keyPairForRealm(secret, realm) {
+  if (typeof secret !== "string" || !/^[a-z2-7]{52}$/.test(secret) || !canonicalBase32(secret)) {
+    throw new Error("not a key secret");
+  }
+  if (!isAddress(realm)) throw new Error("not an ed25519 address: " + realm);
+  const material = await crypto.subtle.importKey("raw", fromBase32(secret), "HKDF", false, ["deriveBits"]);
+  const params = { name: "HKDF", hash: "SHA-256", salt: utf8("emind-realm-key"), info: utf8(realm) };
+  return keyPairFromSeed(new Uint8Array(await crypto.subtle.deriveBits(params, material, 256)));
+}
+
+/**
  * Rebuild a key pair from a 32-byte Ed25519 seed (the raw private key).
  * @param {Uint8Array<ArrayBuffer>} seed
  * @returns {Promise<CryptoKeyPair>}

@@ -48,6 +48,6 @@ The friend taps the link on their phone.
 
 ## Where things live afterward
 
-- **The friend's character:** its key is in their phone's browser, or in a key file if they saved one.
+- **The friend's character:** its secret is in their phone's browser, or in a key file if they saved one.
 - **The realm's code:** on the server and in every visitor's cache, found by hash. (A realm with private rules uploads only its renderer.)
 - **The realm's official state:** with whoever holds the realm's key and is refereeing (here, the creator's open tab, or a host program).

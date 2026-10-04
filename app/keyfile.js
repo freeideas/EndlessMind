@@ -20,7 +20,6 @@ export async function saveKeys() {
   const character = await myCharacter();
   const realms = [];
   for (const realm of await ownedRealms()) {
-    if (!realm.secret) continue;
     /** @type {Record<string, string>} */
     const files = {};
     const listed = /** @type {import("../shared/announce.js").ManifestBody} */ (realm.manifest.body).files;
@@ -29,7 +28,7 @@ export async function saveKeys() {
   }
   return JSON.stringify({
     format: FORMAT,
-    character: character.secret ? { secret: character.secret, info: character.info } : undefined,
+    character: { secret: character.secret, info: character.info },
     realms,
   }, null, 1);
 }
@@ -63,11 +62,9 @@ export async function loadKeys(text) {
   }
 
   if (file.character) {
-    const keys = await keyPairFromSecret(file.character.secret);
+    await keyPairFromSecret(file.character.secret); // refuses anything that is not a secret
     const info = file.character.info ?? {};
     await store.put("character", {
-      address: await addressOf(keys.publicKey),
-      keys,
       secret: file.character.secret,
       info: {
         name: String(info.name ?? "Visitor").slice(0, 40),

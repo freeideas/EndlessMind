@@ -3,7 +3,7 @@
 // specs/test-vectors.json is checked by tests/vectors_test.js.
 
 import { releaseOf } from "../shared/announce.js";
-import { addressOf, hashOf, keyPairFromSeed, sign } from "../shared/crypto.js";
+import { addressOf, hashOf, keyPairForRealm, keyPairFromSeed, sign } from "../shared/crypto.js";
 import { canonicalJson, toBase32 } from "../shared/encoding.js";
 import { seal } from "../shared/envelope.js";
 
@@ -43,6 +43,11 @@ export async function buildVectors() {
     },
     envelope: { envelope, signedBytesUtf8: "emind-envelope\n" + canonicalJson(unsigned) },
     release: { manifest, release: await releaseOf(manifest) },
+    realmKey: {
+      secret: toBase32(fromHex(seedHex)),
+      realm: to,
+      address: await addressOf((await keyPairForRealm(toBase32(fromHex(seedHex)), to)).publicKey),
+    },
   };
 }
 
