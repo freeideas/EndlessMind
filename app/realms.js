@@ -121,9 +121,10 @@ export async function lookUp(address, server = location.origin, signal) {
   const reply = /** @type {any} */ (parseStrictJson(await response.text()));
   if (!reply) return null;
   const checked = await checkAnnouncement(reply.announcement);
-  if (!checked || checked.announcement.from !== address) return null;
+  if (!checked || checked.realm !== address) return null;
   return {
     manifest: checked.manifest,
+    referee: checked.referee,
     online: Boolean(reply.online),
     release: await releaseOf(reply.announcement.body.manifest),
   };

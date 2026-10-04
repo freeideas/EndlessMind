@@ -84,6 +84,8 @@ export async function startServer(options = {}) {
   const announcements = new Map();
   /** The release each announcement names. @type {Map<string, string>} */
   const announced = new Map();
+  /** For each realm: who referees it, and when its own key last spoke. @type {Map<string, { referee: string, authority: number }>} */
+  const spoken = new Map();
   /**
    * Realms with no key: a manifest body, named by its hash. Anyone may post
    * one, and posting it again renews it. @type {Map<string, { body: any, expires: number }>}
@@ -94,8 +96,9 @@ export async function startServer(options = {}) {
     for (const value of Array.isArray(saved) ? saved : saved.announcements ?? []) {
       const checked = await checkAnnouncement(value);
       if (!checked) continue;
-      announcements.set(checked.announcement.from, checked.announcement);
-      announced.set(checked.announcement.from, await releaseOfBody(checked.manifest));
+      announcements.set(checked.realm, checked.announcement);
+      announced.set(checked.realm, await releaseOfBody(checked.manifest));
+      spoken.set(checked.realm, checked);
     }
     for (const r of saved.releases ?? []) {
       if (isManifestBody(r?.body) && r.expires > Date.now()) releases.set(await releaseOfBody(r.body), r);
@@ -130,7 +133,7 @@ export async function startServer(options = {}) {
   function sweep() {
     const now = Date.now();
     for (const [address, a] of announcements) {
-      if (a.body.expires < now) { announcements.delete(address); announced.delete(address); }
+      if (a.body.expires < now) { announcements.delete(address); announced.delete(address); spoken.delete(address); }
     }
     for (const [hash, r] of releases) if (r.expires < now) releases.delete(hash);
     const keep = new Set(releases.keys());
@@ -189,7 +192,7 @@ export async function startServer(options = {}) {
 
   /** @param {string} address */
   function isOnline(address) {
-    return claims.has(address);
+    return claims.has(spoken.get(address)?.referee ?? address);
   }
 
   /**
@@ -333,13 +336,16 @@ export async function startServer(options = {}) {
       }
       const checked = await checkAnnouncement(value);
       if (!checked) return json({ error: "invalid announcement" }, 400);
-      const from = checked.announcement.from, existing = announcements.get(from);
-      if (existing && existing.time > checked.announcement.time) {
+      const from = checked.realm, existing = announcements.get(from), before = spoken.get(from);
+      // The realm's own key decides: an announcement under an older pass cannot replace one under a newer.
+      if (existing && before && (before.authority > checked.authority ||
+        (before.authority === checked.authority && existing.time > checked.announcement.time))) {
         return json({ error: "older than the one kept" }, 409);
       }
       if (!existing && full) return json({ error: "Announcement quota reached" }, 507);
       announcements.set(from, checked.announcement);
       announced.set(from, await releaseOfBody(checked.manifest));
+      spoken.set(from, checked);
       sweep();
       await saveAnnouncements();
       return json({ ok: true });
@@ -355,9 +361,9 @@ export async function startServer(options = {}) {
     // Listing, optionally by tag. Realms with a referee online come first.
     const tag = url.searchParams.get("tag")?.toLowerCase();
     const named = new Set(announced.values());
-    const list = [...announcements.values()]
-      .filter((a) => a.body.expires >= now)
-      .map((a) => ({ address: a.from, name: a.body.name, tags: a.body.tags, online: isOnline(a.from), time: a.time }))
+    const list = [...announcements]
+      .filter(([, a]) => a.body.expires >= now)
+      .map(([address, a]) => ({ address, name: a.body.name, tags: a.body.tags, online: isOnline(address), time: a.time }))
       // A key-free release needs no referee, so it always counts as online. One an announced realm names is listed once.
       .concat([...releases].filter(([hash, r]) => r.expires >= now && !named.has(hash)).map(([hash, r]) => (
         { address: hash, name: r.body.name, tags: r.body.tags, online: true, time: r.expires - ANNOUNCEMENT_LIFETIME_MS }

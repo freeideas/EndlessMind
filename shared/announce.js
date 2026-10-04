@@ -4,7 +4,7 @@
 // An announcement is the realm's signed "here I am" note that carries the
 // manifest, so anyone holding the announcement can fetch and check every file.
 
-import { hashOf, isHash } from "./crypto.js";
+import { addressOf, hashOf, isAddress, isHash, newPortableKey } from "./crypto.js";
 import { canonicalJson } from "./encoding.js";
 
 /** Limits on a manifest, so one realm cannot crowd a server's lists (see specs/PROTOCOL.md). */
@@ -95,6 +95,8 @@ function isApp(app) {
  * @property {string} name
  * @property {string[]} tags
  * @property {number} expires  milliseconds since 1970
+ * @property {import("./envelope.js").Envelope} [pass]  present when a referee key, not the realm's
+ *                                own key, signed this announcement (see makePass)
  */
 
 /**
@@ -126,17 +128,45 @@ export function makeManifest(realmKeys, body) {
  * @param {CryptoKeyPair} realmKeys
  * @param {import("./envelope.js").Envelope} manifest
  * @param {number} [lifetimeMs]  shorter for a room, which is gone when its host leaves
+ * @param {import("./envelope.js").Envelope} [pass]  when the keys are a referee key the realm gave a pass to
  */
-export function makeAnnouncement(realmKeys, manifest, lifetimeMs = ANNOUNCEMENT_LIFETIME_MS) {
+export function makeAnnouncement(realmKeys, manifest, lifetimeMs = ANNOUNCEMENT_LIFETIME_MS, pass) {
   const m = /** @type {ManifestBody} */ (manifest.body);
   /** @type {AnnouncementBody} */
   const body = {
     manifest,
     name: m.name,
     tags: m.tags,
-    expires: Date.now() + lifetimeMs,
+    expires: Math.min(Date.now() + lifetimeMs, pass ? /** @type {any} */ (pass.body).expires : Infinity),
+    ...(pass ? { pass } : {}),
   };
   return seal(realmKeys, null, "announce", body);
+}
+
+/**
+ * A referee pass: the realm's key says "this other key may referee me until
+ * then". The realm's own key can then stay off the machine that referees, where
+ * nothing can reach it. A stolen referee key stops working when its pass runs
+ * out, and a newer pass takes its place at once on any server that sees it.
+ * @param {CryptoKeyPair} realmKeys @param {number} lifetimeMs
+ * @returns {Promise<{ secret: string, pass: import("./envelope.js").Envelope }>} the referee key's secret, and the pass
+ */
+export async function makePass(realmKeys, lifetimeMs) {
+  const { secret, keys } = await newPortableKey();
+  const body = { referee: await addressOf(keys.publicKey), expires: Date.now() + lifetimeMs };
+  return { secret, pass: await seal(realmKeys, null, "referee", body) };
+}
+
+/**
+ * Check a pass. @param {unknown} value
+ * @returns {Promise<{ realm: string, referee: string, expires: number, time: number } | null>}
+ */
+export async function checkPass(value) {
+  const pass = await open(value);
+  const body = /** @type {any} */ (pass?.body);
+  if (!pass || pass.kind !== "referee" || pass.to !== null || !body) return null;
+  if (!isAddress(body.referee) || typeof body.expires !== "number" || body.expires < Date.now()) return null;
+  return { realm: pass.from, referee: body.referee, expires: body.expires, time: pass.time };
 }
 
 /** @param {unknown} tags @returns {tags is string[]} */
@@ -148,7 +178,10 @@ function isTagList(tags) {
 /**
  * Check an announcement and the manifest inside it.
  * @param {unknown} value
- * @returns {Promise<{ announcement: import("./envelope.js").Envelope, manifest: ManifestBody } | null>}
+ * @returns {Promise<{ announcement: import("./envelope.js").Envelope, manifest: ManifestBody, realm: string,
+ *   referee: string, authority: number } | null>} `realm` is the address the realm is known by, `referee`
+ *   the address that answers visitors (the same unless a pass is used), and `authority` the time the
+ *   realm's own key last spoke, by which a server tells a newer announcement from an older one
  */
 export async function checkAnnouncement(value) {
   const announcement = await open(value);
@@ -158,12 +191,19 @@ export async function checkAnnouncement(value) {
   // A note may not outlive the usual lifetime (plus a day for clocks that differ).
   if (body.expires > Date.now() + ANNOUNCEMENT_LIFETIME_MS + 24 * 60 * 60 * 1000) return null;
   if (typeof body.name !== "string" || body.name.length > MAX_NAME || !isTagList(body.tags)) return null;
+  let realm = announcement.from, authority = announcement.time;
+  if (body.pass !== undefined) {
+    const pass = await checkPass(body.pass);
+    if (!pass || pass.referee !== announcement.from || body.expires > pass.expires) return null;
+    realm = pass.realm;
+    authority = pass.time;
+  }
   const manifestEnv = await open(body.manifest);
-  if (!manifestEnv || manifestEnv.kind !== "manifest" || manifestEnv.from !== announcement.from) {
+  if (!manifestEnv || manifestEnv.kind !== "manifest" || manifestEnv.from !== realm) {
     return null;
   }
   if (!isManifestBody(manifestEnv.body)) return null;
-  return { announcement, manifest: manifestEnv.body };
+  return { announcement, manifest: manifestEnv.body, realm, referee: announcement.from, authority };
 }
 
 /** @param {unknown} body @returns {body is ManifestBody} */

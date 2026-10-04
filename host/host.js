@@ -10,6 +10,12 @@
 //
 // Usage: deno task host --server https://example.org --realm ./my-realm [--keys FILE] [--address ADDRESS]
 //        deno task host --server https://example.org --keys FILE [--address ADDRESS]
+//        deno task host --keys FILE --pass OUT [--days 30] [--realm ./my-realm] [--address ADDRESS]
+//
+// The last form hosts nothing. It writes a referee pass: a file holding a
+// fresh referee key and the realm key's signed word that this key may referee
+// until the pass runs out. Host from that file on the always-on machine, and
+// the realm's own key never has to leave the machine it was made on.
 //
 // With --realm, the realm's files are read from that folder each time, so
 // starting again publishes the folder's current version under the same key.
@@ -17,8 +23,9 @@
 // program, or by "Save full backup" in the browser app). The rules run directly,
 // not in a sandbox: host only realms you wrote or trust.
 
-import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody, releaseOf } from "../shared/announce.js";
+import { checkAnnouncement, checkPass, makeAnnouncement, makeManifest, makePass, manifestBody, releaseOf } from "../shared/announce.js";
 import { addressOf, hashOf, keyPairFromSecret, newPortableKey } from "../shared/crypto.js";
+import { canonicalJson } from "../shared/encoding.js";
 import { directRules, referee } from "../shared/referee.js";
 import { Relay } from "../shared/relay.js";
 import { KEY_FORMAT, bundleFiles, checkKeyFormat, encodeFile } from "../shared/bundle.js";
@@ -35,17 +42,21 @@ const FORMAT = KEY_FORMAT;
  * @property {(text: string) => void} [log]
  */
 
-/** @param {HostOptions} options */
-export async function startHost(options) {
-  const log = options.log ?? console.log;
-  const server = new URL(options.server);
+/**
+ * Read the realm to host: from its folder (signing its current version, when
+ * the realm's own key is at hand) or from the key file alone.
+ * @param {{ realmDir?: string, keysFile: string, address?: string }} options
+ */
+async function loadRealm(options) {
   const keyFile = await readKeyFile(options.keysFile);
 
   /** @type {import("../shared/envelope.js").Envelope} */
   let manifest;
-  /** @type {CryptoKeyPair} */
+  /** The key that will referee: the realm's own, or one it gave a pass to. @type {CryptoKeyPair} */
   let keys;
-  let rulesModule;
+  /** @type {import("../shared/envelope.js").Envelope | undefined} */
+  let pass;
+  let rulesModule, secret = "";
   /** Public files, by name. @type {Record<string, Uint8Array<ArrayBuffer>>} */
   const files = {};
 
@@ -62,16 +73,26 @@ export async function startHost(options) {
       hashes[name] = await hashOf(files[name]);
     }
     const body = manifestBody(source, hashes);
+    rulesModule = (await import(new URL(/** @type {string} */ (source.main), dir).href)).default;
     // A key file made for one folder holds one realm, whatever the realm is called now: renaming must not
     // change its address. Only a file holding several realms is searched by name.
     const saved = options.address
       ? keyFile.realms.find((r) => r.address === options.address)
       : keyFile.realms.length === 1 ? keyFile.realms[0] : keyFile.realms.find((r) => r.name === body.name);
     if (options.address && !saved) throw new Error(`The key file holds no realm with the address ${options.address}.`);
-    const secret = saved?.secret ?? (await newPortableKey()).secret;
+    if (saved?.entry.pass) {
+      // A pass cannot sign a new version: the folder must be the version the realm's key signed.
+      manifest = saved.entry.manifest;
+      pass = saved.entry.pass;
+      keys = await keyPairFromSecret(saved.secret);
+      if (canonicalJson(/** @type {any} */ (manifest.body).files) !== canonicalJson(hashes)) {
+        throw new Error("The folder has changed since this pass was made. Make a new pass where the realm's key is kept.");
+      }
+      return { manifest, keys, pass, rulesModule, files, secret: "", keyFile };
+    }
+    secret = saved?.secret ?? (await newPortableKey()).secret;
     keys = await keyPairFromSecret(secret);
     manifest = await makeManifest(keys, body);
-    rulesModule = (await import(new URL(/** @type {string} */ (source.main), dir).href)).default;
     await writeKeyFile(options.keysFile, keyFile.raw, saved?.entry, { secret, manifest,
       files: Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)])), storage:saved?.entry.storage });
   } else {
@@ -83,11 +104,22 @@ export async function startHost(options) {
     }
     keys = await keyPairFromSecret(saved.secret);
     manifest = saved.entry.manifest;
+    pass = saved.entry.pass;
+    secret = pass ? "" : saved.secret;
     Object.assign(files, await bundleFiles(keyFile.raw, saved.entry));
     rulesModule = (await import("data:text/javascript;base64," + encodeFile(files[main]))).default;
   }
+  return { manifest, keys, pass, rulesModule, files, secret, keyFile };
+}
 
-  const address = await addressOf(keys.publicKey);
+/** @param {HostOptions} options */
+export async function startHost(options) {
+  const log = options.log ?? console.log;
+  const server = new URL(options.server);
+  const { manifest, keys, pass, rulesModule, files, keyFile } = await loadRealm(options);
+
+  // The realm is known by its own key's address, whichever key referees.
+  const address = manifest.from;
   const body = /** @type {import("../shared/announce.js").ManifestBody} */ (manifest.body);
   for (const [name, hash] of Object.entries(body.files)) {
     if (!files[name] || await hashOf(files[name]) !== hash) throw new Error(`Missing or changed file: ${name}`);
@@ -99,7 +131,7 @@ export async function startHost(options) {
     await reply.body?.cancel();
   }
   async function announce() {
-    await post(await makeAnnouncement(keys, manifest));
+    await post(await makeAnnouncement(keys, manifest, undefined, pass));
     // With public rules the release also stands without the key: anyone can play their own copy.
     if (body.main) await post(body);
   }
@@ -118,10 +150,11 @@ export async function startHost(options) {
   let ref;
   try {
     await relay.connect();
-    ref = await referee({ address, keys, name: body.name, release:await releaseOf(manifest), rules, relay, announce, status: log, onStop:() => relay.close() });
+    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay, announce, status: log, onStop:() => relay.close() });
   } catch (e) { rules.stop(); relay.close(); throw e; }
   const link = `${server.origin}/#emind:${address}?via=${encodeURIComponent(server.origin)}`;
-  log(`Hosting ${body.name}${body.main ? "" : " (private rules)"}: ${link}`);
+  const until = pass ? `, under a pass that runs out on ${new Date(/** @type {any} */ (pass.body).expires).toDateString()}` : "";
+  log(`Hosting ${body.name}${body.main ? "" : " (private rules)"}${until}: ${link}`);
   return {
     address,
     link,
@@ -148,10 +181,11 @@ async function readKeyFile(path) {
   const realms = [];
   for (const entry of Array.isArray(raw.realms) ? raw.realms : []) {
     const keys = await keyPairFromSecret(entry.secret);
-    if (!await checkAnnouncement(await makeAnnouncement(keys, entry.manifest))) throw new Error("A realm does not match its key.");
+    if (entry.pass && !await checkPass(entry.pass)) throw new Error("A referee pass in this file has run out. Make a new one where the realm's key is kept.");
+    if (!await checkAnnouncement(await makeAnnouncement(keys, entry.manifest, undefined, entry.pass))) throw new Error("A realm does not match its key.");
     const files = await bundleFiles(raw, entry);
     entry.files = Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)]));
-    realms.push({ address: await addressOf(keys.publicKey), name: String(entry.manifest?.body?.name), secret: entry.secret, entry });
+    realms.push({ address: entry.manifest.from, name: String(entry.manifest?.body?.name), secret: entry.secret, entry });
   }
   raw.format = FORMAT;
   return { raw, realms };
@@ -171,6 +205,27 @@ async function writeKeyFile(path, raw, oldEntry, entry) {
     await Deno.writeTextFile(temp, JSON.stringify({ ...raw, format: FORMAT, realms: [...realms, entry] }, null, 1), { mode: 0o600 });
     await Deno.rename(temp, path);
   } finally { await Deno.remove(temp).catch(() => {}); }
+}
+
+/**
+ * Write a referee pass file: everything needed to referee the realm for a
+ * while, without the realm's own key. With a folder, its current version is
+ * signed first.
+ * @param {{ realmDir?: string, keysFile: string, address?: string }} options @param {string} destination @param {number} days
+ */
+export async function writePass(options, destination, days) {
+  const { manifest, secret, files, keyFile } = await loadRealm(options);
+  if (!secret) throw new Error("Only the realm's own key can make a pass, and this file does not hold it.");
+  const made = await makePass(await keyPairFromSecret(secret), days * 24 * 60 * 60 * 1000);
+  const entry = {
+    secret: made.secret,
+    pass: made.pass,
+    manifest,
+    files: Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)])),
+    storage: keyFile.realms.find((r) => r.address === manifest.from)?.entry.storage,
+  };
+  await writeKeyFile(destination, { format: FORMAT, realms: [] }, undefined, entry);
+  return manifest.from;
 }
 
 /** Export keys, public files and the latest committed realm data. @param {string} keysFile @param {string} destination */
@@ -200,6 +255,12 @@ if (import.meta.main) {
   }
   if (args.backup && args.keys) {
     await exportBackup(args.keys, args.backup);
+    Deno.exit(0);
+  }
+  if (args.pass && args.keys) {
+    const days = Number(args.days ?? 30);
+    await writePass({ realmDir: args.realm, keysFile: args.keys, address: args.address }, args.pass, days);
+    console.log(`Wrote a referee pass good for ${days} days to ${args.pass}. Host with: deno task host --server <address> --keys ${args.pass}`);
     Deno.exit(0);
   }
   if (!args.server || !(args.realm || args.keys)) {

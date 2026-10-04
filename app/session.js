@@ -42,7 +42,8 @@ export async function play(address, character, container, ui) {
   try {
     session = await visit({
       server: ui.server,
-      address,
+      // Usually the realm itself; another key when the realm gave a referee a pass.
+      address: found.referee,
       keys,
       release: found.release,
       character: character.info,

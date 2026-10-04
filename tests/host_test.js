@@ -3,7 +3,7 @@
 
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import well from "../examples/listening-well/rules.js";
-import { startHost } from "../host/host.js";
+import { startHost, writePass } from "../host/host.js";
 import { startServer } from "../server/server.js";
 import { checkAnnouncement, releaseOf } from "../shared/announce.js";
 import { addressOf, generateKeyPair } from "../shared/crypto.js";
@@ -27,7 +27,9 @@ async function visit(base, realm) {
   /** @type {any[]} */
   const views = [];
   const announcement = (await (await fetch(`${base}/announce/${realm}`)).json()).announcement;
-  const session = await connectVisitor({server:base,address:realm,keys,release:await releaseOf(announcement.body.manifest),
+  // Visitors talk to whoever referees: the realm's own key, or a key it gave a pass to.
+  const referee = (await checkAnnouncement(announcement))?.referee ?? realm;
+  const session = await connectVisitor({server:base,address:referee,keys,release:await releaseOf(announcement.body.manifest),
     character:{name:"Tester",color:"red"}, onView:v => views.push(v),status:() => {}});
   return {
     address: await addressOf(keys.publicKey),
@@ -146,5 +148,28 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     await visitor.until((v) => v.players.length === 1);
     visitor.close();
     moved.stop();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // A referee pass: the always-on machine gets a key that may referee for a while, never the realm's own.
+    const passFile = `${dir}/pass.json`;
+    assertEquals(await writePass({ keysFile }, passFile, 30), host.address);
+    const passText = await Deno.readTextFile(passFile);
+    const realmSecret = JSON.parse(await Deno.readTextFile(keysFile)).realms[0].secret;
+    assert(!passText.includes(realmSecret), "the realm's own key must not be in the pass file");
+    const guest = await startHost({ server: base, keysFile: passFile, log: () => {} });
+    assertEquals(guest.address, host.address, "the realm keeps its address under a pass");
+    visitor = await visit(base, guest.address);
+    await visitor.until((v) => v.players.length === 1);
+    visitor.close();
+    guest.stop();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // A newer pass replaces an older one: a server that has seen the new one refuses the old.
+    const newer = `${dir}/pass2.json`;
+    await writePass({ keysFile }, newer, 30);
+    (await startHost({ server: base, keysFile: newer, log: () => {} })).stop();
+    let refused = "";
+    await startHost({ server: base, keysFile: passFile, log: () => {} }).then((h) => h.stop(), (e) => refused = String(e));
+    assert(refused.includes("older than the one kept"), refused);
     await new Promise((r) => setTimeout(r, 50));
   }));
