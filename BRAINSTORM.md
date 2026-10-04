@@ -35,7 +35,8 @@ A massively multiplayer world where both the code and the running of that code a
 - **Growth over control.** The goal is for EveryGame to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
 - **The protocol is the network.** EveryGame is a set of conventions (keys, signed messages, code found by hash), not an app or a server. Any program that follows them is a full peer, whether it is the reference browser app, a game written from scratch in JavaScript or Rust, or one built with an engine such as Unreal, Godot or Unity.
 - **One click to play.** For any realm that offers a browser version (most will), anyone can open its link and start playing at once, with no install, no account and no AI agent. Each realm turns a visitor's character into an in-realm form and ships a renderer so this works (see "Joining with one click").
-- **Every realm leads to more realms.** From inside any realm, a player can always find other realms.
+- **Every realm leads to more realms.** From inside any realm, a player can always find other realms (see "Finding realms: three ways").
+- **Links are neutral.** A realm's link is its key, like a BitTorrent magnet link, so any app can open any realm and no website or company owns the link. A web form such as `<any server>/#realm=<key>` works from any mirror, since the key, not the server, names the realm.
 - **License: MIT.** A copyleft license such as the GPL stops copying of the code but not rebuilding of the same features, so it protects little and slows growth. A permissive license spreads fastest.
 - **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
 - **Custom renderers and controls are a headline feature.** Anyone can write their own renderer (make plain state look fantastic, show a 2D game in 3D) and their own controls suited to a kind of play (custom keyboard actions, joysticks, brain-computer interfaces). Renderers are objects, traded like any other. See "How it fits together".
@@ -75,6 +76,32 @@ Goal: any object can be reached from anywhere. A single master list of every obj
 - **Directories anyone can run.** Search services can collect announcements from many servers, the way web search engines crawl the web. None is official.
 - **Later: a shared lookup table spread across participants** (a distributed hash table, as BitTorrent uses), which scales to many millions of entries without any central list.
 
+## Finding realms: three ways
+
+1. **Inside the game.** Doors, portals and links the realm's designer chose (a door that opens only after you win, a portal to a friend's realm). Entirely up to the realm.
+2. **The player's app.** Its own menu, always there and outside any realm's control: realms friends visited, realms busy right now among connected peers (who know which realms have players and a referee online), and searches by tag on the network.
+3. **Outside directories and published lists.** Search services, curated lists, and hub realms (a place you walk around in, with doors to recommended realms). The project does not run these; others will build them, the way torrent search sites appeared. None is official.
+
+**What the project provides is only what makes 2 and 3 possible:**
+
+- **Signed announcements with tags** in the protocol. A torrent-style lookup table finds things by exact key, not by keyword, so a tag's key is the hash of the tag ("maze"), and realms announce under it. Ranking and full-text search come from directories and lists.
+- **A simple standard format for published lists,** so any app or directory can read and subscribe to them, like ad-blocker filter lists.
+- **Default subscriptions in the reference app.** A brand-new player has no friends and no directory, so the app ships with a few default lists and directories the player can change or remove, as BitTorrent apps ship default servers for finding other users.
+
+Browsers cannot join the lookup table directly, so a browser player searches through a helper server or a connected peer; native apps can join it directly. Anyone can announce anything, so raw tag results will be noisy; curated lists, allow lists and directories are how players filter, and with no single ranking, no one controls what gets seen.
+
+## Walled gardens
+
+Businesses with many games will likely make their own player apps that try to keep people in their own realms. Freedom allows this: such an app may show only its own realms, admit only characters made in it, and leave out any way onward. The defense is not forbidding gardens but making sure leaving stays cheap and the open side stays bigger, which is how the open web beat AOL:
+
+- **Neutral links.** Any realm link opens in any app, so a friend's link always works outside a company's app. The most important defense.
+- **Characters belong to the person.** Keys and the character file live on their device. A company app might refuse to export them, so the open app makes export easy and visible, and people learn to expect it.
+- **The open app is the front door.** Every realm that offers a browser version opens with nothing installed, so a company app is always optional.
+- **Other people's doors.** A company controls its own realms, not anyone else's, and creators who want visitors will link widely.
+- **Outside directories and lists** reach people before and outside any company's app.
+
+**The honest limit:** a company with great games could still become dominant. A protocol cannot prevent that; it can only make leaving easy. Email is the model: one provider can be huge, yet anyone can still leave or run their own.
+
 
 ## Why now (the pitch)
 
@@ -96,7 +123,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
   3. **The realm's AI, optionally.** A realm owner can pay for AI translation of unusual characters at entry. Their choice and their cost.
 - **Adapters spread by use.** Since code is identified by its hash, a realm can accept adapters written for other realms. Popular ones (a common way to walk, to take damage, to carry things) become shared habits without any platform standard, fitting "No named contracts".
 - **Every realm ships a default renderer** that draws it (3D, flat 2D, text, anything). Players may replace it; see "How it fits together".
-- **Finding more realms is built into the app.** The app's own menu, not the realm's code, always offers a way onward: realms this realm links to (doors and portals), realms friends visited, and directory search. A realm cannot trap a visitor or hide the way out.
+- **Finding more realms is built into the app.** The app's own menu, not the realm's code, always offers a way onward: realms this realm links to (doors and portals), realms friends visited, tag search and directories. A realm cannot trap a visitor or hide the way out. See "Finding realms: three ways".
 
 ## Growth and money
 
@@ -119,6 +146,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 
 **Risks:**
 
+- **Walled gardens.** Businesses may build player apps that keep people inside their own realms. See "Walled gardens".
 - **Free services must have firm limits from day one.** If Ace runs the default free relays and it goes viral, costs grow as fast as users. The software should make it easy for others to share the load.
 - **"Cannot be shut down" also means illegal content cannot be removed centrally,** so allow lists, block lists and takedown support are essential for ordinary people to feel safe running servers. Describe the design as "no single point of failure, like email", never as built to escape authorities.
 - **The industry is more likely to ignore, copy or compete than to buy.** The open-code-plus-services path still pays in that case.

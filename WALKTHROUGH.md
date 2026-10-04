@@ -35,7 +35,7 @@ The creator opens their AI agent in an empty folder and says: "Make a top-down m
 2. Each file gets its hash (fingerprint).
 3. The realm's key signs a manifest (a list of contents): name, tags, the file hashes, and who referees.
 4. The files are uploaded to storage nodes, and the realm is announced on the server.
-5. The creator gets a link: `everygame.example/#realm=<realm key>`.
+5. The creator gets a link: `everygame.example/#realm=<realm key>`. The key, not the server, names the realm, so the same link works from any mirror and in any app.
 
 **Refereeing:** a multiplayer realm needs a referee. Either the creator keeps a browser tab open in "host" mode, or gives a server signed permission to host the realm around the clock with the headless runner. A single-player realm needs neither.
 
