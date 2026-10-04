@@ -1,4 +1,4 @@
-// The player's character: an ordinary object (a portable key plus a description)
+// The player's character: an object (a portable key plus a description)
 // that the app creates on first visit and keeps across visits. Realms read its
 // general description and make an in-realm form from it.
 

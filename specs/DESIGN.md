@@ -8,14 +8,14 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 
 ## Words used here
 
-- **Object:** the only building block, a key pair plus code. Everything below except the player, the app and servers is an object.
-- **Realm:** an object acting as a container: it holds other objects and sets and referees the rules inside it. Not a separate kind of thing, only a way an object behaves. The design and protocol word.
+- **Object:** anything with its own key: a character or a realm. The key is its identity, and whoever holds it speaks for it.
+- **Realm:** an object with rules: a place, game or tool that visitors enter. Its referee runs the rules, which decide what happens inside. The design and protocol word.
 - **Game:** an everyday word for something people play, usually with rules and goals. A game may be one realm or several linked realms, and not every realm is a game (a calm garden, a chat room, a hub full of doors).
 - **World:** a friendly word, used only in plain-language and pitch text, for a realm you can walk around in.
 - **Player:** always the person.
 - **App:** the software a player uses to reach realms. The reference app runs in the browser; anyone may write another, in any language or engine.
-- **Character:** the object that represents a player across realms. Its **in-realm form** is what the realm turns it into while inside.
-- **Renderer:** an object that draws a realm's state and may offer controls.
+- **Character:** the object that represents a player across realms: a key plus a description (name, look). Its **in-realm form** is what the realm turns it into while inside.
+- **Renderer:** code that draws a realm's views on a player's device and turns the player's input into moves. A file, found by its hash.
 - **Referee:** whoever holds a realm's key and runs its rules, signing its official state.
 - **Agent:** an AI coding agent that writes realms for its player.
 - **Server:** an optional helper program anyone can run (finding realms, relaying messages, serving files and the app). Never in charge.
@@ -33,7 +33,7 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 
 **Objects and keys**
 
-- **There is only one kind of thing: the object.** An object is a key pair (its identity) plus code. Characters, realms and renderers differ only in their code. All limits are set by code, never by the platform.
+- **Anything with a key is an object.** A character is a key plus a description; a realm is a key plus rules and files. The protocol treats both alike: an address and signed messages. All limits are set by realms' rules, never by the platform.
 - **Keys, not code, decide who operates an object.** Anyone can run a copy of an object's public code, but only messages and results signed by its key are official. Running a copy without the key makes a different object (a fork).
 - **The key is the object, wherever it is.** A private key is a 32-byte secret. Its holder can save it and carry it to any device, or to any server's copy of the app, at any time. Domain names and servers come and go, and people who dislike a realm can attack them; if the key alone can move an object anywhere, there is much less to attack.
 - **Whoever holds a copy of the key is the object.** A copied key cannot be un-copied or revoked, so a key is guarded like a password. Backing up is saving the key; hosting on an always-on machine is putting the key there, with the host program.
@@ -128,7 +128,7 @@ The browser app is one app among any number. A realm's referee and its visitors 
 
 - **What a peer must speak:** keys and addresses, canonical JSON, signed envelopes, the relay over WebSocket, the server's HTTP routes, and the enter, act and state messages ([PROTOCOL.md](PROTOCOL.md), [RUNTIME.md](RUNTIME.md)). [test-vectors.json](test-vectors.json) lets an implementation in any language check itself.
 - **It works without a browser:** the host program is a working referee and `tests/host_test.js` a working visitor, neither using a browser. No game engine plugin exists in this repository.
-- **What the manifest offers:** `renderer` is optional, and `app` names the realm's own app (a name and an https address where players get it); `play` lists `"browser"`, `"app"` or both. Opening a realm with no browser renderer, the browser app says it cannot be played in a browser and shows the app's name and link, warning that an installed program runs outside any sandbox.
+- **What the manifest offers:** `renderer` is optional, and `app` names the realm's own app (a name and an https address where players get it). Opening a realm with no browser renderer, the browser app says it cannot be played in a browser and shows the app's name and link, warning that an installed program runs outside any sandbox.
 - **A typical engine realm:** a server built with the engine holds the realm's key and referees, its rules private and in the engine's own language, and the engine-built app is the visitor.
 - **Known limit: speed.** Every message passes through a relay and carries its own signature, which is too slow for fast action games. The message format allows an engine realm to use the enter and welcome messages for identity and entry, then carry its own fast traffic itself: the welcome message's body can hold whatever its app needs, such as where to connect.
 

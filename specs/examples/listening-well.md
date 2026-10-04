@@ -6,7 +6,7 @@ A technical example of how a realm on the Endless Mind model described in [DESIG
 
 1. **The player describes an original place to their agent**, for example: "Make an old well in a village square that answers questions, and everyone there hears the answers." The agent reads the project's [agent guide](../AGENT-GUIDE.md) and writes a `realm.json` with `"privateRules": true`, a rules module and a renderer module.
 2. **A question is a move.** The renderer sends `{ ask: "..." }` as the player's move (`emind.act`). That move is the whole call into the private side.
-3. **The rules answer on the maker's machine.** They run under the host program with no sandbox, so `act` can wait for Claude through the Anthropic SDK, using the maker's own credentials. With none set, the well only echoes the question, so the example runs anywhere.
+3. **The rules answer on the maker's machine.** They run under the host program with no sandbox, so `act` can wait for an AI model (through OpenRouter, a service offering many models, some free), using the maker's own key from that machine's environment. With no key set, the well only echoes the question, so the example runs anywhere.
 4. **The answer comes back in the views.** Every visitor's view holds the last 12 questions and answers, so everyone at the well hears every answer. Each visitor may have one question waiting at a time.
 5. **Strangers' words are not instructions.** The rules shorten each question and tell the model to treat it only as something to answer, in words suitable for all ages.
 

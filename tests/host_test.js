@@ -62,6 +62,7 @@ Deno.test("a realm with private rules is refereed by the host and answers visito
     assert(found);
     assertEquals(found.manifest.main, undefined);
     assertEquals(Object.keys(found.manifest.files), ["renderer.js"]);
+    assert(!(await serverHolds(dir, "You are the Listening Well")), "the private rules reached the server");
 
     const visitor = await visit(base, host.address);
     await visitor.until((v) => v.here.includes("Tester"));
@@ -77,6 +78,51 @@ Deno.test("a realm with private rules is refereed by the host and answers visito
     again.stop();
     await new Promise((r) => setTimeout(r, 50));
   }));
+
+/** True if any file the server keeps contains the text. @param {string} dir @param {string} text */
+async function serverHolds(dir, text) {
+  const paths = [`${dir}/data/announcements.json`];
+  for await (const blob of Deno.readDir(`${dir}/data/blobs`)) paths.push(`${dir}/data/blobs/${blob.name}`);
+  for (const path of paths) if ((await Deno.readTextFile(path)).includes(text)) return true;
+  return false;
+}
+
+// Runs only when a key is set, since it calls a real model: OPENROUTER_API_KEY=... deno task test
+Deno.test({
+  name: "live: an AI model answers through private rules, and neither the key nor the rules leave the host",
+  ignore: !Deno.env.get("OPENROUTER_API_KEY"),
+  fn: () =>
+    withServer(async (base, dir) => {
+      const key = /** @type {string} */ (Deno.env.get("OPENROUTER_API_KEY"));
+      const fresh = (await import("../examples/listening-well/rules.js?live")).default;
+      /** @type {string[]} */
+      const lines = [];
+      const original = console.error;
+      console.error = (...args) => lines.push(args.join(" "));
+      try {
+        // Host the same folder, but through a module copy whose answer() was not replaced by the test above.
+        well.answer = fresh.answer;
+        const host = await startHost({ server: base, realmDir: "examples/listening-well", keysFile: `${dir}/keys/well.json`, log: () => {} });
+        const visitor = await visit(base, host.address);
+        await visitor.until((v) => v.here.includes("Tester"));
+        await visitor.act({ ask: "What is at the bottom of the well?" });
+        let view;
+        for (let i = 0; i < 12 && !view; i++) view = await visitor.until((v) => v.talk[0]?.answer).catch(() => undefined);
+        assert(view, "no answer arrived");
+        const answer = view.talk[0].answer;
+        assert(!answer.includes("No AI model is connected") && !answer.includes("silent"), `not a model's answer: ${answer} ${lines}`);
+        assert(!JSON.stringify(view).includes(key), "the key reached a visitor");
+        assert(!(await serverHolds(dir, key)), "the key reached the server");
+        assert(!(await serverHolds(dir, "You are the Listening Well")), "the private rules reached the server");
+        console.log(`    the well answered: ${answer}`);
+        visitor.close();
+        host.stop();
+        await new Promise((r) => setTimeout(r, 50));
+      } finally {
+        console.error = original;
+      }
+    }),
+});
 
 Deno.test("a realm with public rules can be hosted from its folder, or from its key file alone", () =>
   withServer(async (base, dir) => {

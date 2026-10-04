@@ -31,7 +31,7 @@ The host program referees a realm with no browser, so the realm stays up as long
 - Keep key files inside `keys/`: the task may write only there. Whoever has a key file is that realm, so keep it like a password.
 - If a browser tab or another host program starts refereeing the same realm, the most recent one wins and the other stops.
 
-To try the [listening well](examples/listening-well.md), with a server running: `deno task host --server http://localhost:8000 --realm examples/listening-well`. Its rules ask Claude through the Anthropic SDK when `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_PROFILE`) is set on that machine, and otherwise echo each question back.
+To try the [listening well](examples/listening-well.md), with a server running: `deno task host --server http://localhost:8000 --realm examples/listening-well`. Its rules ask an AI model through OpenRouter (a service offering many models, some free) when `OPENROUTER_API_KEY` is set on that machine, and otherwise echo each question back. `WELL_MODEL` picks the model; the default, `openrouter/free`, uses any model that costs nothing. The key goes only to OpenRouter, never to the helper server or to visitors.
 
 ## Tests
 

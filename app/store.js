@@ -1,5 +1,6 @@
-// The app's local storage: one IndexedDB database holding key pairs (which
-// cannot be exported) and small records. Nothing here leaves the device.
+// The app's local storage: one IndexedDB database holding the character, the
+// realms this browser has keys for, and their keys. Clearing the site's data
+// clears it, which is why the app offers "Save my keys" (keyfile.js).
 
 const DB_NAME = "endlessmind";
 const STORE = "things";
@@ -40,11 +41,6 @@ export function get(key) {
 /** @param {string} key @param {unknown} value */
 export function put(key, value) {
   return run("readwrite", (s) => s.put(value, key));
-}
-
-/** @param {string} key */
-export function remove(key) {
-  return run("readwrite", (s) => s.delete(key));
 }
 
 /** @param {string} prefix @returns {Promise<any[]>} */

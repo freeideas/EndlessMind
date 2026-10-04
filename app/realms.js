@@ -8,7 +8,7 @@ import * as store from "./store.js";
 /** @typedef {import("../shared/announce.js").RealmSource} RealmSource */
 
 /**
- * A realm this device holds the key for.
+ * A realm this browser holds the key for.
  * @typedef {object} OwnedRealm
  * @property {string} address
  * @property {string} name
@@ -63,7 +63,7 @@ export async function upload(name, bytes) {
   return hash;
 }
 
-/** Announce (or renew) a realm this device owns. @param {OwnedRealm} realm */
+/** Announce (or renew) a realm this browser holds the key for. @param {OwnedRealm} realm */
 export async function announce(realm) {
   const announcement = await makeAnnouncement(realm.keys, realm.manifest);
   const response = await fetch("/announce", { method: "POST", body: JSON.stringify(announcement) });

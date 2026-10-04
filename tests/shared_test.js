@@ -66,7 +66,7 @@ Deno.test("the replay guard rejects repeats and stale messages", async () => {
 Deno.test("announcements must be signed by the realm that the manifest names", async () => {
   const realm = await generateKeyPair();
   const other = await generateKeyPair();
-  const body = { name: "Test", tags: ["t"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", play: ["browser"], needs: [] };
+  const body = { name: "Test", tags: ["t"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", needs: [] };
   const manifest = await makeManifest(realm, body);
   assert(await checkAnnouncement(await makeAnnouncement(realm, manifest)));
   assertEquals(await checkAnnouncement(await makeAnnouncement(other, manifest)), null);
@@ -87,12 +87,12 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
   const check = async (/** @type {any} */ body) => (await checkAnnouncement(await makeAnnouncement(keys, await makeManifest(keys, body))))?.manifest;
 
   const hidden = manifestBody({ name: "Well", main: "rules.js", privateRules: true, renderer: "view.js" }, hashes);
-  assertEquals([hidden.main, hidden.renderer, hidden.play], [undefined, "view.js", ["browser"]]);
+  assertEquals([hidden.main, hidden.renderer], [undefined, "view.js"]);
   assert(await check(hidden));
 
   const app = { name: "Harbor", url: "https://example.org/get" };
   const engine = manifestBody({ name: "Harbor", main: "server", privateRules: true, app }, {});
-  assertEquals([engine.renderer, engine.app, engine.play], [undefined, app, ["app"]]);
+  assertEquals([engine.renderer, engine.app], [undefined, app]);
   assert(await check(engine));
 
   assertEquals(await check({ ...engine, app: { name: "x", url: "javascript:alert(1)" } }), undefined);

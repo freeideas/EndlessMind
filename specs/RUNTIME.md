@@ -27,7 +27,7 @@ A realm is published from a folder of files:
 
 - `main` is required. With `"privateRules": true` the rules file is never uploaded and the manifest leaves `main` out, so only the host program can referee the realm; the browser app refuses to publish it.
 - `renderer` may be left out when `app` is given.
-- `app`, `{ "name": "...", "url": "https://..." }`, names the realm's own app, a program players install (see "Apps beyond the browser" in [DESIGN.md](DESIGN.md)). The manifest's `play` lists `"browser"` when there is a renderer and `"app"` when there is an app.
+- `app`, `{ "name": "...", "url": "https://..." }`, names the realm's own app, a program players install (see "Apps beyond the browser" in [DESIGN.md](DESIGN.md)).
 - `files` lists other public files the host program uploads with the realm. The browser app uploads every file chosen.
 - `needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
 
@@ -58,7 +58,7 @@ export default {
 - **`character`** is the character's general description, sent by the visitor's app. The default layout is `{ name, color, description }`, but any field may be missing or strange. Treat it as untrusted input: use what you understand, clean it up, ignore the rest.
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick.
-- **State** must be plain data (objects, arrays, strings, numbers, booleans) if you want it to survive future versions that save and move state.
+- **State** is kept by the referee while it runs and is not saved: when the referee stops, the state is gone. Keep it plain data (objects, arrays, strings, numbers, booleans).
 - **Waiting, and the outside world.** Under the host program the rules run with no sandbox, so `enter`, `act` and `tick` may return promises and may use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. In a browser's sandbox these functions must finish at once, with no network; a promise returned from `enter` there counts as a refusal. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
 
 ## The renderer module

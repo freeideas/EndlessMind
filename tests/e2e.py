@@ -160,8 +160,8 @@ def main() -> None:
         try:
             base = f"http://localhost:{port}"
             wait_for(lambda: socket.socket().connect_ex(("127.0.0.1", port)) == 0, what="server")
-            # The host program, with no model credentials, so the well only echoes.
-            env = {k: v for k, v in os.environ.items() if not k.startswith("ANTHROPIC_")}
+            # The host program, with no model key, so the well only echoes.
+            env = {k: v for k, v in os.environ.items() if k != "OPENROUTER_API_KEY"}
             well_host = subprocess.Popen(
                 ["deno", "run", "--allow-net", "--allow-read", "--allow-env", f"--allow-write={data}", "host/host.js",
                  "--server", base, "--realm", "examples/listening-well", "--keys", f"{data}/keys/well.json"],

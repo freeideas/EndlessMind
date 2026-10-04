@@ -1,9 +1,9 @@
 // The Endless Mind helper server: a small program anyone can run.
 //
 // It serves the app's web page, keeps signed announcements, stores files by
-// hash, and relays signed messages between peers that cannot reach each other
-// directly. It holds no game state and makes no rules. Everything it keeps is
-// signed or named by hash, so it cannot forge anything. See specs/DESIGN.md
+// hash, and relays signed messages between peers. It holds no game state and
+// makes no rules. Everything it keeps is signed or named by hash, so it cannot
+// forge anything. See specs/DESIGN.md
 // ("The server: a small program anyone can run").
 //
 // Usage: deno task start [--port 8000] [--hostname 0.0.0.0] [--data ./data]

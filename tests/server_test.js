@@ -57,7 +57,7 @@ Deno.test("announcements are checked, listed by tag, and show who is online", ()
     const realm = await generateKeyPair();
     const address = await addressOf(realm.publicKey);
     const manifest = await makeManifest(realm, {
-      name: "Maze", tags: ["maze"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", play: ["browser"], needs: [],
+      name: "Maze", tags: ["maze"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", needs: [],
     });
     const posted = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify(await makeAnnouncement(realm, manifest)) });
     assertEquals(posted.status, 200);

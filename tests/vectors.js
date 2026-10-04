@@ -21,7 +21,7 @@ export async function buildVectors() {
   const { sig: _, ...unsigned } = envelope;
   const manifest = await seal(keys, null, "manifest", {
     name: "Vector Realm", description: "", tags: ["test"], files: { "rules.js": await hashOf("export default {}") },
-    main: "rules.js", renderer: "rules.js", play: ["browser"], needs: [],
+    main: "rules.js", renderer: "rules.js", needs: [],
   }, { id: "bbbbbbbbbbbbbbbbbbbbbbbbbb", time: 1790000000000 });
 
   const canonicalInputs = ['{"b":1,"a":[true,null,{"d":2,"c":"x"}]}', '{"n":[1e30,4.50,0.002,-0,1e-7]}', '{"\\u20ac":1,"\\r":2,"\\ud83d\\ude00":3,"1":4}'];

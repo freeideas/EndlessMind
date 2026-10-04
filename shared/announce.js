@@ -19,7 +19,6 @@ import { open, seal } from "./envelope.js";
  * @property {string} [renderer]  file name of the default browser renderer; left out when the
  *                                realm cannot be played in a browser
  * @property {RealmApp} [app]     the realm's own app, for realms made with an engine
- * @property {string[]} play      how it can be played: "browser", "app"
  * @property {string[]} needs   permissions the realm asks the player's app for; none are
  *                              defined in version 0, so this is empty for now
  */
@@ -72,7 +71,6 @@ export function manifestBody(source, hashes) {
     ...(main ? { main } : {}),
     ...(source.renderer ? { renderer: source.renderer } : {}),
     ...(source.app ? { app: { name: source.app.name, url: source.app.url } } : {}),
-    play: [...(source.renderer ? ["browser"] : []), ...(source.app ? ["app"] : [])],
     needs: source.needs ?? [],
   };
 }

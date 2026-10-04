@@ -84,14 +84,11 @@
         },
         "main": "rules.js",
         "renderer": "rules.js",
-        "play": [
-          "browser"
-        ],
         "needs": []
       },
       "time": 1790000000000,
-      "sig": "ed25519-4g3kn76xrrsfzwquf7vn73oa4tasbdr357y5vvbaqyl3otrfg25iddm5xesut4ryvmfdtk2xvwby5idbuvmmhepqm5w5lu6grs4nmby"
+      "sig": "ed25519-7slm57yxehztz35c62jrs7funalw73t7dxpfywnk7bfys4kfo4wnhcn37imvdp2wz5haujygbchr5vnuah3gnh4rljgb6bf32tl22ci"
     },
-    "release": "sha256-cqgxrtza6kv6c6dacypldcn7qogppzqscwod2btrj5wuntpapvdq"
+    "release": "sha256-o67k5uis6yqwlnd4h3g6voi4c666qsua4pouaxdd57ho55yxznpa"
   }
 }
