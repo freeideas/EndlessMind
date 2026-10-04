@@ -12,6 +12,7 @@ import { startRenderer, startRules } from "./sandbox.js";
 
 const VISITOR_TIMEOUT_MS = 20_000;
 const PING_EVERY_MS = 5_000;
+const REFEREE_SILENT_MS = 15_000;
 const RENEW_ANNOUNCEMENT_MS = 60 * 60 * 1000;
 
 /**
@@ -65,6 +66,14 @@ export async function referee(realm, relay, container, status) {
   }
   relay.addEventListener("message", onMessage);
 
+  /** A key can be carried anywhere; if another holder starts hosting, this copy stops. @param {Event} event */
+  function onReplaced(event) {
+    if (/** @type {CustomEvent<string>} */ (event).detail !== realm.address) return;
+    halt();
+    status(`${manifest.name} is now being hosted from somewhere else, so this copy has stopped.`);
+  }
+  relay.addEventListener("replaced", onReplaced);
+
   const ticker = setInterval(() => {
     const now = Date.now();
     for (const [player, p] of players) {
@@ -78,6 +87,13 @@ export async function referee(realm, relay, container, status) {
 
   const renewer = setInterval(() => announce(realm).catch(console.error), RENEW_ANNOUNCEMENT_MS);
   announce(realm).catch(console.error);
+
+  function halt() {
+    clearInterval(ticker);
+    clearInterval(renewer);
+    relay.removeEventListener("message", onMessage);
+    relay.removeEventListener("replaced", onReplaced);
+  }
 
   return {
     /**
@@ -94,9 +110,8 @@ export async function referee(realm, relay, container, status) {
       rules.act(player, action);
     },
     stop() {
-      clearInterval(ticker);
-      clearInterval(renewer);
-      relay.removeEventListener("message", onMessage);
+      halt();
+      relay.release(realm.address);
       rules.stop();
     },
   };
@@ -109,11 +124,13 @@ export async function referee(realm, relay, container, status) {
  * @param {Character} character
  * @param {Relay} relay
  * @param {HTMLElement} container
- * @param {{ status: (text: string) => void, owned?: OwnedRealm, release?: string }} ui
+ * @param {{ status: (text: string, ms?: number) => void, owned?: OwnedRealm, release?: string }} ui
  */
 export async function play(address, character, relay, container, ui) {
   const found = await lookUp(address);
-  if (!found) throw new Error("No realm with this address is announced on this server.");
+  if (!found) {
+    throw Object.assign(new Error("No realm with this address is announced on this server."), { code: "not-here" });
+  }
   const { manifest } = found;
   if (ui.release && ui.release !== found.release) {
     throw Object.assign(new Error("This link is for an earlier version of this realm, which has changed since."), {
@@ -140,11 +157,13 @@ export async function play(address, character, relay, container, ui) {
     relay.send(character.keys, address, "emind.act", { action }));
 
   let welcomed = false;
+  let lastHeard = Date.now();
   /** @param {Event} event */
   function onMessage(event) {
     const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
     if (env.from !== address || env.to !== character.address) return;
     const body = /** @type {any} */ (env.body) ?? {};
+    lastHeard = Date.now();
     if (env.kind === "emind.welcome" && !welcomed) {
       welcomed = true;
       ui.status(`You are in ${manifest.name}.`);
@@ -164,11 +183,20 @@ export async function play(address, character, relay, container, ui) {
   }
   relay.addEventListener("message", onMessage);
   relay.addEventListener("undeliverable", onUndeliverable);
+  /** @param {Event} event */
+  function onReplaced(event) {
+    if (/** @type {CustomEvent<string>} */ (event).detail !== character.address) return;
+    clearInterval(pinger);
+    ui.status("Your character is now playing from another tab or device, so this one has stopped.", 60_000);
+  }
+  relay.addEventListener("replaced", onReplaced);
 
   const enter = () => relay.send(character.keys, address, "emind.enter", { character: character.info });
   await enter();
   ui.status(found.online ? `Entering ${manifest.name}...` : "This realm's referee is not online right now. Waiting for it...");
   const pinger = setInterval(() => {
+    // A referee that restarted or moved no longer knows us: ask to come in again.
+    if (welcomed && Date.now() - lastHeard > REFEREE_SILENT_MS) welcomed = false;
     if (welcomed) relay.send(character.keys, address, "emind.ping", {});
     else enter();
   }, PING_EVERY_MS);
@@ -181,6 +209,7 @@ export async function play(address, character, relay, container, ui) {
       relay.send(character.keys, address, "emind.leave", {});
       relay.removeEventListener("message", onMessage);
       relay.removeEventListener("undeliverable", onUndeliverable);
+      relay.removeEventListener("replaced", onReplaced);
       view.stop();
     },
   };

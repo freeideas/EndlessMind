@@ -17,7 +17,7 @@ export class Relay extends EventTarget {
     this.socket = null;
     /** Key pairs this connection speaks for. @type {Map<string, CryptoKeyPair>} */
     this.keys = new Map();
-    /** @type {Map<string, () => void>} */
+    /** @type {Map<string, { done: () => void, fail: (e: Error) => void }>} */
     this.pendingClaims = new Map();
     /** @type {Promise<void> | null} */
     this.ready = null;
@@ -41,8 +41,10 @@ export class Relay extends EventTarget {
       socket.onerror = () => reject(new Error("cannot reach the server"));
       socket.onmessage = (event) => this.#onMessage(event.data);
       socket.onclose = () => {
+        for (const claim of this.pendingClaims.values()) claim.fail(new Error("the connection to the server closed"));
+        this.pendingClaims.clear();
         this.dispatchEvent(new Event("close"));
-        if (!this.closedByUs) setTimeout(() => this.connect(), 2000);
+        if (!this.closedByUs) setTimeout(() => this.connect().catch(() => {}), 2000);
       };
     });
     return this.ready;
@@ -64,9 +66,16 @@ export class Relay extends EventTarget {
   /** @param {CryptoKeyPair} keyPair */
   async #claim(keyPair) {
     const address = await addressOf(keyPair.publicKey);
-    const done = new Promise((resolve) => this.pendingClaims.set(address, () => resolve(undefined)));
+    const done = new Promise((resolve, reject) =>
+      this.pendingClaims.set(address, { done: () => resolve(undefined), fail: reject })
+    );
     this.#raw({ type: "claim", address });
     await done;
+  }
+
+  /** Stop speaking for an address, so the server no longer shows it as online. @param {string} address */
+  release(address) {
+    if (this.keys.delete(address)) this.#raw({ type: "release", address });
   }
 
   /**
@@ -94,8 +103,11 @@ export class Relay extends EventTarget {
       const sig = await sign(keyPair.privateKey, "claim", `${new URL(this.url).host}\n${msg.nonce}`);
       this.#raw({ type: "prove", address: msg.address, sig });
     } else if (msg.type === "claimed") {
-      this.pendingClaims.get(msg.address)?.();
+      this.pendingClaims.get(msg.address)?.done();
       this.pendingClaims.delete(msg.address);
+    } else if (msg.type === "replaced") {
+      // Another holder of this key claimed it after us: the most recent claim wins.
+      if (this.keys.delete(msg.address)) this.dispatchEvent(new CustomEvent("replaced", { detail: msg.address }));
     } else if (msg.type === "deliver") {
       const envelope = await open(msg.envelope);
       if (envelope && envelope.to && this.keys.has(envelope.to) && this.replays.accept(envelope)) {

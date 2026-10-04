@@ -27,13 +27,13 @@ A realm is published from a folder of files:
 
 `needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
 
-Publishing makes a new key pair for the realm on the publishing device, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<any server>/#emind:<address>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
+Publishing makes a new key pair for the realm in the publishing app, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<server>/#emind:<address>?via=<server>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
 
 **Version 0 limit:** each module must be self-contained, with no `import` of other files. Inline anything you need (including libraries) into the file itself.
 
 ## The rules module
 
-The rules run on the referee's device (the device holding the realm's key), in a hidden sandbox. The app keeps the state inside the sandbox and calls these functions; all are optional except `init` and `view`.
+The rules run on the referee (the app holding the realm's key), in a hidden sandbox. The app keeps the state inside the sandbox and calls these functions; all are optional except `init` and `view`.
 
 ```js
 export default {
@@ -80,9 +80,9 @@ Both modules run in frames with their own blank origin and a strict content secu
 
 - No network: no `fetch`, WebSocket or loading scripts, images or fonts from elsewhere. Embed assets as `data:` URLs or draw them.
 - No access to the app's storage, keys or other frames.
-- No navigating the page.
+- No navigating the page, and no navigating its own frame to a web address: the app page's content security policy (`frame-src 'none'`) forbids it, since that would give the code the network. Known limit: browsers offer no dependable way to switch off WebRTC (direct connections) inside a frame, so code may still be able to send data out that way.
 
-This is the safety floor: players can open any realm without trusting its author.
+This is the safety floor: players can open any realm without trusting its author. Known limit: code stuck in an endless loop can freeze the page in some browsers; nothing meters or stops it yet.
 
 ## Messages between visitors and the referee
 
@@ -98,4 +98,4 @@ These are the "entering and leaving" extension (prefix `emind.`), carried in sig
 | `emind.ping`    | visitor → realm | `{}`            | Still here (every 5 seconds) |
 | `emind.leave`   | visitor → realm | `{}`            | Goodbye                      |
 
-Every message is signed by its sender, and each side checks the signature and that it came from the expected address before acting on it.
+Every message is signed by its sender, and each side checks the signature and that it came from the expected address before acting on it. A visitor that receives no `emind.state` for 15 seconds sends `emind.enter` again, so play resumes after a referee restarts or moves to another device. Messages travel through a server's relay, signed but not encrypted to the receiver (see "Relay" in [PROTOCOL.md](PROTOCOL.md)).

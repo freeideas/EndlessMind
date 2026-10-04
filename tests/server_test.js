@@ -134,4 +134,44 @@ Deno.test("the server serves the app page", () =>
     assert((await page.text()).includes("Endless Mind"));
     const hidden = await fetch(`${base}/../deno.json`);
     assert(hidden.status === 404 || !(await hidden.text()).includes("tasks"));
+    // A path that is itself a whole file address must not escape the app folder.
+    const outside = await fetch(`${base}/${new URL("../deno.json", import.meta.url).href}`);
+    assertEquals(outside.status, 404);
+    await outside.body?.cancel();
+  }));
+
+Deno.test("the most recent claim of an address wins, and an address can be released", () =>
+  withServer(async (base) => {
+    const realm = await generateKeyPair();
+    const address = await addressOf(realm.publicKey);
+    const visitor = await connect(base, await generateKeyPair().then((k) => (visitorKeys = k)));
+    const first = await connect(base, realm);
+    const second = await connect(base, realm);
+    assertEquals(await first.next(), { type: "replaced", address });
+
+    visitor.socket.send(JSON.stringify({ type: "send", envelope: await seal(visitorKeys, address, "hello", {}) }));
+    assertEquals((await second.next()).type, "deliver");
+
+    first.close(); // the replaced holder leaving must not take the address offline
+    await new Promise((r) => setTimeout(r, 50));
+    visitor.socket.send(JSON.stringify({ type: "send", envelope: await seal(visitorKeys, address, "hello", {}) }));
+    assertEquals((await second.next()).type, "deliver");
+
+    second.socket.send(JSON.stringify({ type: "release", address }));
+    visitor.socket.send(JSON.stringify({ type: "send", envelope: await seal(visitorKeys, address, "hello", {}) }));
+    assertEquals((await visitor.next()).type, "undeliverable");
+    visitor.close();
+    second.close();
+    await new Promise((r) => setTimeout(r, 50));
+  }));
+
+/** @type {CryptoKeyPair} */
+let visitorKeys;
+
+Deno.test("uploads over the size limit are refused", () =>
+  withServer(async (base) => {
+    const big = new Uint8Array(2 * 1024 * 1024 + 1);
+    const reply = await fetch(`${base}/blob/${await hashOf(big)}`, { method: "PUT", body: big });
+    assertEquals(reply.status, 413);
+    await reply.body?.cancel();
   }));

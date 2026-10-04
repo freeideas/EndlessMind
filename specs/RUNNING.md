@@ -3,7 +3,7 @@
 ## On one computer
 
 1. Install Deno: `brew install deno` (macOS, Linux) or `winget install DenoLand.Deno` (Windows).
-2. In this repository, run `deno task start`. Options: `--port 8000`, `--hostname 0.0.0.0`, `--data ./data`, `--cert cert.pem --key key.pem`.
+2. In this repository, run `deno task start`. Options: `--port 8000`, `--hostname 0.0.0.0`, `--data ./data`, `--cert cert.pem --key key.pem`. The server may read files only inside this folder, so keep certificate files here.
 3. Open `http://localhost:8000/`. To try two players on one computer, use two different browsers (or one normal and one private window), since each browser profile keeps its own character.
 
 The server keeps announcements and uploaded realm files in `./data`. Delete that folder to start fresh.
@@ -19,7 +19,7 @@ Browsers allow the key functions Endless Mind uses only on **https** addresses o
 
 ## Hosting a realm
 
-The browser tab that published a realm holds its key and is its referee. Keep that tab open and in front: phones pause background tabs almost at once, and desktop browsers slow them down. Other players see "the referee is not online" while it is closed. There is no always-on hosting yet, so a realm is playable only while that tab is open.
+The browser tab that holds a realm's key is its referee. Keep that tab open and in front: phones pause background tabs almost at once, and desktop browsers slow them down. Other players see "the referee is not online" while it is closed. To referee from another device or server, choose **Save my keys** there, then **Load keys** in the app on the other one. There is no always-on hosting yet, so a realm is playable only while a tab holding its key is open.
 
 ## Tests
 
@@ -30,4 +30,4 @@ The browser tab that published a realm holds its key and is its referee. Keep th
 ## If something does not connect
 
 - **Device clocks.** Each device ignores messages stamped more than 10 minutes away from its own clock (this blocks replayed messages). Make sure every device sets its time automatically.
-- **Starting fresh.** Delete `./data` on the server, and in the browser clear this site's data. Clearing site data deletes your character and the keys of realms you published.
+- **Starting fresh.** Delete `./data` on the server, and in the browser clear this site's data. Clearing site data deletes your keys (your character and the realms you published) unless you saved them with **Save my keys**.

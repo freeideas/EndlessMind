@@ -4,7 +4,9 @@
 # dependencies = ["playwright>=1.48"]
 # ///
 """End-to-end check in real browsers: one browser publishes and hosts the maze,
-another opens its link, and both see each other move.
+another opens its link, and both see each other move. Then: sandboxed code
+cannot reach the network, a guest carries on after the host reloads, and a
+realm's saved keys let another browser take over hosting.
 
 Usage: uv run tests/e2e.py [chromium|firefox|webkit ...]
 Starts its own server on a spare port with a temporary data folder. The first
@@ -58,7 +60,7 @@ def run(browser_name: str, base: str) -> None:
             print("host status:", host.evaluate("document.getElementById('status')?.textContent"), "| guest:", guest.evaluate("document.getElementById('status')?.textContent"))
             raise
         browser.close()
-        bad = [e for e in errors if "favicon" not in e]
+        bad = [e for e in errors if "favicon" not in e and "leak=" not in e]
         assert not bad, f"browser errors: {bad}"
         print(f"{browser_name}: ok")
 
@@ -96,13 +98,47 @@ def steps(host, guest, base, browser_name):
 
         Path(tempfile.gettempdir(), f"endlessmind-{browser_name}-guest.png").write_bytes(guest.screenshot())
 
+        # Sandboxed code that tries to fetch, or to send its own frame to a web address, reaches nothing.
+        leaks = []
+        guest.on("request", lambda r: leaks.append(r.url) if "leak=" in r.url else None)
+        guest.evaluate("""async (base) => {
+          const { startRenderer } = await import('/sandbox.js');
+          const code = `export default { start(root, game) {
+            fetch('${base}/style.css?leak=fetch').catch(() => {});
+            setTimeout(() => { location.href = '${base}/style.css?leak=navigate'; }, 100);
+          } };`;
+          const box = document.body.appendChild(document.createElement('div'));
+          await startRenderer(box, code, 'me', {}, () => {});
+          await new Promise((r) => setTimeout(r, 1500));
+          box.remove();
+        }""", base)
+        assert not leaks, f"sandboxed code reached the network: {leaks}"
+
+        # The host reloads (a new referee that knows no one); the guest must get back in by itself.
+        host.reload()
+        time.sleep(1)
+        guest.evaluate("globalThis.endlessmindLastView = null")
+        wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest rejoining after host reload")
+
+        # The realm's key is the realm: another browser loads the saved keys and takes over hosting.
+        keys = host.evaluate("import('/keyfile.js').then((m) => m.saveKeys())")
+        mover = host.context.browser.new_context().new_page()
+        mover.goto(base + "/")
+        mover.wait_for_selector("body[data-ready]")
+        loaded = mover.evaluate("(text) => import('/keyfile.js').then((m) => m.loadKeys(text))", keys)
+        assert loaded == {"character": True, "realms": 1}, loaded
+        mover.goto(link)
+        mover.reload()
+        wait_for(lambda: mover.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest joining the moved realm")
+        wait_for(lambda: "somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
+
 
 def main() -> None:
     browsers = sys.argv[1:] or ["chromium"]
     port = free_port()
     with tempfile.TemporaryDirectory() as data:
         server = subprocess.Popen(
-            ["deno", "run", "--allow-net", "--allow-read", f"--allow-write={data}",
+            ["deno", "run", "--allow-net", f"--allow-read=.,{data}", f"--allow-write={data}",
              "server/server.js", "--port", str(port), "--hostname", "127.0.0.1", "--data", data],
             cwd=ROOT, stdout=subprocess.DEVNULL,
         )

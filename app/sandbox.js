@@ -3,7 +3,9 @@
 // Each frame has a blank, unique origin (sandbox="allow-scripts" without
 // allow-same-origin), so the code inside cannot read this app's storage or
 // keys, cannot reach other frames, and (by its content security policy) cannot
-// open network connections. It talks to the app only through postMessage.
+// open network connections. The app page's own policy (frame-src 'none', in
+// index.html) stops a frame from navigating itself to a web address, which
+// would otherwise hand it the network. It talks to the app only through postMessage.
 // The calls available inside are the runtime interface in specs/RUNTIME.md.
 
 const POLICY = "default-src 'none'; script-src 'unsafe-inline' blob: data:; " +

@@ -34,12 +34,12 @@ rules.tick(s);
 console.log(rules.view(s, "a"));
 ```
 
-To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The publishing tab becomes the referee; open the link in another browser or device to join. See [RUNNING.md](RUNNING.md).
+To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The publishing tab holds the realm's key and becomes the referee; open the link in another browser or device to join. See [RUNNING.md](RUNNING.md).
 
 ## When you are done
 
 Tell the player:
 
 - how to publish (the steps above) and that the tab they publish from is the referee, so it must stay open for others to play;
-- that the realm's key lives only in that browser, so publishing again from elsewhere makes a new realm with a new link;
+- that the realm's key lives in that browser unless they save it with "Save my keys" (and anyone with that file controls the realm); loading the key file elsewhere lets them host the same realm, with the same link apart from its server hint, from another device or server, while publishing again makes a new realm with a new link;
 - that everything they publish is public and anyone can remix it.

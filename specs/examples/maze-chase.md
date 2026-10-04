@@ -4,17 +4,17 @@ A technical example of how a player could make their own small game on the Endle
 
 ## Making it
 
-1. **The player describes an original game to their agent**, for example: "Make a top-down maze where my friends collect glowing seeds while lantern spirits chase them." The agent reads the project's [agent guide](../AGENT-GUIDE.md) and writes one realm object.
-2. **The maze is the realm.** Walls and seeds are data inside it, like blocks in the [block world example](block-world.md). The chasers are objects the realm's referee runs, so no player can tamper with them. (For a single-player version, the whole game runs in the player's browser with no referee at all.)
-3. **Bodies are lent, not required.** Instead of making visitors bring a compatible body, the realm lends each one a runner body on entry and takes it back on exit, so anyone can play at once. A realm wanting more variety could also admit visitors' own bodies if they have `move` and `caught`.
-4. **Multiplayer comes almost free.** Other visitors can enter as chasers, or as rival runners after the same seeds. The realm referees who collected what.
-5. **2D is just a viewpoint.** The realm's default renderer uses a flat top-down camera, and the looks are flat boxes and circles. No separate 2D system is needed, and anyone can write a 3D renderer for the same maze.
-6. **Scores are signed by the realm,** so a high-score table can be trusted by anyone who trusts that realm.
+1. **The player describes an original game to their agent**, for example: "Make a top-down maze where my friends collect glowing seeds while lantern spirits chase them." The agent reads the project's [agent guide](../AGENT-GUIDE.md) and writes one realm: a `realm.json`, a rules module and a renderer module.
+2. **The maze is the realm.** Walls, seeds and the chasers are data in its state, run by its rules on the referee, so no player can tamper with them.
+3. **Forms are lent, not required.** The realm gives each visitor a runner in their character's color on entry and removes it on exit, so anyone can play at once.
+4. **Multiplayer comes almost free.** Every visitor is a rival runner after the same seeds. The realm referees who collected what.
+5. **2D is just a viewpoint.** The realm's default renderer draws a flat top-down view of plain data. Anyone could write a 3D renderer for the same views.
+6. **Scores are realm state,** sent in views signed by the realm, so they can be trusted by anyone who trusts that realm.
 
 ## Putting it online
 
 - The realm's `realm.json` gives it a few tags ("maze", "chase", "multiplayer"). Publishing announces it on the server under those tags, so it shows up in "Find realms".
-- While the publishing browser tab is open, the realm is online. To keep it up all the time, the same code is meant to run on an always-on machine with the headless runner, which runs object code without a browser (not built yet).
-- The way in is a link, `https://<any server>/#emind:<realm address>`. The key, not the server, names the realm, so the link works from any mirror and in any app. Anyone who opens it can join.
+- While a browser tab holding the realm's key is open, the realm is online. Saving the key and loading it elsewhere moves the referee to another device or server.
+- The way in is a link, `https://<server>/#emind:<realm address>?via=<server>`. The key names the realm and the `via` hint says where it is announced. Anyone who opens it can join.
 
 A working version of this example is in this repository under `examples/maze-chase/`.

@@ -1,14 +1,14 @@
 # Walkthrough: from launch to a friend playing
 
-A concrete, step-by-step picture of how Endless Mind works in practice, using the [maze chase example](examples/maze-chase.md). The design behind it is in [DESIGN.md](DESIGN.md). Steps marked *(not built yet)* are part of the design but not yet in the reference app; see "First version" in the design.
+A concrete, step-by-step picture of how Endless Mind works in practice, using the [maze chase example](examples/maze-chase.md). The design behind it is in [DESIGN.md](DESIGN.md).
 
 ## 1. Launching the platform
 
 There is no company system to switch on. Launching means making three things available:
 
 1. **The code:** this repository, public under the MIT or Apache 2.0 license (the user's choice), with the documents in the public domain. It contains the server, the app and the agent guide.
-2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `endlessmind.example`, running one command (`deno task start`); for a group of friends, any computer they already have will do. It serves the app page, introduces browsers to each other, relays traffic when direct connections fail, and stores encrypted files.
-3. **The agent guide:** a file any AI coding agent reads to learn how to build realms and objects.
+2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `endlessmind.example`, running one command (`deno task start`); for a group of friends, any computer they already have will do. It serves the app page, keeps announcements and realm files, and relays messages between players.
+3. **The agent guide:** a file any AI coding agent reads to learn how to build realms.
 
 There is no user database and no accounts. On day one, "the network" is one server plus whoever opens it. It grows as other people run servers too.
 
@@ -16,19 +16,13 @@ There is no user database and no accounts. On day one, "the network" is one serv
 
 The creator opens their AI agent in an empty folder and says: "Make a top-down maze where lantern spirits chase players who collect glowing seeds." The agent reads the [agent guide](AGENT-GUIDE.md) and writes three files:
 
-| File          | What it is                                                                                |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| `realm.json`  | Name, description, tags, and which file is the rules and which the renderer               |
-| `rules.js`    | The realm's rules: entry, moves, the chasers, scoring, what each player sees              |
-| `renderer.js` | The default renderer: draws a flat 2D maze and turns keys and swipes into moves           |
+| File          | What it is                                                                      |
+| ------------- | ------------------------------------------------------------------------------- |
+| `realm.json`  | Name, description, tags, and which file is the rules and which the renderer     |
+| `rules.js`    | The realm's rules: entry, moves, the chasers, scoring, what each player sees    |
+| `renderer.js` | The default renderer: draws a flat 2D maze and turns keys and swipes into moves |
 
-A working version lives in this repository under `examples/maze-chase/`.
-
-**Objects in the realm come in three kinds:**
-
-- **Plain data:** walls and seeds are entries in the realm's state.
-- **Realm-run objects:** the lantern spirits. The realm creates them and its referee runs them, so they belong to the realm.
-- **Independent objects:** a fountain the creator made separately, with its own key. It enters the maze like any visitor, and the realm admits it by its code hash.
+A working version lives in this repository under `examples/maze-chase/`. Walls, seeds and the lantern spirits are all data in the realm's state, run by its rules.
 
 **Publishing** is one button in the app ("Publish from files"):
 
@@ -36,37 +30,24 @@ A working version lives in this repository under `examples/maze-chase/`.
 2. Each file gets its hash (fingerprint).
 3. The realm's key signs a manifest (a list of contents): name, tags and the file hashes.
 4. The files are uploaded to the server by hash, and the realm is announced there.
-5. The creator gets a link: `https://endlessmind.example/#emind:<realm address>`. The key, not the server, names the realm, so the same link works from any mirror and in any app.
+5. The creator gets a link: `https://endlessmind.example/#emind:<realm address>?via=endlessmind.example`. The key names the realm; the `via` part says which server it is announced on.
 
-**Refereeing:** a multiplayer realm needs a referee. The tab that published the realm is its referee while it stays open. To stay up around the clock, the creator gives an always-on machine signed permission to host it with the headless runner *(not built yet)*. A single-player realm needs neither.
+**Refereeing:** the tab holding the realm's key is its referee while it stays open. With "Save my keys" the creator can save that key and load it into the app on another device or another server, and referee the same realm from there.
 
-## 3. A friend plays, with a character the creator designed
+## 3. A friend plays
 
 The friend taps the link on their phone.
 
 1. **The app loads** from the server: one web page, no install.
-2. **They get a character.** A key must be created on the friend's own phone, since keys never move, so no one can hand over a finished character. The creator can instead publish a **character design** (code, look, a description such as "a small fox knight with a lantern"), and the link can include it (`...&start=<design hash>`) *(not built yet)*. The friend's app creates a brand-new key and builds their character from that design, so it is theirs from the first second. Without a design, the app makes a default character with a random name and look.
-3. **The app fetches the realm's files** by hash from the server (later also from other players who have them), checks each hash, and runs each file in its own sandbox.
-4. **The app connects to the referee** through the server's relay (direct connections over WebRTC are not built yet).
-5. **The realm reads the character** (fox knight, orange, carries a lantern) and lends the friend an in-realm form: an orange runner with a little lantern.
-6. **They play.** Swipes go from the app to the referee. The referee updates the state and sends each player their share. The phone draws it with the realm's default renderer. If the friend later finds a 3D renderer someone else wrote, they switch in the app's menu, and the realm cannot tell the difference.
-7. **They leave.** The app's "More realms" menu shows where to go next. (Keeping signed results such as a high score with the character is not built yet.)
-
-## 4. Moving on to a realm made with a game engine *(not built yet)*
-
-The friend, still in the browser with nothing installed, finds a realm made with Unreal.
-
-1. **Finding it** works like any realm: a portal, the app's "More realms" menu, a friend's link, or a directory. The realm's manifest says how it can be played, and the app shows that as a badge: "Plays in browser", "Plays in browser · better in an Unreal-based app", or "Needs an Unreal-based app (1.2 GB)".
-2. **If it has a browser renderer** (most will), they start playing at once with simpler graphics, and a button offers "Play in full Unreal graphics".
-3. **Installing.** The browser shows a landing card (preview video, size, supported systems) and an install button that uses a store or package manager. If the realm owner pays for streaming, "Play now (streamed)" also appears.
-4. **Handoff.** The installed app opens from a link such as `emind:<realm address>`, the way meeting links open a meeting app.
-5. **Bringing the character.** Keys never move, so the browser gives the character to the installed app: the app makes a new key and the browser signs the transfer note. One tap.
-6. **Playing.** The app fetches the realm's files by hash (portable code, models, scene description), connects to the referee and draws it with the engine. Every other realm built for that app now runs with no further installs.
-
-A realm that ships its own app instead follows the same steps, except step 3 installs that app, after a plain warning that it runs outside any sandbox.
+2. **They get a character.** The app makes one with a random name and look, which the friend can change.
+3. **The app fetches the realm's files** by hash from the server, checks each hash, and runs the renderer in a sandbox.
+4. **The app asks the referee to let them in,** through the server's relay.
+5. **The realm reads the character** (name, color, description) and makes an in-realm form: a runner in the friend's color.
+6. **They play.** Swipes go from the app to the referee. The referee updates the state and sends each player their view. The phone draws it with the realm's default renderer. Any other renderer could draw the same views differently, and the realm could not tell the difference.
+7. **They leave.** The app's "More realms" menu shows where to go next.
 
 ## Where things live afterward
 
-- **The friend's character:** in their phone's browser (character files and passkey backups are not built yet).
+- **The friend's character:** its key is in their phone's browser, or in a key file if they saved one.
 - **The realm's code:** on the server and in every visitor's cache, found by hash.
-- **The realm's official state:** with whoever referees (today, the creator's open tab).
+- **The realm's official state:** with whoever holds the realm's key and is refereeing (today, the creator's open tab).

@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Sandboxed realm code must not be able to send its own frame to a web address (see sandbox.js). -->
+  <meta http-equiv="Content-Security-Policy" content="frame-src 'none'">
   <title>Endless Mind</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/style.css">
@@ -49,8 +51,17 @@
 
     <section>
       <h2>Your realms</h2>
-      <p class="hint">Realms whose key lives on this device. Open one to host it; keep the tab open so others can play.</p>
+      <p class="hint">Realms whose key this browser holds. Open one to host it; keep the tab open so others can play.</p>
       <ul id="owned" class="list"></ul>
+    </section>
+
+    <section>
+      <h2>Your keys</h2>
+      <p class="hint">Your character and your realms are their keys. Save them to a file to keep them safe or to carry them to another device or server. Anyone who gets the file can be your character and host your realms, so guard it like a password.</p>
+      <div class="row">
+        <button id="save-keys">Save my keys</button>
+        <label class="button">Load keys<input id="load-keys" type="file" accept=".json,application/json" hidden></label>
+      </div>
     </section>
 
     <section id="links-section" hidden>

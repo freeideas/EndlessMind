@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-write=./data --allow-sys=networkInterfaces server/server.js",
+    "start": "deno run --allow-net --allow-read=. --allow-write=./data --allow-sys=networkInterfaces server/server.js",
     "test": "deno test --allow-net --allow-read --allow-write=./data,/tmp,/var/folders tests/",
     "check": "deno check server/server.js shared/*.js app/*.js examples/*/*.js tests/*.js"
   },

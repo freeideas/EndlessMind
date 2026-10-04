@@ -78,6 +78,7 @@ export class ReplayGuard {
     this.windowMs = windowMs;
     /** @type {Map<string, number>} message key to when it can be forgotten */
     this.seen = new Map();
+    this.pruneAt = 0;
   }
 
   /** @param {Envelope} envelope @returns {boolean} true if new and timely */
@@ -87,7 +88,9 @@ export class ReplayGuard {
     const key = envelope.from + " " + envelope.id;
     if (this.seen.has(key)) return false;
     this.seen.set(key, envelope.time + this.windowMs);
-    if (this.seen.size > 10_000) {
+    if (this.seen.size > 10_000 && now >= this.pruneAt) {
+      // At most once a minute, so a busy receiver does not rescan on every message.
+      this.pruneAt = now + 60_000;
       for (const [k, until] of this.seen) if (until < now) this.seen.delete(k);
     }
     return true;

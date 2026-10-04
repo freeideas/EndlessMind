@@ -1,8 +1,8 @@
-// The player's character: an ordinary object (a key pair plus a description)
+// The player's character: an ordinary object (a portable key plus a description)
 // that the app creates on first visit and keeps across visits. Realms read its
 // general description and make an in-realm form from it.
 
-import { addressOf, generateKeyPair } from "../shared/crypto.js";
+import { addressOf, newPortableKey } from "../shared/crypto.js";
 import * as store from "./store.js";
 
 /**
@@ -18,6 +18,7 @@ import * as store from "./store.js";
  * @typedef {object} Character
  * @property {string} address
  * @property {CryptoKeyPair} keys
+ * @property {string} secret  the key's secret, so it can be saved and carried elsewhere
  * @property {CharacterInfo} info
  */
 
@@ -34,12 +35,13 @@ export async function myCharacter() {
   /** @type {Character | undefined} */
   const saved = await store.get("character");
   if (saved) return saved;
-  const keys = await generateKeyPair();
+  const { keys, secret } = await newPortableKey();
   const name = `${pick(ADJECTIVES)} ${pick(ANIMALS)}`;
   /** @type {Character} */
   const character = {
     address: await addressOf(keys.publicKey),
     keys,
+    secret,
     info: {
       name,
       color: `hsl(${Math.floor(Math.random() * 360)}, 75%, 60%)`,

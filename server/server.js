@@ -68,12 +68,17 @@ export async function startServer(options = {}) {
     saving = saving.then(() => Deno.writeTextFile(announcementsFile, text)).catch(console.error);
   }
 
-  /** Sockets that proved they hold each address. @type {Map<string, Set<WebSocket>>} */
+  /**
+   * The socket that most recently proved it holds each address. A key can be
+   * carried anywhere, so two holders may turn up; the most recent claim wins
+   * and the earlier holder is told it was replaced.
+   * @type {Map<string, WebSocket>}
+   */
   const claims = new Map();
 
   /** @param {string} address */
   function isOnline(address) {
-    return (claims.get(address)?.size ?? 0) > 0;
+    return claims.has(address);
   }
 
   /** @param {WebSocket} socket @param {unknown} message */
@@ -111,12 +116,17 @@ export async function startServer(options = {}) {
         challenges.delete(msg.address);
         if (await verify(msg.address, "claim", `${host}\n${nonce}`, msg.sig)) {
           mine.add(msg.address);
-          if (!claims.has(msg.address)) claims.set(msg.address, new Set());
-          claims.get(msg.address)?.add(socket);
+          const earlier = claims.get(msg.address);
+          if (earlier && earlier !== socket) sendTo(earlier, { type: "replaced", address: msg.address });
+          claims.set(msg.address, socket);
           sendTo(socket, { type: "claimed", address: msg.address });
         } else {
           sendTo(socket, { type: "error", error: "bad proof", address: msg.address });
         }
+      } else if (msg.type === "release" && mine.has(msg.address)) {
+        // Giving an address up, for example a referee leaving its realm.
+        mine.delete(msg.address);
+        if (claims.get(msg.address) === socket) claims.delete(msg.address);
       } else if (msg.type === "send") {
         // Relay. The server checks only that the sender claimed the "from"
         // address; receivers check the signature themselves.
@@ -125,20 +135,18 @@ export async function startServer(options = {}) {
           sendTo(socket, { type: "error", error: "cannot send", ref: msg.ref });
           return;
         }
-        const targets = claims.get(env.to);
-        if (!targets || targets.size === 0) {
+        const target = claims.get(env.to);
+        if (!target) {
           sendTo(socket, { type: "undeliverable", to: env.to, ref: msg.ref });
           return;
         }
-        for (const target of targets) sendTo(target, { type: "deliver", envelope: env });
+        sendTo(target, { type: "deliver", envelope: env });
       }
     };
 
     socket.onclose = () => {
       for (const address of mine) {
-        const set = claims.get(address);
-        set?.delete(socket);
-        if (set && set.size === 0) claims.delete(address);
+        if (claims.get(address) === socket) claims.delete(address);
       }
     };
   }
@@ -147,8 +155,9 @@ export async function startServer(options = {}) {
   async function handleAnnounce(request) {
     const url = new URL(request.url);
     if (request.method === "POST") {
-      const text = await request.text();
-      if (text.length > MAX_MESSAGE_BYTES) return json({ error: "too large" }, 413);
+      const body = await readLimited(request, MAX_MESSAGE_BYTES);
+      if (!body) return json({ error: "too large" }, 413);
+      const text = new TextDecoder().decode(body);
       const value = parseStrictJson(text);
       if (value === undefined) return json({ error: "not acceptable JSON" }, 400);
       const checked = await checkAnnouncement(value);
@@ -185,8 +194,8 @@ export async function startServer(options = {}) {
     if (!isHash(hash)) return json({ error: "bad hash" }, 400);
     const path = `${blobDir}/${hash}`;
     if (request.method === "PUT") {
-      const bytes = new Uint8Array(await request.arrayBuffer());
-      if (bytes.length > MAX_BLOB_BYTES) return json({ error: "too large" }, 413);
+      const bytes = await readLimited(request, MAX_BLOB_BYTES);
+      if (!bytes) return json({ error: "too large" }, 413);
       if ((await hashOf(bytes)) !== hash) return json({ error: "hash does not match" }, 400);
       await Deno.writeFile(path, bytes);
       return json({ ok: true });
@@ -194,7 +203,11 @@ export async function startServer(options = {}) {
     try {
       const bytes = await Deno.readFile(path);
       return new Response(bytes, {
-        headers: { "content-type": "application/octet-stream", "cache-control": "public, max-age=31536000, immutable" },
+        headers: {
+          "content-type": "application/octet-stream",
+          "cache-control": "public, max-age=31536000, immutable",
+          "x-content-type-options": "nosniff",
+        },
       });
     } catch {
       return json({ error: "not found" }, 404);
@@ -209,6 +222,8 @@ export async function startServer(options = {}) {
       if (rest === "" || rest.endsWith("/")) rest += "index.html";
       if (rest.split("/").some((part) => part === ".." || part.startsWith("."))) break;
       const file = new URL(rest, dir);
+      // `rest` can itself be a whole address ("file:///etc/hosts"), which would replace the folder.
+      if (!file.href.startsWith(dir.href)) break;
       try {
         const bytes = await Deno.readFile(file);
         const ext = rest.slice(rest.lastIndexOf("."));
@@ -216,6 +231,7 @@ export async function startServer(options = {}) {
           headers: {
             "content-type": CONTENT_TYPES[/** @type {keyof typeof CONTENT_TYPES} */ (ext)] ?? "application/octet-stream",
             "cache-control": "no-cache",
+            "x-content-type-options": "nosniff",
           },
         });
       } catch {
@@ -257,6 +273,31 @@ export async function startServer(options = {}) {
       await saving;
     },
   };
+}
+
+/**
+ * Read a request's body, giving up as soon as it passes the limit.
+ * @param {Request} request @param {number} max
+ * @returns {Promise<Uint8Array<ArrayBuffer> | null>} null if too large
+ */
+async function readLimited(request, max) {
+  if (Number(request.headers.get("content-length") ?? 0) > max) return null;
+  const chunks = [];
+  let size = 0;
+  if (request.body) {
+    for await (const chunk of request.body) {
+      size += chunk.length;
+      if (size > max) return null;
+      chunks.push(chunk);
+    }
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  return out;
 }
 
 /** @param {unknown} value @param {number} [status] */

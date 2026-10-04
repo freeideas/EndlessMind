@@ -7,6 +7,7 @@ import { myCharacter, updateCharacter } from "./character.js";
 import { defaultRelayUrl, Relay } from "./net.js";
 import { exampleFiles, ownedRealm, ownedRealms, publish, search } from "./realms.js";
 import { play } from "./session.js";
+import { loadKeys, saveKeys } from "./keyfile.js";
 import { askToPersist } from "./store.js";
 
 /** @param {string} id */
@@ -31,9 +32,13 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
-/** @param {string} address @param {string} [release] */
-function realmLink(address, release) {
-  return `${location.origin}/#emind:${address}` + (release ? `?release=${release}` : "");
+/**
+ * A link people can share. The key names the realm but says nothing about
+ * where it is, so the link carries a hint: the server it is announced on.
+ * @param {string} address @param {string} [release] @param {string} [origin]
+ */
+function realmLink(address, release, origin = location.origin) {
+  return `${origin}/#emind:${address}?via=${new URL(origin).host}` + (release ? `&release=${release}` : "");
 }
 
 /** @param {string} text */
@@ -116,8 +121,8 @@ async function showHome() {
 /** @type {{ name: string, release: string, stop: () => void } | null} */
 let current = null;
 
-/** @param {string} address @param {string} [release] */
-async function showRealm(address, release) {
+/** @param {string} address @param {string} [release] @param {string[]} [via] servers the link hints at */
+async function showRealm(address, release, via = []) {
   $("home").hidden = true;
   $("realm").hidden = false;
   $("copy-link").hidden = false;
@@ -138,6 +143,12 @@ async function showRealm(address, release) {
     if (/** @type {any} */ (error).code === "release-changed") {
       message.append(" ", el("a", { href: `#emind:${address}` }, ["Open the current version"]));
     }
+    if (/** @type {any} */ (error).code === "not-here") {
+      for (const host of via) {
+        if (host === location.host || !/^[a-z0-9.-]+(:\d+)?$/.test(host)) continue;
+        message.append(" ", el("a", { href: realmLink(address, release, `${location.protocol}//${host}`) }, [`Open it on ${host}`]));
+      }
+    }
     stage.replaceChildren(message);
   }
 }
@@ -145,8 +156,9 @@ async function showRealm(address, release) {
 async function route() {
   current?.stop();
   current = null;
-  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?release=([a-z0-9-]+))?/);
-  if (match) await showRealm(match[1], match[2]);
+  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?(.*))?$/);
+  const query = new URLSearchParams(match?.[2] ?? "");
+  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? []);
   else await showHome();
 }
 
@@ -196,6 +208,34 @@ $("publish-files").onchange = async (e) => {
   for (const file of input.files ?? []) files.set(file.name, new Uint8Array(await file.arrayBuffer()));
   input.value = "";
   await publishAndOpen(files);
+};
+
+$("save-keys").onclick = async () => {
+  try {
+    const url = URL.createObjectURL(new Blob([await saveKeys()], { type: "application/json" }));
+    el("a", { href: url, download: "endless-mind-keys.json" }).click();
+    URL.revokeObjectURL(url);
+    status("Keys saved. Anyone who gets this file can be your character and host your realms.", 8000);
+  } catch (error) {
+    status(String(/** @type {Error} */ (error).message ?? error), 8000);
+  }
+};
+
+$("load-keys").onchange = async (e) => {
+  const input = /** @type {HTMLInputElement} */ (e.target);
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (!confirm("Loading a key file replaces the character in this browser with the one in the file. Continue?")) return;
+  try {
+    const loaded = await loadKeys(await file.text());
+    if (loaded.character) Object.assign(character, await myCharacter());
+    showMe();
+    await showHome();
+    status(`Loaded ${loaded.character ? "your character and " : ""}${loaded.realms} realm(s).`, 8000);
+  } catch (error) {
+    status(String(/** @type {Error} */ (error).message ?? error), 8000);
+  }
 };
 
 // Browsers let a web page handle only link types that start with "web+".

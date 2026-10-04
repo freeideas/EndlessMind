@@ -1,7 +1,7 @@
 // Publishing realms and fetching them back, checking every hash and signature.
 
 import { checkAnnouncement, makeAnnouncement, makeManifest, releaseOf } from "../shared/announce.js";
-import { addressOf, generateKeyPair, hashOf } from "../shared/crypto.js";
+import { addressOf, hashOf, newPortableKey } from "../shared/crypto.js";
 import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import * as store from "./store.js";
 
@@ -22,6 +22,7 @@ import * as store from "./store.js";
  * @property {string} address
  * @property {string} name
  * @property {CryptoKeyPair} keys
+ * @property {string} secret  the key's secret, so the realm can be saved and hosted elsewhere
  * @property {import("../shared/envelope.js").Envelope} manifest
  */
 
@@ -40,22 +41,24 @@ export async function publish(files) {
     throw new Error("realm.json must name the realm and point to its main and renderer files.");
   }
 
+  const tags = source.tags ?? [];
+  if (!Array.isArray(tags) || tags.length > 32 || !tags.every((t) => typeof t === "string" && t && t.length <= 40)) {
+    throw new Error("realm.json may list at most 32 tags, each 1 to 40 characters.");
+  }
+
   /** @type {Record<string, string>} */
   const hashes = {};
   for (const [name, bytes] of files) {
     if (name === "realm.json") continue;
-    const hash = await hashOf(bytes);
-    hashes[name] = hash;
-    const response = await fetch(`/blob/${hash}`, { method: "PUT", body: bytes });
-    if (!response.ok) throw new Error(`Upload of ${name} failed: ${(await response.json()).error}`);
+    hashes[name] = await upload(name, bytes);
   }
 
-  const keys = await generateKeyPair();
+  const { keys, secret } = await newPortableKey();
   const address = await addressOf(keys.publicKey);
   const manifest = await makeManifest(keys, {
     name: source.name,
     description: source.description ?? "",
-    tags: (source.tags ?? []).slice(0, 32),
+    tags,
     files: hashes,
     main: source.main,
     renderer: source.renderer,
@@ -63,10 +66,22 @@ export async function publish(files) {
     needs: source.needs ?? [],
   });
   /** @type {OwnedRealm} */
-  const realm = { address, name: source.name, keys, manifest };
-  await store.put("realm:" + address, realm);
+  const realm = { address, name: source.name, keys, secret, manifest };
   await announce(realm);
+  await store.put("realm:" + address, realm);
   return realm;
+}
+
+/**
+ * Store one file on the server under its hash.
+ * @param {string} name @param {Uint8Array<ArrayBuffer>} bytes
+ * @returns {Promise<string>} the hash
+ */
+export async function upload(name, bytes) {
+  const hash = await hashOf(bytes);
+  const response = await fetch(`/blob/${hash}`, { method: "PUT", body: bytes });
+  if (!response.ok) throw new Error(`Upload of ${name} failed: ${(await response.json()).error}`);
+  return hash;
 }
 
 /** Announce (or renew) a realm this device owns. @param {OwnedRealm} realm */

@@ -15,8 +15,8 @@ import { fromBase32, toBase32, utf8 } from "./encoding.js";
 const ED25519 = { name: "Ed25519" };
 
 /**
- * Make a new key pair. By default the private key cannot be exported, so it
- * stays on this device (the "a key pair lives on exactly one device" rule).
+ * Make a new key pair with no saved secret: it cannot be exported, so it lasts
+ * only as long as this copy does. Objects meant to last use newPortableKey.
  * @param {boolean} [extractable]
  * @returns {Promise<CryptoKeyPair>}
  */
@@ -27,9 +27,30 @@ export async function generateKeyPair(extractable = false) {
 }
 
 /**
- * Rebuild a key pair from a 32-byte Ed25519 seed (the raw private key). Used
- * for test vectors; ordinary keys are made with generateKeyPair and never leave
- * their device.
+ * Make a new portable key: a 32-byte secret (as base32 text) and its key pair.
+ * Whoever holds the secret is the object, on any device ("the key is the
+ * object, wherever it is"), so it is kept, saved and loaded like a password.
+ * @returns {Promise<{ secret: string, keys: CryptoKeyPair }>}
+ */
+export async function newPortableKey() {
+  const seed = crypto.getRandomValues(new Uint8Array(32));
+  return { secret: toBase32(seed), keys: await keyPairFromSeed(seed) };
+}
+
+/**
+ * Rebuild a key pair from a secret made by newPortableKey.
+ * @param {unknown} secret
+ * @returns {Promise<CryptoKeyPair>}
+ */
+export function keyPairFromSecret(secret) {
+  if (typeof secret !== "string" || !/^[a-z2-7]{52}$/.test(secret) || !canonicalBase32(secret)) {
+    throw new Error("not a key secret");
+  }
+  return keyPairFromSeed(fromBase32(secret));
+}
+
+/**
+ * Rebuild a key pair from a 32-byte Ed25519 seed (the raw private key).
  * @param {Uint8Array<ArrayBuffer>} seed
  * @returns {Promise<CryptoKeyPair>}
  */
