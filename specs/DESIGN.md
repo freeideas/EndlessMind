@@ -84,11 +84,27 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 
 1. **The realm is the referee inside the realm.** Its rules run on the referee's device. A sword-fighting realm keeps its own damage count for each visitor; visitors send only moves, which the rules judge. The realm's authority ends at its border.
 2. **What happens after leaving belongs to the player.** A realm can throw you out, but it cannot reach your device or change your character.
-3. **Nothing crosses realms.** Each realm keeps its own records, and a player has a different address in each realm, so one realm cannot look a player up in another. The views a realm sends are signed, but nothing yet lets a player carry a signed record elsewhere.
+3. **Nothing crosses realms.** Each realm keeps its own records, including each player's standing (see "Reputation is earned"), and a player has a different address in each realm, so one realm cannot look a player up in another. The views a realm sends are signed, but nothing yet lets a player carry a signed record elsewhere.
 
 **The official state wins.** The referee keeps the full state and sends each player their view after each tick. The referee is wherever the realm's key is: a creator's browser tab, or the host program on any machine. Its connection carries everything, so a home connection handles tens of players, not hundreds.
 
 **Hidden information.** Anything sent to a player's app counts as seen by that player, whatever renderer they use. The referee sends each player only their share (no enemies behind walls, no other hands of cards), so no renderer can show it. Sessions are private: the visitor and the referee agree on a key that no relay can work out, and every move and view is locked with it, so a relay's operator carries hidden cards without being able to read them. Known limits: the relay still sees who talks to whom and when, the character description sent on entry is in the clear, and an app or referee that does not offer a key (another implementation, or a browser too old for it) gets a session in the clear.
+
+## Reputation is earned
+
+Anyone can make a new key in a moment, so a punishment that follows a key can be shed by dropping the key. A ban alone therefore costs a troublemaker nothing. What works is the other direction: a new key starts with less than an old one, so a ban costs whatever the player had built up. Nothing can punish a fresh key, but a realm can withhold what a fresh key has not yet earned.
+
+- **Recognition cannot be faked.** Every message is signed, and a signature can be made only with the private half of a key. A realm that sees an address again knows it is dealing with whoever held that key before. That is the foundation everything here stands on.
+- **What recognition does not prove.** It shows the same key, not the same person: a key can be copied, shared, sold or stolen, and whoever holds it inherits its standing, good and bad. A player can prove they have been seen before, but nobody can prove they are new, because anyone can hold many keys.
+- **Standing is kept by each realm, against the address it sees.** A player has the same address every time they return to a realm, so the realm's rules can record time played, things made, and trouble caused, and decide from that what the player may do. This is ordinary realm state, like who has which sword, and the platform plays no part.
+- **Newcomers start small.** A realm that cares can let a new address look before it may build, or move before it may speak, and widen that with time. Misbehaving then costs hours of earned standing, not the seconds it takes to make a key.
+- **Vouching.** A realm can ask newcomers for an invitation from a member, and remember who invited whom. A member whose guests cause trouble puts their own standing at risk, and the realm can remove a whole branch.
+- **Bans and leaving.** A realm's rules can refuse an address at the door or end its visit (`enter` and `remove` in [RUNTIME.md](RUNTIME.md)). A player can leave a realm and never open it again. Both are final only as far as the other side values what it would lose by starting over, which is why standing comes first.
+- **No shared blacklist.** A player has a different address in every realm on purpose, so one realm cannot name a player to another, and there is no list of banned players that anyone could capture or abuse. Realms, by contrast, have one address for everyone, so players can tell each other which realms to avoid.
+- **One secret, many standings.** All of a player's addresses come from one secret. The more realms a player has standing in, the more that secret is worth keeping, and the less attractive it is to throw it away to dodge a ban in one of them.
+- **What reputation cannot do.** It does not stop a determined person. It makes misbehaving cost more than it gains, which is all reputation has ever done anywhere.
+
+Not built yet: a way for a player to show one realm their standing in another, by choice. A realm would sign a short statement about a player's address, and the player's app would prove to the second realm that it holds that address, revealing that one link and nothing more. Also not built: a list in the app of realms the player never wants to open again, by address and by the hash of their files (so a realm that only changes its key is still recognized).
 
 ## Keys in practice
 

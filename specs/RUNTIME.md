@@ -131,6 +131,41 @@ Every message is signed and checked against the expected sender and receiver. Re
 
 **Private sessions.** `emind.enter` may carry `key`, the visitor's one-visit X25519 public key written as `x25519-` and 52 base32 characters. A referee that understands it answers with its own one-visit `key` in `emind.welcome`. Both sides then derive the same secret (X25519, then HKDF-SHA-256 with salt `emind-session` and info the referee's address, the visitor's address and the session ID, one per line) and use it as an AES-256-GCM key. From then on `emind.act` carries `box` in place of `action`, and `emind.state` carries `box` in place of `view`: the JSON text of an object holding the fields that would otherwise sit in the clear (`{ action }` or `{ view }`), locked, as base64. A referee sends nothing in a session before its welcome. The 12-byte number used once for each box is one byte for the direction (1 toward the realm, 2 toward the visitor), three zero bytes, then `seq` as 8 bytes, most significant first. In a private session only boxes count; a clear `action` or `view` is ignored. Because the two keys travel inside signed messages, a relay cannot swap them. Without `key` on either side the session is in the clear, as before. Session IDs distinguish running copies; they do not establish a worldwide winner between two holders of the same realm key. This draft session extension replaces the earlier unscoped messages. Update both visitors and referees together; keys and source modules remain usable.
 
+## Standing, bans and invitations
+
+Anyone can make a new key, so banning an address stops only players who have something to lose by starting over. Give them something: let standing grow with time, and let what a player may do depend on it (see "Reputation is earned" in [DESIGN.md](DESIGN.md)). The `player` address is the same each time a player returns, and nobody else can use it, so it is safe to key records by it.
+
+```js
+let storage, remove;
+export default {
+  async init(options) {
+    ({ storage, remove } = options);
+    return { known: await storage.get("known") ?? {}, here: {}, saved: 0 };  // known: address -> { ticks, banned }
+  },
+  enter(state, player, character) {
+    const record = state.known[player] ??= { ticks: 0, banned: false };
+    if (record.banned) return "You are not welcome here.";
+    state.here[player] = true;
+    return true;
+  },
+  act(state, player, action) {
+    const trusted = state.known[player].ticks > 600;        // a minute at 10 ticks a second
+    if (action.build && !trusted) return;                   // newcomers may look and move, not yet build
+    // ... the realm's own moves; on serious trouble:
+    // state.known[player].banned = true; remove(player, "Banned for griefing.");
+  },
+  leave(state, player) { delete state.here[player]; },
+  tick(state) {
+    for (const player in state.here) state.known[player].ticks++;
+    if (++state.saved % 300 === 0) storage.put("known", state.known).catch(console.error);
+  },
+  view(state, player) { return { canBuild: state.known[player].ticks > 600 }; },
+};
+```
+
+- **Invitations** work the same way: a trusted player's move asks for a code, the rules keep it in the state with that player's address, and `enter` lets a newcomer in only with an unused code (sent in the character description). The rules then know who vouched for whom.
+- **Standing needs a lasting realm.** Played alone or in a room, saved data does not last, and each room starts fresh. Rules that set `repeatable` cannot use `storage`; such a realm keeps standing only for as long as its referee runs.
+
 ## Saving data
 
 For example, rules can restore a counter during initialization and save it after an action. The realm chooses how overlapping actions are handled:
