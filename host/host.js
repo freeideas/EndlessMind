@@ -62,7 +62,11 @@ export async function startHost(options) {
       hashes[name] = await hashOf(files[name]);
     }
     const body = manifestBody(source, hashes);
-    const saved = keyFile.realms.find((r) => options.address ? r.address === options.address : r.name === body.name);
+    // A key file made for one folder holds one realm, whatever the realm is called now: renaming must not
+    // change its address. Only a file holding several realms is searched by name.
+    const saved = options.address
+      ? keyFile.realms.find((r) => r.address === options.address)
+      : keyFile.realms.length === 1 ? keyFile.realms[0] : keyFile.realms.find((r) => r.name === body.name);
     if (options.address && !saved) throw new Error(`The key file holds no realm with the address ${options.address}.`);
     const secret = saved?.secret ?? (await newPortableKey()).secret;
     keys = await keyPairFromSecret(secret);
@@ -87,17 +91,25 @@ export async function startHost(options) {
   const body = /** @type {import("../shared/announce.js").ManifestBody} */ (manifest.body);
   for (const [name, hash] of Object.entries(body.files)) {
     if (!files[name] || await hashOf(files[name]) !== hash) throw new Error(`Missing or changed file: ${name}`);
+  }
+  /** @param {unknown} note */
+  async function post(note) {
+    const reply = await fetch(new URL("/announce", server), { method: "POST", body: JSON.stringify(note) });
+    if (!reply.ok) throw new Error(`Announcing failed: ${(await reply.json()).error}`);
+    await reply.body?.cancel();
+  }
+  async function announce() {
+    await post(await makeAnnouncement(keys, manifest));
+    // With public rules the release also stands without the key: anyone can play their own copy.
+    if (body.main) await post(body);
+  }
+  // A server takes only files that an announced realm lists, so announce first.
+  await announce();
+  for (const [name, hash] of Object.entries(body.files)) {
     const reply = await fetch(new URL(`/blob/${hash}`, server), { method: "PUT", body: files[name] });
     if (!reply.ok) throw new Error(`Upload of ${name} failed: ${(await reply.json()).error}`);
     await reply.body?.cancel();
   }
-  async function announce() {
-    const announcement = await makeAnnouncement(keys, manifest);
-    const reply = await fetch(new URL("/announce", server), { method: "POST", body: JSON.stringify(announcement) });
-    if (!reply.ok) throw new Error(`Announcing failed: ${(await reply.json()).error}`);
-    await reply.body?.cancel();
-  }
-  await announce();
 
   const entry = keyFile.realms.find(r => r.address === address)?.entry;
   const storage = await fileStorage(`${options.keysFile}.${address}.state.json`, entry?.storage);

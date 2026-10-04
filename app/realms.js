@@ -56,21 +56,33 @@ export async function publish(files, server = location.origin) {
 
 /** @param {OwnedRealm} realm @param {string} [server] */
 export async function publishOwned(realm, server = location.origin) {
+  const body = /** @type {import("../shared/announce.js").ManifestBody} */ (realm.manifest.body);
   // Older records may still need one retrieval. Persist each recovered file.
-  for (
-    const [name, hash] of Object.entries(
-      /** @type {import("../shared/announce.js").ManifestBody} */ (realm.manifest.body).files,
-    )
-  ) {
+  for (const [name, hash] of Object.entries(body.files)) {
     if (!realm.files?.[name]) {
       realm.files = { ...realm.files, [name]: await fetchBytes(hash, server) };
       await store.put("realm:" + realm.address, realm);
     }
-    if (await upload(name, realm.files[name], server) !== hash) {
+  }
+  // A server takes only files that an announced realm lists, so announce first.
+  await announce(realm, server);
+  for (const [name, hash] of Object.entries(body.files)) {
+    if (await upload(name, /** @type {NonNullable<typeof realm.files>} */ (realm.files)[name], server) !== hash) {
       throw new Error(`Changed local file: ${name}`);
     }
   }
-  await announce(realm, server);
+  // With public rules the release also stands without the key: anyone can play their own copy.
+  if (body.main) await postRelease(body, server);
+}
+
+/**
+ * Post a release with no key: the manifest body, named by its hash. Posting it
+ * again renews it, so a release stays while people use it.
+ * @param {import("../shared/announce.js").ManifestBody} body @param {string} [server]
+ */
+export async function postRelease(body, server = location.origin) {
+  const response = await fetch(new URL("/announce", server), { method: "POST", body: JSON.stringify(body) });
+  if (!response.ok) throw new Error(`Posting the release failed: ${(await response.json()).error}`);
 }
 
 /** @param {string} name @param {Uint8Array<ArrayBuffer>} bytes @param {string} [server] */

@@ -81,7 +81,12 @@ export async function visit({ server, address, keys, release, character, onView,
     signal?.throwIfAborted();
     relay.addEventListener("message", message);
     relay.addEventListener("replaced", replaced);
-    status("Waiting for the realm's referee...");
+    const minutes = Math.round(Math.abs(relay.clockOff) / 60_000);
+    status(
+      minutes >= 5
+        ? `This device's clock is about ${minutes} minutes off. Realms ignore messages stamped more than 10 minutes off, so set the clock automatically.`
+        : "Waiting for the realm's referee...",
+    );
     await enter();
     if (!stopped) {
       timer = setInterval(() => {

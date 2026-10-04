@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { startServer } from "../server/server.js";
-import { makeAnnouncement, makeManifest } from "../shared/announce.js";
+import { makeAnnouncement, makeManifest, releaseOfBody } from "../shared/announce.js";
 import { addressOf, generateKeyPair, hashOf, sign } from "../shared/crypto.js";
 import { seal } from "../shared/envelope.js";
 
@@ -41,16 +41,97 @@ async function connect(base, keys) {
   return { socket, next, close: () => socket.close() };
 }
 
-Deno.test("blobs are stored only under their true hash", () =>
+/** Announce a realm listing these files, so the server will take them. @param {string} base @param {Record<string, string>} files */
+async function announceFiles(base, files, expires = 0) {
+  const realm = await generateKeyPair();
+  const manifest = await makeManifest(realm, { name: "Files", tags: [], files, needs: [] });
+  const note = expires
+    ? await seal(realm, null, "announce", { manifest, name: "Files", tags: [], expires })
+    : await makeAnnouncement(realm, manifest);
+  const reply = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify(note) });
+  assertEquals(reply.status, 200);
+  await reply.body?.cancel();
+}
+
+Deno.test("blobs are stored only under their true hash, and only while a realm lists them", () =>
   withServer(async (base) => {
     const data = new TextEncoder().encode("export default {}");
     const hash = await hashOf(data);
+    const unlisted = await fetch(`${base}/blob/${hash}`, { method: "PUT", body: data });
+    assertEquals(unlisted.status, 403, "a file no announced realm lists is not taken");
+    await unlisted.body?.cancel();
+    await announceFiles(base, { "rules.js": hash }, Date.now() + 300);
     assertEquals((await fetch(`${base}/blob/${hash}`, { method: "PUT", body: data })).status, 200);
     assertEquals(new TextDecoder().decode(await (await fetch(`${base}/blob/${hash}`)).arrayBuffer()), "export default {}");
     const wrong = await fetch(`${base}/blob/${await hashOf("other")}`, { method: "PUT", body: data });
     assertEquals(wrong.status, 400);
     await wrong.body?.cancel();
+
+    // When the announcement expires, the next sweep deletes the file.
+    await new Promise((r) => setTimeout(r, 350));
+    await announceFiles(base, {});
+    await new Promise((r) => setTimeout(r, 50));
+    const gone = await fetch(`${base}/blob/${hash}`);
+    assertEquals(gone.status, 404);
+    await gone.body?.cancel();
   }));
+
+Deno.test("a release with no key is kept under its hash, listed, and may bring its files", () =>
+  withServer(async (base) => {
+    const rules = new TextEncoder().encode("export default {}");
+    const body = { name: "Solo", tags: ["alone"], files: { "r.js": await hashOf(rules) }, main: "r.js", renderer: "r.js", needs: [] };
+    const posted = await (await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify(body) })).json();
+    assertEquals(posted.release, await releaseOfBody(body));
+    assertEquals(await releaseOfBody(await (await fetch(`${base}/blob/${posted.release}`)).json()), posted.release);
+    assertEquals((await fetch(`${base}/blob/${body.files["r.js"]}`, { method: "PUT", body: rules })).status, 200);
+    const list = await (await fetch(`${base}/announce?tag=alone`)).json();
+    assertEquals(list.realms.map((/** @type {any} */ r) => [r.address, r.online]), [[posted.release, true]]);
+    const secret = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify({ ...body, main: undefined }) });
+    assertEquals(secret.status, 400, "a release nobody can run is refused");
+    await secret.body?.cancel();
+  }));
+
+Deno.test("a claim passed on through another server is refused, and a flood does not disconnect its target", async () => {
+  const dataDir = await Deno.makeTempDir();
+  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir, bytesPerSecond: 600_000 });
+  // A dishonest server in the middle: it forwards every byte to the honest one.
+  const middle = Deno.listen({ port: 0, hostname: "127.0.0.1" });
+  (async () => {
+    for await (const c of middle) {
+      const up = await Deno.connect({ port: s.port, hostname: "127.0.0.1" });
+      c.readable.pipeTo(up.writable).catch(() => {});
+      up.readable.pipeTo(c.writable).catch(() => {});
+    }
+  })();
+  try {
+    const { Relay } = await import("../shared/relay.js");
+    const victim = new Relay(`ws://127.0.0.1:${/** @type {Deno.NetAddr} */ (middle.addr).port}/ws`);
+    await victim.connect();
+    let refused = "";
+    await victim.addKey(await generateKeyPair()).catch((e) => refused = String(e));
+    assert(refused.includes("--origin"), "the honest server must not accept a claim made under another name");
+    victim.close();
+
+    const a = await generateKeyPair(), b = await generateKeyPair();
+    const base = `http://127.0.0.1:${s.port}`;
+    const flooder = await connect(base, a), target = await connect(base, b);
+    const big = JSON.stringify({ type: "send", envelope: await seal(a, await addressOf(b.publicKey), "x.flood", "x".repeat(200_000)) });
+    for (let i = 0; i < 20; i++) flooder.socket.send(big);
+    /** @type {string[]} */
+    const seen = [];
+    for (let m = await flooder.next(); m.type !== "error"; m = await flooder.next()) seen.push(m.type);
+    await new Promise((r) => setTimeout(r, 100));
+    assertEquals(target.socket.readyState, WebSocket.OPEN, "the receiver stays connected");
+    assertEquals(flooder.socket.readyState, WebSocket.OPEN);
+    flooder.close();
+    target.close();
+    await new Promise((r) => setTimeout(r, 50));
+  } finally {
+    middle.close();
+    await s.shutdown();
+    await Deno.remove(dataDir, { recursive: true });
+  }
+});
 
 Deno.test("announcements are checked, listed by tag, and show who is online", () =>
   withServer(async (base) => {
@@ -184,6 +265,7 @@ Deno.test("server file quota is cumulative, deduplicated, and available to anoth
   const base = `http://127.0.0.1:${server.port}`;
   try {
     const hash = await hashOf("1234");
+    await announceFiles(base, { a: hash, b: await hashOf("5") });
     for (let i = 0; i < 2; i++) {
       const reply = await fetch(`${base}/blob/${hash}`, {method:"PUT",body:"1234",headers:{origin:"https://another-app.example"}});
       assertEquals(reply.status, 200);

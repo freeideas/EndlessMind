@@ -27,6 +27,8 @@ export class Relay extends EventTarget {
     this.reconnectTimer = undefined;
     /** Messages leave in the order send() was called. @type {Promise<unknown>} */
     this.sending = Promise.resolve();
+    /** How far the server's clock is ahead of this device's, in milliseconds, once connected. */
+    this.clockOff = 0;
     /** Messages are handled in the order they arrive. @type {Promise<unknown>} */
     this.receiving = Promise.resolve();
   }
@@ -132,7 +134,9 @@ export class Relay extends EventTarget {
   async #onMessage(text) {
     const msg = /** @type {any} */ (parseStrictJson(text));
     if (!msg || typeof msg !== "object") return;
-    if (msg.type === "challenge") {
+    if (msg.type === "welcome" && typeof msg.time === "number") {
+      this.clockOff = msg.time - Date.now();
+    } else if (msg.type === "challenge") {
       const keyPair = this.keys.get(msg.address);
       if (!keyPair) return;
       const sig = await sign(keyPair.privateKey, "claim", `${new URL(this.url).host}\n${msg.nonce}`);
@@ -143,6 +147,8 @@ export class Relay extends EventTarget {
     } else if (msg.type === "error" && msg.address) {
       this.pendingClaims.get(msg.address)?.fail(new Error(msg.error));
       this.pendingClaims.delete(msg.address);
+    } else if (msg.type === "error") {
+      console.warn("The helper server refused a message:", msg.error);
     } else if (msg.type === "replaced") {
       // Another holder of this key claimed it after us: the most recent claim wins.
       if (this.keys.delete(msg.address)) this.dispatchEvent(new CustomEvent("replaced", { detail: msg.address }));

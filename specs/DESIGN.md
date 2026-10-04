@@ -136,9 +136,10 @@ The browser app is one app among any number. A realm's referee and its visitors 
 
 Simple enough that anyone can clone this repository and run their own server with one command.
 
-- **What it does:** keeps signed announcements and answers tag searches, says who is online, stores files by hash, relays signed messages between connections that have proved their keys, and serves the app page. One server is all a group of friends needs.
+- **What it does:** keeps signed announcements and key-free releases and answers tag searches, says who is online, stores the files those list by hash, relays signed messages between connections that have proved their keys, and serves the app page. One server is all a group of friends needs.
 - **What it cannot do:** forge anything it stores or relays, since everything is signed by the key that wrote it or named by its hash. It holds no realm state and makes no rules. It can still refuse to serve, hand out an older announcement, or say a realm is offline. A bad or dead server is one you stop using.
 - **What it can do:** read what passes through its relay (messages are signed, not encrypted to the receiver), and, if it serves the app page, take the keys that page holds. The server that serves the app is trusted like any software you run.
+- **Every cost belongs to someone.** A file is kept only while an announced realm or a release lists it, and goes when none does, so the store cannot fill with files nobody answers for. A sender pays for its own traffic: over the limit, its messages are dropped. A receiver is never disconnected for being flooded.
 - **Size target:** a few hundred lines. Growing past that is a sign realm rules are leaking in.
 
 ## Safety and law

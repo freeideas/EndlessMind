@@ -129,6 +129,17 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     host.stop();
     await new Promise((r) => setTimeout(r, 50));
 
+    // Renaming the realm keeps its address: the key file belongs to the folder, not the name.
+    const renamed = `${dir}/renamed`;
+    await Deno.mkdir(renamed);
+    for (const name of ["rules.js", "renderer.js"]) await Deno.copyFile(`examples/maze-chase/${name}`, `${renamed}/${name}`);
+    const source = JSON.parse(await Deno.readTextFile("examples/maze-chase/realm.json"));
+    await Deno.writeTextFile(`${renamed}/realm.json`, JSON.stringify({ ...source, name: "Lantern Maze Two" }));
+    const again = await startHost({ server: base, realmDir: renamed, keysFile, log: () => {} });
+    assertEquals(again.address, host.address);
+    again.stop();
+    await new Promise((r) => setTimeout(r, 50));
+
     const moved = await startHost({ server: base, keysFile, log: () => {} });
     assertEquals(moved.address, host.address);
     visitor = await visit(base, moved.address);

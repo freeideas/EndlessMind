@@ -6,6 +6,9 @@
 
 import { hashOf, isHash } from "./crypto.js";
 import { canonicalJson } from "./encoding.js";
+
+/** Limits on a manifest, so one realm cannot crowd a server's lists (see specs/PROTOCOL.md). */
+export const MAX_NAME = 200, MAX_DESCRIPTION = 2000, MAX_FILES = 256;
 import { open, seal } from "./envelope.js";
 
 /**
@@ -54,6 +57,10 @@ import { open, seal } from "./envelope.js";
  */
 export function manifestBody(source, hashes) {
   if (!source || typeof source.name !== "string" || !source.name) throw new Error("realm.json must name the realm.");
+  if (source.name.length > MAX_NAME || (source.description ?? "").length > MAX_DESCRIPTION) {
+    throw new Error(`A realm's name may have at most ${MAX_NAME} characters and its description ${MAX_DESCRIPTION}.`);
+  }
+  if (Object.keys(hashes).length > MAX_FILES) throw new Error(`A realm may list at most ${MAX_FILES} files.`);
   const tags = source.tags ?? [];
   if (!isTagList(tags)) throw new Error("realm.json may list at most 32 tags, each 1 to 40 characters.");
   if (!source.main) throw new Error("realm.json must point to the realm's rules file (main).");
@@ -96,7 +103,12 @@ function isApp(app) {
  * @param {import("./envelope.js").Envelope} manifest
  */
 export function releaseOf(manifest) {
-  return hashOf(canonicalJson(manifest.body));
+  return releaseOfBody(manifest.body);
+}
+
+/** The release hash of a manifest body: the name of a realm that has no key. @param {unknown} body */
+export function releaseOfBody(body) {
+  return hashOf(canonicalJson(body));
 }
 
 /** One week: announcements expire unless renewed ("unused things fade away"). */
@@ -142,19 +154,30 @@ export async function checkAnnouncement(value) {
   if (!announcement || announcement.kind !== "announce" || announcement.to !== null) return null;
   const body = /** @type {AnnouncementBody} */ (announcement.body);
   if (!body || typeof body.expires !== "number" || body.expires < Date.now()) return null;
-  if (typeof body.name !== "string" || !isTagList(body.tags)) return null;
+  // A note may not outlive the usual lifetime (plus a day for clocks that differ).
+  if (body.expires > Date.now() + ANNOUNCEMENT_LIFETIME_MS + 24 * 60 * 60 * 1000) return null;
+  if (typeof body.name !== "string" || body.name.length > MAX_NAME || !isTagList(body.tags)) return null;
   const manifestEnv = await open(body.manifest);
   if (!manifestEnv || manifestEnv.kind !== "manifest" || manifestEnv.from !== announcement.from) {
     return null;
   }
-  const m = /** @type {ManifestBody} */ (manifestEnv.body);
-  if (!m || typeof m.name !== "string" || !isTagList(m.tags)) return null;
-  if (!Array.isArray(m.needs) || !m.needs.every((n) => typeof n === "string")) return null;
-  if (!m.files || typeof m.files !== "object") return null;
-  if (!Object.values(m.files).every(isHash)) return null;
+  if (!isManifestBody(manifestEnv.body)) return null;
+  return { announcement, manifest: manifestEnv.body };
+}
+
+/** @param {unknown} body @returns {body is ManifestBody} */
+export function isManifestBody(body) {
+  const m = /** @type {ManifestBody} */ (body);
+  if (!m || typeof m !== "object" || Array.isArray(m)) return false;
+  if (typeof m.name !== "string" || !m.name || m.name.length > MAX_NAME || !isTagList(m.tags)) return false;
+  if (m.description !== undefined && (typeof m.description !== "string" || m.description.length > MAX_DESCRIPTION)) return false;
+  if (!Array.isArray(m.needs) || !m.needs.every((n) => typeof n === "string")) return false;
+  if (!m.files || typeof m.files !== "object" || Array.isArray(m.files)) return false;
+  const names = Object.keys(m.files);
+  if (names.length > MAX_FILES || !names.every((n) => n.length > 0 && n.length <= MAX_NAME)) return false;
+  if (!Object.values(m.files).every(isHash)) return false;
   for (const name of [m.main, m.renderer]) {
-    if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return null;
+    if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return false;
   }
-  if (m.app !== undefined && !isApp(m.app)) return null;
-  return { announcement, manifest: m };
+  return m.app === undefined || isApp(m.app);
 }

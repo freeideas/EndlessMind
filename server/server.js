@@ -1,17 +1,18 @@
 // The Endless Mind helper server: a small program anyone can run.
 //
-// It serves the app's web page, keeps signed announcements, stores files by
-// hash, and relays signed messages between peers. It holds no game state and
-// makes no rules. Everything it keeps is signed or named by hash, so it cannot
-// forge anything. See specs/DESIGN.md
-// ("The server: a small program anyone can run").
+// It serves the app's web page, keeps signed announcements and key-free
+// releases, stores the files they list by hash, and relays signed messages
+// between peers. It holds no game state and makes no rules. Everything it
+// keeps is signed or named by hash, so it cannot forge anything. See
+// specs/DESIGN.md ("The server: a small program anyone can run").
 //
 // Usage: deno task start [--port 8000] [--hostname 0.0.0.0] [--data ./data]
 //                        [--cert cert.pem --key key.pem]
+//                        [--origin https://example.org[,https://other.example]]
 
-import { checkAnnouncement } from "../shared/announce.js";
+import { ANNOUNCEMENT_LIFETIME_MS, checkAnnouncement, isManifestBody, releaseOfBody } from "../shared/announce.js";
 import { hashOf, isAddress, isHash, verify } from "../shared/crypto.js";
-import { MAX_MESSAGE_BYTES, parseStrictJson } from "../shared/encoding.js";
+import { canonicalJson, MAX_MESSAGE_BYTES, parseStrictJson, utf8 } from "../shared/encoding.js";
 import { PROTOCOL_VERSION } from "../shared/envelope.js";
 
 const MAX_BLOB_BYTES = 2 * 1024 * 1024;
@@ -48,6 +49,9 @@ const CONTENT_TYPES = {
  * @property {number} [maxAnnouncements]
  * @property {number} [maxConnections]
  * @property {number} [messagesPerSecond]
+ * @property {number} [bytesPerSecond]
+ * @property {number} [maxRealmBytes]
+ * @property {string[]} [origins]  the addresses this server goes by, e.g. "https://example.org"
  */
 
 /** @param {ServerOptions} options */
@@ -62,6 +66,8 @@ export async function startServer(options = {}) {
     announcements: options.maxAnnouncements ?? 1000,
     connections: options.maxConnections ?? 256,
     messages: options.messagesPerSecond ?? 1000,
+    traffic: options.bytesPerSecond ?? 4 * 1024 * 1024,
+    realmBytes: options.maxRealmBytes ?? 32 * 1024 * 1024,
   };
   const sockets = new Set();
   const blobs = new Map();
@@ -76,13 +82,86 @@ export async function startServer(options = {}) {
 
   /** Latest announcement per realm address. @type {Map<string, any>} */
   const announcements = new Map();
+  /** The release each announcement names. @type {Map<string, string>} */
+  const announced = new Map();
+  /**
+   * Realms with no key: a manifest body, named by its hash. Anyone may post
+   * one, and posting it again renews it. @type {Map<string, { body: any, expires: number }>}
+   */
+  const releases = new Map();
   try {
     const saved = JSON.parse(await Deno.readTextFile(announcementsFile));
-    for (const value of saved) {
+    for (const value of Array.isArray(saved) ? saved : saved.announcements ?? []) {
       const checked = await checkAnnouncement(value);
-      if (checked) announcements.set(checked.announcement.from, checked.announcement);
+      if (!checked) continue;
+      announcements.set(checked.announcement.from, checked.announcement);
+      announced.set(checked.announcement.from, await releaseOfBody(checked.manifest));
+    }
+    for (const r of saved.releases ?? []) {
+      if (isManifestBody(r?.body) && r.expires > Date.now()) releases.set(await releaseOfBody(r.body), r);
     }
   } catch { /* first run, or unreadable file: start empty */ }
+
+  /** The file lists of everything still wanted here: announced realms and key-free releases. */
+  function* roots() {
+    const now = Date.now();
+    for (const a of announcements.values()) if (a.body.expires >= now) yield a.body.manifest.body.files;
+    for (const r of releases.values()) if (r.expires >= now) yield r.body.files;
+  }
+
+  /**
+   * A file is kept only while something wanted lists it, and each realm has a
+   * size budget, so every stored byte belongs to a realm someone answers for.
+   * @param {string} hash @param {number} size
+   */
+  function mayStore(hash, size) {
+    if (releases.has(hash)) return true;
+    for (const files of roots()) {
+      const listed = new Set(Object.values(files));
+      if (!listed.has(hash)) continue;
+      let used = size;
+      for (const h of listed) used += blobs.get(h) ?? 0;
+      if (used <= limits.realmBytes) return true;
+    }
+    return false;
+  }
+
+  /** Forget what has expired, and delete files nothing lists any more. */
+  function sweep() {
+    const now = Date.now();
+    for (const [address, a] of announcements) {
+      if (a.body.expires < now) { announcements.delete(address); announced.delete(address); }
+    }
+    for (const [hash, r] of releases) if (r.expires < now) releases.delete(hash);
+    const keep = new Set(releases.keys());
+    for (const files of roots()) for (const h of Object.values(files)) keep.add(h);
+    blobWriting = blobWriting.then(async () => {
+      for (const [hash, size] of blobs) {
+        if (keep.has(hash)) continue;
+        await Deno.remove(`${blobDir}/${hash}`).catch(() => {});
+        blobs.delete(hash); storedBytes -= size;
+      }
+    }).catch(() => {});
+  }
+  const sweeper = setInterval(sweep, 60 * 60 * 1000);
+
+  /** @param {string} hash @param {Uint8Array<ArrayBuffer>} bytes @returns {Promise<boolean>} false when a quota is full */
+  async function storeBlob(hash, bytes) {
+    let accepted = false;
+    const write = blobWriting.then(async () => {
+      if (blobs.has(hash)) { accepted = true; return; }
+      if (storedBytes + bytes.length > limits.bytes || blobs.size >= limits.files) return;
+      const path = `${blobDir}/${hash}`, temp = path + ".tmp";
+      try {
+        await Deno.writeFile(temp, bytes);
+        await Deno.rename(temp, path);
+      } finally { await Deno.remove(temp).catch(() => {}); }
+      blobs.set(hash, bytes.length); storedBytes += bytes.length; accepted = true;
+    });
+    blobWriting = write.catch(() => {});
+    await write;
+    return accepted;
+  }
 
   let saving = Promise.resolve(), dirty = false, writing = false;
   function saveAnnouncements() {
@@ -92,7 +171,7 @@ export async function startServer(options = {}) {
       saving = (async () => {
         while (dirty) {
           dirty = false;
-          await Deno.writeTextFile(announcementsFile + ".tmp", JSON.stringify([...announcements.values()]));
+          await Deno.writeTextFile(announcementsFile + ".tmp", JSON.stringify({ announcements: [...announcements.values()], releases: [...releases.values()] }));
           await Deno.rename(announcementsFile + ".tmp", announcementsFile);
         }
       })().finally(() => writing = false);
@@ -113,10 +192,37 @@ export async function startServer(options = {}) {
     return claims.has(address);
   }
 
-  /** @param {WebSocket} socket @param {unknown} message */
+  /**
+   * A receiver that cannot keep up misses messages; it is never disconnected
+   * for it, or anyone could knock a realm offline by flooding it.
+   * @param {WebSocket} socket @param {unknown} message @returns {boolean} false if not sent
+   */
   function sendTo(socket, message) {
-    if (socket.bufferedAmount > 2 * MAX_BLOB_BYTES) { socket.close(1008, "Receiver too slow"); return; }
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    if (socket.readyState !== WebSocket.OPEN || socket.bufferedAmount > 2 * MAX_BLOB_BYTES) return false;
+    socket.send(JSON.stringify(message));
+    return true;
+  }
+
+  /**
+   * The names this server goes by, as clients write them ("example.org:8000").
+   * A claim must be signed for one of them, so the server cannot take its name
+   * from the request: a dishonest server could then pass a player's claim on.
+   * @type {Set<string> | undefined}
+   */
+  let names;
+  /** @param {string} host */
+  function isMyName(host) {
+    if (!names) {
+      const port = /** @type {Deno.NetAddr} */ (server.addr).port;
+      names = new Set((options.origins ?? []).map((o) => new URL(o.includes("://") ? o : `http://${o}`).host));
+      const local = ["localhost", "127.0.0.1", "[::1]"];
+      if (options.hostname && options.hostname !== "0.0.0.0") local.push(options.hostname);
+      try {
+        for (const nic of Deno.networkInterfaces()) if (nic.family === "IPv4") local.push(nic.address);
+      } catch { /* not allowed to look: local names only */ }
+      for (const name of local) names.add(`${name}:${port}`);
+    }
+    return names.has(host);
   }
 
   /**
@@ -125,18 +231,24 @@ export async function startServer(options = {}) {
    */
   function handleSocket(socket, host) {
     sockets.add(socket);
-    let windowStart = Date.now(), messages = 0;
+    let windowStart = Date.now(), messages = 0, bytes = 0;
     /** Addresses this socket has proved. @type {Set<string>} */
     const mine = new Set();
     /** Challenges sent, by address. @type {Map<string, string>} */
     const challenges = new Map();
 
-    socket.onopen = () => sendTo(socket, { type: "welcome", versions: [PROTOCOL_VERSION] });
+    socket.onopen = () => sendTo(socket, { type: "welcome", versions: [PROTOCOL_VERSION], time: Date.now() });
 
     socket.onmessage = async (event) => {
-      if (Date.now() - windowStart >= 1000) { windowStart = Date.now(); messages = 0; }
-      if (++messages > limits.messages) { socket.close(1008, "Traffic limit"); return; }
-      if (typeof event.data !== "string" || event.data.length > MAX_MESSAGE_BYTES) return;
+      if (Date.now() - windowStart >= 1000) { windowStart = Date.now(); messages = 0; bytes = 0; }
+      const size = typeof event.data === "string" ? event.data.length : MAX_MESSAGE_BYTES;
+      const over = messages >= limits.messages || bytes + size > limits.traffic;
+      messages++; bytes += size;
+      if (over || typeof event.data !== "string" || size > MAX_MESSAGE_BYTES) {
+        // The sender pays for its own traffic: the message is dropped and it is told.
+        if (messages <= limits.messages + 1) sendTo(socket, { type: "error", error: over ? "traffic limit" : "message too large" });
+        return;
+      }
       const msg = /** @type {any} */ (parseStrictJson(event.data));
       if (!msg || typeof msg !== "object") return;
 
@@ -145,6 +257,12 @@ export async function startServer(options = {}) {
       // dishonest server cannot pass the signature on to claim the address
       // elsewhere. Then messages for that address come here.
       if (msg.type === "claim" && isAddress(msg.address)) {
+        if (!isMyName(host)) {
+          const error = `This server does not go by the name ${host}. Its operator must start it with --origin ${host}.`;
+          console.warn(error);
+          sendTo(socket, { type: "error", error, address: msg.address });
+          return;
+        }
         if (challenges.size + mine.size >= 64) { socket.close(1008, "Address limit"); return; }
         const nonce = crypto.randomUUID();
         challenges.set(msg.address, nonce);
@@ -175,11 +293,9 @@ export async function startServer(options = {}) {
           return;
         }
         const target = claims.get(env.to);
-        if (!target) {
+        if (!target || !sendTo(target, { type: "deliver", envelope: env })) {
           sendTo(socket, { type: "undeliverable", to: env.to, ref: msg.ref });
-          return;
         }
-        sendTo(target, { type: "deliver", envelope: env });
       }
     };
 
@@ -200,15 +316,31 @@ export async function startServer(options = {}) {
       const text = new TextDecoder().decode(body);
       const value = parseStrictJson(text);
       if (value === undefined) return json({ error: "not acceptable JSON" }, 400);
+      sweep();
+      const full = announcements.size + releases.size >= limits.announcements;
+      if (isManifestBody(value) && !("sig" in value)) {
+        // A key-free release: the manifest body itself, kept as a file under its hash.
+        if (!value.main) return json({ error: "a release without a key needs public rules (main)" }, 400);
+        const bytes = utf8(canonicalJson(value)), release = await hashOf(bytes);
+        if (!releases.has(release) && full) return json({ error: "Announcement quota reached" }, 507);
+        releases.set(release, { body: value, expires: Date.now() + ANNOUNCEMENT_LIFETIME_MS });
+        if (!await storeBlob(release, bytes)) {
+          releases.delete(release);
+          return json({ error: "File storage quota reached" }, 507);
+        }
+        await saveAnnouncements();
+        return json({ ok: true, release });
+      }
       const checked = await checkAnnouncement(value);
       if (!checked) return json({ error: "invalid announcement" }, 400);
-      const existing = announcements.get(checked.announcement.from);
+      const from = checked.announcement.from, existing = announcements.get(from);
       if (existing && existing.time > checked.announcement.time) {
         return json({ error: "older than the one kept" }, 409);
       }
-      for (const [address, a] of announcements) if (a.body.expires < Date.now()) announcements.delete(address);
-      if (!announcements.has(checked.announcement.from) && announcements.size >= limits.announcements) return json({error:"Announcement quota reached"}, 507);
-      announcements.set(checked.announcement.from, checked.announcement);
+      if (!existing && full) return json({ error: "Announcement quota reached" }, 507);
+      announcements.set(from, checked.announcement);
+      announced.set(from, await releaseOfBody(checked.manifest));
+      sweep();
       await saveAnnouncements();
       return json({ ok: true });
     }
@@ -222,10 +354,15 @@ export async function startServer(options = {}) {
     }
     // Listing, optionally by tag. Realms with a referee online come first.
     const tag = url.searchParams.get("tag")?.toLowerCase();
+    const named = new Set(announced.values());
     const list = [...announcements.values()]
       .filter((a) => a.body.expires >= now)
-      .filter((a) => !tag || a.body.tags.some((/** @type {string} */ t) => t.toLowerCase() === tag))
       .map((a) => ({ address: a.from, name: a.body.name, tags: a.body.tags, online: isOnline(a.from), time: a.time }))
+      // A key-free release needs no referee, so it always counts as online. One an announced realm names is listed once.
+      .concat([...releases].filter(([hash, r]) => r.expires >= now && !named.has(hash)).map(([hash, r]) => (
+        { address: hash, name: r.body.name, tags: r.body.tags, online: true, time: r.expires - ANNOUNCEMENT_LIFETIME_MS }
+      )))
+      .filter((r) => !tag || r.tags.some((/** @type {string} */ t) => t.toLowerCase() === tag))
       .sort((a, b) => Number(b.online) - Number(a.online) || b.time - a.time)
       .slice(0, 200);
     return json({ realms: list });
@@ -239,20 +376,10 @@ export async function startServer(options = {}) {
       const bytes = await readLimited(request, MAX_BLOB_BYTES);
       if (!bytes) return json({ error: "too large" }, 413);
       if ((await hashOf(bytes)) !== hash) return json({ error: "hash does not match" }, 400);
-      let accepted = false;
-      const write = blobWriting.then(async () => {
-        if (blobs.has(hash)) { accepted = true; return; }
-        if (storedBytes + bytes.length > limits.bytes || blobs.size >= limits.files) return;
-        const temp = path + ".tmp";
-        try {
-          await Deno.writeFile(temp, bytes);
-          await Deno.rename(temp, path);
-        } finally { await Deno.remove(temp).catch(() => {}); }
-        blobs.set(hash, bytes.length); storedBytes += bytes.length; accepted = true;
-      });
-      blobWriting = write.catch(() => {});
-      await write;
-      if (!accepted) return json({error:"File storage quota reached"}, 507);
+      if (!blobs.has(hash) && !mayStore(hash, bytes.length)) {
+        return json({ error: "No realm announced here lists this file, or its realm is over its size budget. Announce the realm first." }, 403);
+      }
+      if (!await storeBlob(hash, bytes)) return json({ error: "File storage quota reached" }, 507);
       return json({ ok: true });
     }
     try {
@@ -340,6 +467,7 @@ export async function startServer(options = {}) {
     server,
     port: /** @type {Deno.NetAddr} */ (server.addr).port,
     async shutdown() {
+      clearInterval(sweeper);
       for (const socket of sockets) socket.close();
       await server.shutdown();
       await saving;
@@ -404,6 +532,9 @@ if (import.meta.main) {
     maxAnnouncements: args["max-announcements"] ? Number(args["max-announcements"]) : undefined,
     maxConnections: args["max-connections"] ? Number(args["max-connections"]) : undefined,
     messagesPerSecond: args["messages-per-second"] ? Number(args["messages-per-second"]) : undefined,
+    bytesPerSecond: args["bytes-per-second"] ? Number(args["bytes-per-second"]) : undefined,
+    maxRealmBytes: args["max-realm-mb"] ? Number(args["max-realm-mb"]) * 1024 * 1024 : undefined,
+    origins: args.origin ? args.origin.split(",") : undefined,
     cert: tls ? await Deno.readTextFile(args.cert) : undefined,
     key: tls ? await Deno.readTextFile(args.key) : undefined,
     onListen() {
