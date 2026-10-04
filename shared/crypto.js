@@ -182,3 +182,71 @@ export async function hashOf(data) {
 export function isHash(hash) {
   return typeof hash === "string" && /^sha256-[a-z2-7]{52}$/.test(hash) && canonicalBase32(hash.slice(7));
 }
+
+// Private sessions. A visitor and a referee each make a one-visit X25519 key
+// pair and exchange the public halves inside their signed enter and welcome
+// messages. Both then hold the same secret, which no relay carrying the
+// messages can work out, and lock each move and view with it (AES-256-GCM).
+
+/**
+ * @returns {Promise<{ privateKey: CryptoKey, publicText: string } | null>} null where the browser lacks X25519
+ */
+export async function newExchangeKey() {
+  try {
+    const pair = /** @type {CryptoKeyPair} */ (await crypto.subtle.generateKey({ name: "X25519" }, false, ["deriveBits"]));
+    const raw = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+    return { privateKey: pair.privateKey, publicText: "x25519-" + toBase32(raw) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The key both sides arrive at.
+ * @param {CryptoKey} privateKey  this side's exchange key
+ * @param {unknown} peerText      the other side's public half ("x25519-...")
+ * @param {string} context        what the key is for: referee address, visitor address and session, one per line
+ * @returns {Promise<CryptoKey>}
+ */
+export async function sessionKey(privateKey, peerText, context) {
+  if (typeof peerText !== "string" || !/^x25519-[a-z2-7]{52}$/.test(peerText) || !canonicalBase32(peerText.slice(7))) {
+    throw new Error("not an x25519 key");
+  }
+  const peer = await crypto.subtle.importKey("raw", fromBase32(peerText.slice(7)), { name: "X25519" }, false, []);
+  const bits = await crypto.subtle.deriveBits({ name: "X25519", public: peer }, privateKey, 256);
+  const material = await crypto.subtle.importKey("raw", bits, "HKDF", false, ["deriveKey"]);
+  const params = { name: "HKDF", hash: "SHA-256", salt: utf8("emind-session"), info: utf8(context) };
+  return crypto.subtle.deriveKey(params, material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+
+/** Each message has its own number, so no number is used twice under one key. @param {number} direction @param {number} seq */
+function nonce(direction, seq) {
+  const bytes = new Uint8Array(12);
+  bytes[0] = direction;
+  new DataView(bytes.buffer).setBigUint64(4, BigInt(seq));
+  return bytes;
+}
+
+/** Direction numbers for lock and unlock: moves go to the realm, views to the visitor. */
+export const TO_REALM = 1, TO_VISITOR = 2;
+
+/**
+ * @param {CryptoKey} key @param {number} direction @param {number} seq @param {string} text
+ * @returns {Promise<string>} the locked text, as base64
+ */
+export async function lock(key, direction, seq, text) {
+  const locked = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce(direction, seq) }, key, utf8(text)));
+  let binary = "";
+  for (let i = 0; i < locked.length; i += 8192) binary += String.fromCharCode(...locked.subarray(i, i + 8192));
+  return btoa(binary);
+}
+
+/**
+ * @param {CryptoKey} key @param {number} direction @param {number} seq @param {unknown} box
+ * @returns {Promise<string>} the text; rejects if the box was changed, replayed under another number, or is not for this key
+ */
+export async function unlock(key, direction, seq, box) {
+  if (typeof box !== "string") throw new Error("not a locked message");
+  const locked = Uint8Array.from(atob(box), (ch) => ch.charCodeAt(0));
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(direction, seq) }, key, locked));
+}

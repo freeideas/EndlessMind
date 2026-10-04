@@ -1,6 +1,6 @@
 // A visit has one lifetime, one handshake and one ordered stream of views.
 import { randomId } from "./encoding.js";
-import { addressOf } from "./crypto.js";
+import { addressOf, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
 import { Relay } from "./relay.js";
 
 /** @param {string} server */
@@ -22,6 +22,12 @@ export async function visit(
   { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000 },
 ) {
   const me = await addressOf(keys.publicKey);
+  // Offered to the referee so the session can be private (see "Private sessions" in shared/crypto.js).
+  const exchange = await newExchangeKey();
+  /** @type {CryptoKey | undefined} */
+  let cipher;
+  /** Keeps arriving messages, and outgoing moves, each in their order while they are unlocked or locked. */
+  let incoming = Promise.resolve(), outgoing = Promise.resolve();
   let at = 0;
   /** @type {Relay | undefined} */
   let relay;
@@ -50,6 +56,7 @@ export async function visit(
     request = randomId();
     session = "";
     instance = "";
+    cipher = undefined;
     seq = 0;
     actionSeq = 0;
     lastHeard = Date.now();
@@ -66,17 +73,25 @@ export async function visit(
     else old?.close();
   }
   function enter() {
-    return send("emind.enter", { request, release, character });
+    return send("emind.enter", { request, release, character, ...(exchange ? { key: exchange.publicText } : {}) });
   }
   const message = (/** @type {Event} */ event) => {
-    const env = /** @type {CustomEvent} */ (event).detail;
+    incoming = incoming.then(() => handle(/** @type {CustomEvent} */ (event).detail)).catch(() => {});
+  };
+  /** @param {import("./envelope.js").Envelope} env */
+  async function handle(env) {
     if (stopped || env.from !== address || env.to !== me) return;
-    const b = env.body ?? {};
+    const b = /** @type {any} */ (env.body) ?? {};
     if (
       env.kind === "emind.welcome" && b.request === request && b.release === release &&
       typeof b.session === "string" && typeof b.instance === "string"
     ) {
       if (session && (session !== b.session || instance !== b.instance)) return;
+      if (!session && exchange && b.key !== undefined) {
+        const key = await sessionKey(exchange.privateKey, b.key, `${address}\n${me}\n${b.session}`);
+        if (stopped || b.request !== request) return;
+        cipher = key;
+      }
       session = b.session;
       instance = b.instance;
       lastHeard = Date.now();
@@ -88,11 +103,14 @@ export async function visit(
       env.kind === "emind.state" && session && b.session === session &&
       Number.isSafeInteger(b.seq) && b.seq > seq
     ) {
+      // In a private session only locked views count: one that fails to unlock is ignored.
+      const view = cipher ? JSON.parse(await unlock(cipher, TO_VISITOR, b.seq, b.box)) : b.view;
+      if (stopped || b.session !== session || b.seq <= seq) return;
       seq = b.seq;
       lastHeard = Date.now();
-      onView(b.view);
+      onView(view);
     }
-  };
+  }
   const replaced = (/** @type {Event} */ event) => {
     if (/** @type {CustomEvent} */ (event).detail === me) {
       // Do not send a leave for the new holder's player.
@@ -148,7 +166,13 @@ export async function visit(
       stop,
       /** @param {unknown} action */
       act(action) {
-        if (!stopped && session) send("emind.act", { session, seq: ++actionSeq, action });
+        if (stopped || !session) return;
+        const n = ++actionSeq, to = session, key = cipher;
+        if (!key) return void send("emind.act", { session: to, seq: n, action });
+        const text = JSON.stringify(action ?? null);
+        outgoing = outgoing.then(async () => {
+          await send("emind.act", { session: to, seq: n, box: await lock(key, TO_REALM, n, text) });
+        }).catch(() => {});
       },
     };
   } catch (e) {

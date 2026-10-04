@@ -87,7 +87,7 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 
 **The official state wins.** The referee keeps the full state and sends each player their view after each tick. The referee is wherever the realm's key is: a creator's browser tab, or the host program on any machine. Its connection carries everything, so a home connection handles tens of players, not hundreds.
 
-**Hidden information.** Anything sent to a player's app counts as seen by that player, whatever renderer they use. The referee sends each player only their share (no enemies behind walls, no other hands of cards), so no renderer can show it. Known limit: messages through a relay are signed but not encrypted to the receiver, so a relay's operator can read each player's view, hidden cards included. Encrypting sessions to the receiver would lift this.
+**Hidden information.** Anything sent to a player's app counts as seen by that player, whatever renderer they use. The referee sends each player only their share (no enemies behind walls, no other hands of cards), so no renderer can show it. Sessions are private: the visitor and the referee agree on a key that no relay can work out, and every move and view is locked with it, so a relay's operator carries hidden cards without being able to read them. Known limits: the relay still sees who talks to whom and when, the character description sent on entry is in the clear, and an app or referee that does not offer a key (another implementation, or a browser too old for it) gets a session in the clear.
 
 ## Keys in practice
 
@@ -137,6 +137,7 @@ A browser tab can explicitly start hosting realms whose keys it holds. Ownership
 
 - **Only alive while the tab is open.** Phones suspend background tabs almost at once; desktops slow down background timers. To stay up, a realm runs under the host program on an always-on machine instead (see [RUNNING.md](RUNNING.md)).
 - **Storage can be wiped.** Clearing site data deletes the keys, and with them every object in that browser, unless they were saved with "Save my keys".
+- **Known limit: telling players apart.** A renderer has no network, but it can still measure the device it runs on (screen, fonts, timing) and report that to its referee as a move. Two realms by one maker could use this to guess that two addresses are one player, despite the separate key in each realm.
 - **Isolation.** Code in ordinary workers shares the page's storage and could read its keys, so foreign code runs in sandboxed frames with their own blank origin (a browser security boundary). The app page's content security policy forbids frames from loading web addresses (`frame-src 'none'`), so sandboxed code cannot navigate its own frame somewhere and gain the network. Known limit: browsers offer no dependable way to switch off WebRTC (direct connections) inside a frame, so sandboxed code may still be able to send data out that way.
 - **Known limit: runaway code.** Rules run in a worker inside their sandbox, so a loop there cannot freeze the page and ends when hosting stops. A renderer stuck in an endless loop can still freeze the page in some browsers, which also pauses any realm hosted in that tab. Reloading would reopen the same realm, so the app asks first when its last visit did not end cleanly. Metering renderer code is not built.
 
@@ -156,7 +157,7 @@ Simple enough that anyone can clone this repository and run their own server wit
 
 - **What it does:** keeps signed announcements and key-free releases and answers tag searches, says who is online, stores the files those list by hash, relays signed messages between connections that have proved their keys, and serves the app page. One server is all a group of friends needs.
 - **What it cannot do:** forge anything it stores or relays, since everything is signed by the key that wrote it or named by its hash. It holds no realm state and makes no rules. It can still refuse to serve, hand out an older announcement, or say a realm is offline. A bad or dead server is one you stop using.
-- **What it can do:** read what passes through its relay (messages are signed, not encrypted to the receiver), and, if it serves the app page, take the keys that page holds. The server that serves the app is trusted like any software you run.
+- **What it can do:** see who talks to whom through its relay and read whatever is not locked (entry requests, and sessions with software that offers no key), and, if it serves the app page, take the keys that page holds. The server that serves the app is trusted like any software you run.
 - **Every cost belongs to someone.** A file is kept only while an announced realm or a release lists it, and goes when none does, so the store cannot fill with files nobody answers for. A sender pays for its own traffic: over the limit, its messages are dropped. A receiver is never disconnected for being flooded.
 - **Size target:** a few hundred lines. Growing past that is a sign realm rules are leaking in.
 

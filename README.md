@@ -30,7 +30,7 @@ What runs on players' devices is always public, and a game's rules usually are t
 
 ## Running a helper server
 
-Helper servers let players find each other, pass messages along, and keep copies of game files. Anyone can run one, none is in charge, and a group of friends needs only one. A helper server can read messages it passes along. The source of the app itself can take the keys that app holds, so choose a trusted app and keep using it when visiting other helper servers. To run one on your own computer:
+Helper servers let players find each other, pass messages along, and keep copies of game files. Anyone can run one, none is in charge, and a group of friends needs only one. A helper server sees who talks to whom, but moves and views are locked so that only the player and the game's referee can read them. The source of the app itself can take the keys that app holds, so choose a trusted app and keep using it when visiting other helper servers. To run one on your own computer:
 
 1. Install Deno (a program that runs JavaScript): `brew install deno` on macOS or Linux, or `winget install DenoLand.Deno` on Windows.
 2. Get this repository: `git clone https://github.com/freeideas/EndlessMind.git`, then `cd EndlessMind`.

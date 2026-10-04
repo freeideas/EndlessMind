@@ -1,4 +1,5 @@
 // One referee and one session path for every visitor, including its owner.
+import { lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
 import { randomId } from "./encoding.js";
 
 /** @typedef {import("./relay.js").Relay | import("./relay.js").Relays} Relay */
@@ -26,7 +27,19 @@ export async function referee(
   await relay.addKey(keys);
   const instance = randomId();
   let stopped = false;
-  /** @type {Map<string, {request: string, session: string, seq: number, actionSeq: number, lastHeard: number}>} */
+  /**
+   * @typedef {object} Session
+   * @property {string} request
+   * @property {string} session
+   * @property {number} seq
+   * @property {number} actionSeq
+   * @property {number} lastHeard
+   * @property {Promise<void>} ready   settles once the session's key (if any) is worked out
+   * @property {string} [key]          this side's public half, when the visitor offered one
+   * @property {CryptoKey} [cipher]    locks views and unlocks moves for this session
+   * @property {Promise<unknown>} work keeps this player's locked messages in order
+   */
+  /** @type {Map<string, Session>} */
   const players = new Map();
   /** @type {Map<string, Promise<{ok: boolean, reason?: string}>>} */
   const entering = new Map();
@@ -36,7 +49,16 @@ export async function referee(
     if (stopped) return;
     for (const [player, view] of Object.entries(views)) {
       const p = players.get(player);
-      if (p) send(player, "emind.state", { session: p.session, seq: ++p.seq, view });
+      if (!p) continue;
+      const seq = ++p.seq, cipher = p.cipher;
+      if (!cipher) {
+        send(player, "emind.state", { session: p.session, seq, view });
+        continue;
+      }
+      // Copy the view as text now, lock it, and send in order: the relay sees only the locked box.
+      const text = JSON.stringify(view ?? null);
+      p.work = p.work.then(async () => send(player, "emind.state", { session: p.session, seq, box: await lock(cipher, TO_VISITOR, seq, text) }))
+        .catch(console.error);
     }
   });
 
@@ -82,28 +104,53 @@ export async function referee(
         p = players.get(env.from);
       }
       if (!p || p.request !== b.request) {
-        p = {
+        /** @type {Session} */
+        const fresh = p = {
           request: b.request,
           session: randomId(),
           seq: 0,
           actionSeq: 0,
           lastHeard: Date.now(),
+          ready: Promise.resolve(),
+          work: Promise.resolve(),
         };
+        // A visitor that offers an exchange key gets a private session: moves and views are locked
+        // with a key only the two ends can work out. Without one, the session is in the clear.
+        if (b.key !== undefined) {
+          fresh.ready = (async () => {
+            const mine = await newExchangeKey();
+            if (!mine) return;
+            fresh.cipher = await sessionKey(mine.privateKey, b.key, `${address}\n${env.from}\n${fresh.session}`);
+            fresh.key = mine.publicText;
+          })().catch(() => {});
+        }
         players.set(env.from, p);
       }
       p.lastHeard = Date.now();
+      const current = p;
+      await current.ready;
+      if (stopped || players.get(env.from) !== current) return;
       send(env.from, "emind.welcome", {
-        request: p.request,
-        session: p.session,
+        request: current.request,
+        session: current.session,
         instance,
         release,
         name,
+        ...(current.key ? { key: current.key } : {}),
       });
     } else if (p && b.session === p.session) {
       p.lastHeard = Date.now();
       if (env.kind === "emind.act" && Number.isSafeInteger(b.seq) && b.seq > p.actionSeq) {
         p.actionSeq = b.seq;
-        rules.act(env.from, b.action);
+        const cipher = p.cipher, session = p;
+        if (!cipher) rules.act(env.from, b.action);
+        else {
+          // In a private session only locked moves count, taken in the order they came.
+          p.work = p.work.then(async () => {
+            const action = JSON.parse(await unlock(cipher, TO_REALM, b.seq, b.box));
+            if (!stopped && players.get(env.from) === session) rules.act(env.from, action);
+          }).catch(() => {});
+        }
       } else if (env.kind === "emind.leave") {
         players.delete(env.from);
         rules.leave(env.from);

@@ -323,3 +323,59 @@ Deno.test("rules can remove a player, skip a view, and survive one view failing"
   assertEquals(views[1], { a: { hello: "a" } });
   driver.stop();
 });
+
+Deno.test("a visitor that offers a key gets a private session the relay cannot read", async () => {
+  const { lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } = await import("../shared/crypto.js");
+  class TestRelay extends EventTarget {
+    /** @type {any[]} */ sent = [];
+    async addKey() {}
+    release() {}
+    /** @param {unknown} _keys @param {string} to @param {string} kind @param {unknown} body */
+    async send(_keys, to, kind, body) {
+      this.sent.push({ to, kind, body: JSON.parse(JSON.stringify(body)) });
+    }
+  }
+  const relay = new TestRelay();
+  /** @type {unknown[]} */
+  const actions = [];
+  /** @type {(views: Record<string, unknown>) => void} */
+  let views = () => {};
+  const { keys } = await newPortableKey();
+  const ref = await referee({
+    address: "realm", keys, name: "Test", release: "release", relay: /** @type {any} */ (relay),
+    announce: async () => {}, status: () => {},
+    rules: {
+      ticksPerSecond: 1,
+      enter: () => Promise.resolve({ ok: true }),
+      act: (_player, action) => void actions.push(action),
+      leave() {}, step() {}, onRemove() {}, stop() {},
+      onViews(fn) { views = fn; },
+    },
+  });
+  const message = (/** @type {string} */ kind, /** @type {unknown} */ body) =>
+    relay.dispatchEvent(new CustomEvent("message", { detail: { from: "player", to: "realm", kind, body } }));
+  try {
+    const mine = await newExchangeKey();
+    assert(mine);
+    message("emind.enter", { request: "a".repeat(26), release: "release", key: mine.publicText });
+    for (let i = 0; i < 50 && !relay.sent.length; i++) await delay();
+    const welcome = relay.sent[0].body;
+    const cipher = await sessionKey(mine.privateKey, welcome.key, `realm\nplayer\n${welcome.session}`);
+
+    views({ player: { hand: "the hidden ace" } });
+    for (let i = 0; i < 50 && relay.sent.length < 2; i++) await delay();
+    const state = relay.sent[1].body;
+    assert(!JSON.stringify(relay.sent).includes("hidden ace"), "the view crossed the relay in the clear");
+    assertEquals(JSON.parse(await unlock(cipher, TO_VISITOR, state.seq, state.box)), { hand: "the hidden ace" });
+    let moved = false;
+    await unlock(cipher, TO_VISITOR, state.seq + 1, state.box).catch(() => moved = true);
+    assert(moved, "a box replayed under another number must not open");
+
+    message("emind.act", { session: welcome.session, seq: 1, box: await lock(cipher, TO_REALM, 1, JSON.stringify({ play: "ace" })) });
+    message("emind.act", { session: welcome.session, seq: 2, action: { play: "in the clear" } });
+    await delay();
+    assertEquals(actions, [{ play: "ace" }], "in a private session only locked moves count");
+  } finally {
+    ref.stop();
+  }
+});
