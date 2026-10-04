@@ -4,6 +4,10 @@
 // compares what that copy would show the player with what the referee sent.
 // A referee that strays from the public rules in any way the player can see is
 // caught at once. See specs/RUNTIME.md ("Checking the referee").
+//
+// What it cannot do: a copy has to start from the referee's own account of the
+// state, at the start of every session. Between those points nothing gets past
+// it; each new starting point after the first is told to the player.
 
 import { canonicalJson } from "./encoding.js";
 
@@ -11,13 +15,14 @@ import { canonicalJson } from "./encoding.js";
 const plain = (value) => canonicalJson(JSON.parse(JSON.stringify(value ?? null)));
 
 /**
- * @param {(check: any, me: string) => unknown} replay  applies a check to the visitor's own copy of the
- *   rules and returns the view that copy gives this player (it may return a promise)
+ * @param {(check: any, me: string, adopt: boolean) => { view: unknown, differs: boolean } | Promise<{ view: unknown, differs: boolean }>} replay
+ *   applies a check to the visitor's own copy of the rules (RulesDriver.replay)
  * @param {string} me     this player's address in the realm
- * @param {(why: string) => void} alarm  called once, with what the referee did, if it is caught
+ * @param {(why: string) => void} alarm    called once, with what the referee did, if it is caught
+ * @param {(what: string) => void} [notice]  called when checking is weaker than usual, though nothing is wrong
  */
-export function makeChecker(replay, me, alarm) {
-  let started = false, failed = false;
+export function makeChecker(replay, me, alarm, notice = () => {}) {
+  let started = false, everStarted = false, failed = false, off = false, waited = 0;
   /** This player's own recent moves, oldest first, to spot a move made in their name. @type {string[]} */
   const mine = [];
   /** @type {Promise<unknown>} */
@@ -30,21 +35,39 @@ export function makeChecker(replay, me, alarm) {
 
   /** @param {any} check @param {unknown} view @param {boolean} hasView @param {boolean} first */
   async function one(check, view, hasView, first) {
-    if (failed) return;
-    // Each session begins from a full copy of the state; moves sent before one arrives cannot be followed.
-    if (first) started = false;
+    if (failed || off) return;
+    // Each session begins from the referee's account of the state; until it arrives nothing can be followed.
+    if (first) {
+      started = false;
+      waited = 0;
+    }
     if (!check) return fail("sent nothing to check it by");
-    if (typeof check.start !== "string") {
-      if (!started) return;
+    if (check.unchecked) {
+      off = true;
+      return notice(`this realm's referee cannot be checked: ${String(check.unchecked).slice(0, 100)}.`);
+    }
+    const hasStart = typeof check.start === "string";
+    if (!started && !hasStart) {
+      if (++waited > 20) fail("never gave a starting point to check it from");
+      return;
+    }
+    if (started) {
+      // Entering and leaving happen between sessions, never inside one, and every move must be one this app sent.
       for (const [kind, player, data] of check.inputs ?? []) {
-        if (kind !== "act" || player !== me) continue;
+        if (player !== me) continue;
+        if (kind !== "act") return fail("made you leave or enter without your asking");
         const at = mine.indexOf(plain(data));
         if (at < 0) return fail("made a move in your name that you did not make");
         mine.splice(0, at + 1);
       }
+    } else if (everStarted) {
+      notice("checking of this realm's referee started over after a break, from the referee's own account of the state.");
     }
-    started = true;
-    const expected = await replay(check, me);
+    const adopt = !started;
+    started = everStarted = true;
+    const mineNow = await replay(check, me, adopt);
+    if (mineNow.differs) return fail("described a state that the moves it sent do not lead to");
+    const expected = mineNow.view;
     const same = hasView ? expected !== undefined && plain(expected) === plain(view) : expected === undefined;
     if (!same) fail("showed you something its public rules would not");
   }

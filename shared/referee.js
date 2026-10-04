@@ -16,7 +16,9 @@ import { randomId } from "./encoding.js";
  *   `checks` is given by repeatable rules: for each player, what their app needs to check the referee
  * @property {boolean} [repeatable]  the rules promise: the same moves in the same order always give the same state
  * @property {(player: string) => void} [resync]  send this player a fresh starting point with the next tick
- * @property {(check: any, me: string) => unknown} [replay]  apply a check to this copy; returns the view it gives `me`
+ * @property {(check: any, me: string, adopt: boolean) => { view: unknown, differs: boolean } | Promise<{ view: unknown, differs: boolean }>} [replay]  apply a check
+ *   to this copy and return the view it gives `me`. With `adopt`, a starting point in the check becomes this
+ *   copy's state; without, the copy applies the moves and `differs` tells whether its state then matches
  * @property {(fn: (player: string, reason: string) => void) => void} onRemove  the rules ended a visit
  * @property {() => void} stop
  */
@@ -155,7 +157,7 @@ export async function referee(
       });
     } else if (p && b.session === p.session) {
       p.lastHeard = Date.now();
-      if (env.kind === "emind.act" && Number.isSafeInteger(b.seq) && b.seq > p.actionSeq) {
+      if (env.kind === "emind.act" && Number.isSafeInteger(b.seq) && b.seq > p.actionSeq && (!p.cipher || typeof b.box === "string")) {
         p.actionSeq = b.seq;
         const cipher = p.cipher, session = p;
         if (!cipher) rules.act(env.from, b.action);
@@ -235,6 +237,23 @@ export async function directRules(rules, storage, report = (error) => console.er
   /** @type {unknown[][]} */
   let inputs = [];
   const fresh = new Set();
+  // Every move is passed on to every player, so one player's moves must stay small: at most 4,096
+  // characters each as JSON, and 65,536 in all per tick. Larger ones are not applied.
+  let noted = 0;
+  /**
+   * Note a move for the players who check. What travels is JSON, so the referee applies the same plain
+   * copy their copies will get, and a later change by the rules cannot alter what was noted.
+   * @param {string} kind @param {string} player @param {unknown} data
+   * @returns {{ value: unknown } | null} null when the move is too large
+   */
+  const note = (kind, player, data) => {
+    const text = JSON.stringify(data ?? null);
+    if (text.length > 4096 || noted + text.length > 65536) return null;
+    noted += text.length;
+    inputs.push([kind, player, JSON.parse(text)]);
+    return { value: JSON.parse(text) };
+  };
+  const snapshot = () => JSON.stringify({ state, players: [...players] });
   /** @param {() => unknown} call */
   const safely = (call) => (async () => await call())().catch(report);
   /** The rules end a player's visit. @param {string} player @param {unknown} [reason] */
@@ -261,8 +280,9 @@ export async function directRules(rules, storage, report = (error) => console.er
     resync(player) {
       if (repeatable && players.has(player)) fresh.add(player);
     },
-    replay(check, me) {
-      if (typeof check?.start === "string") {
+    replay(check, me, adopt) {
+      let differs = false;
+      if (adopt && typeof check?.start === "string") {
         const from = JSON.parse(check.start);
         state = from.state;
         players.clear();
@@ -272,13 +292,22 @@ export async function directRules(rules, storage, report = (error) => console.er
           // The referee carries on past rules that throw, so this copy does too.
           try { apply(input); } catch { /* same as the referee */ }
         }
+        // A copy that has followed every move must arrive at the very state the referee describes.
+        if (typeof check?.start === "string") differs = snapshot() !== check.start;
       }
-      return rules.view ? rules.view(state, me) : state;
+      // A view that throws sends nothing on the referee, so it gives nothing here.
+      let view;
+      try { view = rules.view ? rules.view(state, me) : state; } catch { /* no view */ }
+      return { view, differs };
     },
     ticksPerSecond: Math.min(Math.max(Number(rules.ticksPerSecond) || 10, 1), 60),
     async enter(player, character) {
       try {
-        if (repeatable) inputs.push(["enter", player, character]);
+        if (repeatable) {
+          const kept = note("enter", player, character);
+          if (!kept) return { ok: false, reason: "Your character's description is too large for this realm, or the realm is too busy just now." };
+          character = kept.value;
+        }
         const verdict = rules.enter ? await rules.enter(state, player, character) : true;
         const ok = verdict === true || verdict === undefined;
         if (ok && !stopped) {
@@ -292,7 +321,11 @@ export async function directRules(rules, storage, report = (error) => console.er
     },
     act(player, action) {
       if (!stopped && players.has(player) && rules.act) {
-        if (repeatable) inputs.push(["act", player, action]);
+        if (repeatable) {
+          const kept = note("act", player, action);
+          if (!kept) return;
+          action = kept.value;
+        }
         safely(() => rules.act(state, player, action));
       }
     },
@@ -322,10 +355,14 @@ export async function directRules(rules, storage, report = (error) => console.er
         /** @type {Record<string, unknown> | undefined} */
         let checks;
         if (repeatable) {
-          const start = fresh.size ? JSON.stringify({ state, players: [...players] }) : "";
+          // A starting point comes with the moves that led to it, so a copy already following can
+          // confirm it instead of taking it on trust. A state too large to send cannot be checked.
+          const start = fresh.size ? snapshot() : "";
+          const first = start.length > 180_000 ? { unchecked: "its state is too large to send" } : { start, inputs };
           checks = {};
-          for (const player of players) checks[player] = fresh.has(player) ? { start } : { inputs };
+          for (const player of players) checks[player] = fresh.has(player) ? first : { inputs };
           inputs = [];
+          noted = 0;
           fresh.clear();
         }
         if (!stopped) onViews(views, checks);

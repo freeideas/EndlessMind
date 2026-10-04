@@ -77,10 +77,10 @@ export async function play(address, character, container, ui) {
       const nothing = { get: () => Promise.resolve(undefined), put: () => Promise.resolve() };
       const mine = copy = await startRules(container, await fetchFile(manifest.files[manifest.main], server, ui.signal), nothing, ui.signal);
       if (mine.repeatable) {
-        checker = makeChecker((check, who) => mine.replay(check, who), me, (why) => {
+        checker = makeChecker((check, who, adopt) => mine.replay(check, who, adopt), me, (why) => {
           console.error(`[check] The referee of ${manifest.name} ${why}.`);
           ui.status(`Warning: this realm's referee ${why}. It is not following its public rules.`, 60_000);
-        });
+        }, (what) => ui.status(`Note: ${what}`, 20_000));
       } else {
         mine.stop();
         copy = undefined;

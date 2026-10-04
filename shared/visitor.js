@@ -111,7 +111,7 @@ export async function visit(
       // In a private session only locked views count: one that fails to unlock is ignored.
       const inner = cipher ? JSON.parse(await unlock(cipher, TO_VISITOR, b.seq, b.box)) : b;
       if (stopped || b.session !== session || b.seq <= seq) return;
-      if (onCheck && inner.check && seq && b.seq !== seq + 1) {
+      if (onCheck && inner.check && b.seq !== seq + 1) {
         // A message was lost, and with it moves the checking copy needs: start a fresh session, which
         // begins from a full copy of the state.
         forget();

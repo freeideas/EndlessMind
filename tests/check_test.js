@@ -19,7 +19,7 @@ async function table(meddle = (m) => m) {
   const copy = await directRules(maze);
   /** @type {string[]} */
   const alarms = [];
-  const checker = makeChecker((check, me) => copy.replay?.(check, me), "ann", (why) => alarms.push(why));
+  const checker = makeChecker((check, me, adopt) => /** @type {NonNullable<typeof copy.replay>} */ (copy.replay)(check, me, adopt), "ann", (why) => alarms.push(why));
   let first = true;
   /** @type {Promise<unknown>} */
   let last = Promise.resolve();
@@ -110,7 +110,7 @@ Deno.test("a visitor checks a real host over the network, in a private session",
       },
     });
     const { addressOf } = await import("../shared/crypto.js");
-    checker = makeChecker((check, me) => copy.replay?.(check, me), await addressOf(keys.publicKey), (why) => alarms.push(why));
+    checker = makeChecker((check, me, adopt) => /** @type {NonNullable<typeof copy.replay>} */ (copy.replay)(check, me, adopt), await addressOf(keys.publicKey), (why) => alarms.push(why));
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 50));
       if (i % 5 === 0) {
@@ -128,4 +128,111 @@ Deno.test("a visitor checks a real host over the network, in a private session",
     await s.shutdown();
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+/** One player's checker fed by hand, as a referee of these rules would feed it. @param {any} rules */
+async function byHand(rules) {
+  const host = await directRules(rules), copy = await directRules(rules);
+  /** @type {string[]} */
+  const alarms = [];
+  /** @type {string[]} */
+  const notices = [];
+  const checker = makeChecker(
+    (check, me, adopt) => /** @type {NonNullable<typeof copy.replay>} */ (copy.replay)(check, me, adopt),
+    "ann", (why) => alarms.push(why), (what) => notices.push(what),
+  );
+  /** @type {any[]} */
+  const sent = [];
+  host.onViews((views, checks) => {
+    if (checks && "ann" in checks) sent.push(JSON.parse(JSON.stringify({ view: views.ann, check: checks.ann })));
+  });
+  /** One tick; returns what the referee would send ann. */
+  const tick = async () => {
+    host.step();
+    await turn();
+    return sent.at(-1);
+  };
+  return { host, checker, alarms, notices, tick };
+}
+
+const counter = {
+  repeatable: true,
+  init: () => ({ score: {} }),
+  enter(/** @type {any} */ s, /** @type {string} */ p) { s.score[p] = 0; },
+  act(/** @type {any} */ s, /** @type {string} */ p, /** @type {any} */ a) {
+    if (a && typeof a.by === "number") {
+      a.by = Math.min(a.by, 3); // rules that tidy a move in place must not confuse the check
+      s.score[p] += a.by;
+    }
+  },
+  leave(/** @type {any} */ s, /** @type {string} */ p) { delete s.score[p]; },
+  view(/** @type {any} */ s, /** @type {string} */ p) {
+    if (s.score[p] === 7) throw new Error("a view that throws");
+    return { score: s.score[p] };
+  },
+};
+
+Deno.test("honest quirks raise no alarm: tidied moves, a view that throws, a starting point sent twice", async () => {
+  const { host, checker, alarms, notices, tick } = await byHand(counter);
+  await host.enter("ann", {});
+  let m = await tick();
+  await checker.state(m.check, m.view, "view" in m, true);
+  for (const by of [9, 1, 3, 2]) { // 3, 4, 7 (the view throws), 9
+    checker.sent({ by });
+    host.act("ann", { by });
+    if (by === 3) host.resync?.("ann"); // as after a repeated welcome: a second starting point, mid-session
+    m = await tick();
+    await checker.state(m.check, m.view, "view" in m, false);
+  }
+  assertEquals([alarms, notices], [[], []]);
+  host.stop();
+});
+
+Deno.test("a referee cannot skip the starting point, slip in a false one, or move a player in and out", async () => {
+  const never = await byHand(counter);
+  await never.host.enter("ann", {});
+  for (let i = 0; i < 22; i++) {
+    const m = await never.tick();
+    await never.checker.state({ inputs: [] }, { score: 5000 }, true, i === 0);
+  }
+  assertEquals(never.alarms, ["never gave a starting point to check it from"]);
+
+  const doctored = await byHand(counter);
+  await doctored.host.enter("ann", {});
+  let m = await doctored.tick();
+  await doctored.checker.state(m.check, m.view, true, true);
+  const lie = JSON.stringify({ state: { score: { ann: 5000 } }, players: ["ann"] });
+  await doctored.checker.state({ start: lie, inputs: [["tick"]] }, { score: 5000 }, true, false);
+  assertEquals(doctored.alarms, ["described a state that the moves it sent do not lead to"]);
+
+  const puppet = await byHand(counter);
+  await puppet.host.enter("ann", {});
+  m = await puppet.tick();
+  await puppet.checker.state(m.check, m.view, true, true);
+  await puppet.checker.state({ inputs: [["leave", "ann"], ["enter", "ann", {}], ["tick"]] }, { score: 0 }, true, false);
+  assertEquals(puppet.alarms, ["made you leave or enter without your asking"]);
+
+  // After a break the copy must take the referee's word for the state, and the player is told so.
+  const again = await byHand(counter);
+  await again.host.enter("ann", {});
+  m = await again.tick();
+  await again.checker.state(m.check, m.view, true, true);
+  again.host.resync?.("ann");
+  m = await again.tick();
+  await again.checker.state(m.check, m.view, true, true);
+  assertEquals([again.alarms, again.notices.length], [[], 1]);
+  for (const t of [never, doctored, puppet, again]) t.host.stop();
+});
+
+Deno.test("one player's oversize move is not passed on to everyone", async () => {
+  const { host, tick } = await byHand(counter);
+  await host.enter("ann", {});
+  await host.enter("bo", {});
+  await tick();
+  host.act("bo", { by: 1, pad: "x".repeat(5000) });
+  host.act("bo", { by: 2 });
+  const m = await tick();
+  assertEquals(m.check.inputs, [["act", "bo", { by: 2 }], ["tick"]]);
+  assertEquals((await host.enter("cy", { name: "x".repeat(5000) })).ok, false);
+  host.stop();
 });

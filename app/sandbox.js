@@ -45,7 +45,7 @@ function startRules(send, listen) {
         driver.onRemove((player, reason) => send({type:"remove", player, reason}));
         value = {rate: driver.ticksPerSecond, repeatable: driver.repeatable};
       } else if (m.type === "enter") value = await driver.enter(m.player, m.character);
-      else if (m.type === "replay") value = driver.replay(m.check, m.me);
+      else if (m.type === "replay") value = driver.replay(m.check, m.me, m.adopt);
       else if (m.type === "resync") driver.resync(m.player);
       else if (m.type === "act") driver.act(m.player, m.action);
       else if (m.type === "leave") driver.leave(m.player);
@@ -183,9 +183,9 @@ export async function startRules(container, code, storage, signal) {
       resync(player) {
         f.post({ type: "resync", player });
       },
-      /** @param {unknown} check @param {string} me @returns {Promise<unknown>} */
-      replay(check, me) {
-        return f.call({ type: "replay", check, me });
+      /** @param {unknown} check @param {string} me @param {boolean} adopt @returns {Promise<{ view: unknown, differs: boolean }>} */
+      replay(check, me, adopt) {
+        return f.call({ type: "replay", check, me, adopt });
       },
       /** @param {string} player @param {unknown} character */
       enter(player, character) {
