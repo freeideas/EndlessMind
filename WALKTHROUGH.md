@@ -48,21 +48,21 @@ The friend taps the link on their phone.
 3. **The app fetches the realm's files** by hash (from storage nodes, the server, or other players who have them), checks each hash, and runs each file in its own sandbox.
 4. **The app connects to the referee** (the creator's tab or the hosting server), directly over WebRTC when possible, otherwise through the relay.
 5. **The realm reads the character** (fox knight, orange, carries a lantern) and lends the friend an in-realm form: an orange runner with a little lantern.
-6. **They play.** Swipes go from the app to the referee. The referee updates the state and sends each player their share. The phone draws it with the realm's default renderer. If the friend later finds a 3D renderer someone else wrote, they switch in the app's menu, and the game cannot tell the difference.
+6. **They play.** Swipes go from the app to the referee. The referee updates the state and sends each player their share. The phone draws it with the realm's default renderer. If the friend later finds a 3D renderer someone else wrote, they switch in the app's menu, and the realm cannot tell the difference.
 7. **They leave.** The character keeps its signed high score, and the app's menu offers "More realms", starting with realms the maze links to.
 
 ## 4. Moving on to a realm made with a game engine
 
 The friend, still in the browser with nothing installed, finds a realm made with Unreal.
 
-1. **Finding it** works like any realm: a portal, the app's "More realms" menu, a friend's link, or a directory. The realm's manifest says how it can be played, and the app shows that as a badge: "Plays in browser", "Plays in browser · better in the EveryGame Unreal player", or "Needs the EveryGame Unreal player (1.2 GB)".
+1. **Finding it** works like any realm: a portal, the app's "More realms" menu, a friend's link, or a directory. The realm's manifest says how it can be played, and the app shows that as a badge: "Plays in browser", "Plays in browser · better in an Unreal-based app", or "Needs an Unreal-based app (1.2 GB)".
 2. **If it has a browser renderer** (most will), they start playing at once with simpler graphics, and a button offers "Play in full Unreal graphics".
 3. **Installing.** The browser shows a landing card (preview video, size, supported systems) and an install button that uses a store or package manager. If the realm owner pays for streaming, "Play now (streamed)" also appears.
-4. **Handoff.** The installed player opens from a link such as `everygame://realm/<key>`, the way meeting links open a meeting app.
-5. **Bringing the character.** Keys never move, so the browser gives the character to the player app: the app makes a new key and the browser signs the transfer note. One tap.
-6. **Playing.** The player fetches the realm's files by hash (portable code, models, scene description), connects to the referee and draws it with the engine. Every other realm built for that player now runs with no further installs.
+4. **Handoff.** The installed app opens from a link such as `everygame://realm/<key>`, the way meeting links open a meeting app.
+5. **Bringing the character.** Keys never move, so the browser gives the character to the installed app: the app makes a new key and the browser signs the transfer note. One tap.
+6. **Playing.** The app fetches the realm's files by hash (portable code, models, scene description), connects to the referee and draws it with the engine. Every other realm built for that app now runs with no further installs.
 
-A realm that ships its own program instead follows the same steps, except step 3 installs that program, after a plain warning that it runs outside any sandbox.
+A realm that ships its own app instead follows the same steps, except step 3 installs that app, after a plain warning that it runs outside any sandbox.
 
 ## Where things live afterward
 

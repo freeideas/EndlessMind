@@ -6,10 +6,24 @@ Started 2026-09-24. Sources: Ace's chat notes of 2026-09-24, follow-up decisions
 
 A massively multiplayer world where both the code and the running of that code are spread across the players. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code. The code is public and anyone can run it, but only the holder of an object's private key can operate it or speak for it. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). Because AI coding agents let everyone make their own games, EveryGame is the peer network that unites them, the way BitTorrent unites file sharers: anyone can make any game, in any language or engine, and anyone can play it. There is no central server; helper servers are small programs anyone can clone and run, and a game may run its own server if it wants, but none is required. It is not one game but every game anyone can imagine.
 
+## Words used here
+
+- **Object:** the only building block, a key pair plus code. Everything below except the player, the app and servers is an object.
+- **Realm:** an object acting as a container: it holds other objects and sets and referees the rules inside it. Not a separate kind of thing, only a way an object behaves. The design and protocol word.
+- **Game:** an everyday word for something people play, usually with rules and goals. A game may be one realm or several nested or linked realms, and not every realm is a game (a calm garden, a chat room, a hub full of doors).
+- **World:** a friendly word, used only in plain-language and pitch text, for a realm you can walk around in.
+- **Player:** always the person.
+- **App:** the software a player uses to reach realms. The reference app runs in the browser; anyone may write another, in any language or engine. A **shared app** runs many realms; a realm's **own app** runs only that realm.
+- **Character:** the object that represents a player across realms. Its **in-realm form** is what the realm turns it into while inside.
+- **Renderer:** an object that draws a realm's state and may offer controls.
+- **Referee:** whoever signs a realm's official state: its key holder, or a host the key holder authorized.
+- **Agent:** an AI coding agent that writes realms and objects for its player.
+- **Server:** an optional helper program anyone can run (meeting, relaying, storage). Never in charge.
+
 ## Decisions so far
 
 - **Freedom almost always wins over safety.** Anything should be possible. The sandbox is the safety floor: foreign code only ever runs sandboxed (in a web page, or in a JavaScript or WebAssembly sandbox inside another app), where it cannot do much catastrophic harm to a player's machine, so the project adds few protections of its own.
-- **The browser is the front door, not a requirement.** Every realm link opens in a browser with one click, but the app is an open protocol with a reference browser version, not the only way in. Other apps (an Unreal, Godot or Unity game, a native desktop app, the headless host runner) can join the same realms. See "Other apps and game engines".
+- **The browser is the front door, not a requirement.** Every realm link opens in a browser with one click, but the app is an open protocol with a reference browser version, not the only way in. Other apps (an app built with Unreal, Godot or Unity, a native desktop app, the headless host runner) can join the same realms. See "Other apps and game engines".
 - **There is only one kind of thing: the object.** An object is a key pair plus some code. Players can make as many as they like, and any object can contain any number of any other objects. Bodies, realms, and swords differ only in the code written for them. All limits are set by code, never by the platform.
 - **Visuals come first**, or nearly first. Seeing it is a key part of the idea, so the first demo is visual, not text.
 - **Realms enforce their own rules.** A realm verifies that its rules are followed inside it. Worst case, the realm decides an object is no longer inside.
@@ -78,7 +92,7 @@ Goal: any object can be reached from anywhere. A single master list of every obj
 
 ## Finding realms: three ways
 
-1. **Inside the game.** Doors, portals and links the realm's designer chose (a door that opens only after you win, a portal to a friend's realm). Entirely up to the realm.
+1. **Inside a realm.** Doors, portals and links the realm's designer chose (a door that opens only after you win, a portal to a friend's realm). Entirely up to the realm.
 2. **The player's app.** Its own menu, always there and outside any realm's control: realms friends visited, realms busy right now among connected peers (who know which realms have players and a referee online), and searches by tag on the network.
 3. **Outside directories and published lists.** Search services, curated lists, and hub realms (a place you walk around in, with doors to recommended realms). The project does not run these; others will build them, the way torrent search sites appeared. None is official.
 
@@ -92,7 +106,7 @@ Browsers cannot join the lookup table directly, so a browser player searches thr
 
 ## Walled gardens
 
-Businesses with many games will likely make their own player apps that try to keep people in their own realms. Freedom allows this: such an app may show only its own realms, admit only characters made in it, and leave out any way onward. The defense is not forbidding gardens but making sure leaving stays cheap and the open side stays bigger, which is how the open web beat AOL:
+Businesses with many games will likely make their own apps that try to keep people in their own realms. Freedom allows this: such an app may show only its own realms, admit only characters made in it, and leave out any way onward. The defense is not forbidding gardens but making sure leaving stays cheap and the open side stays bigger, which is how the open web beat AOL:
 
 - **Neutral links.** Any realm link opens in any app, so a friend's link always works outside a company's app. The most important defense.
 - **Characters belong to the person.** Keys and the character file live on their device. A company app might refuse to export them, so the open app makes export easy and visible, and people learn to expect it.
@@ -106,7 +120,7 @@ Businesses with many games will likely make their own player apps that try to ke
 ## Why now (the pitch)
 
 - Writing a custom world used to cost months of skilled work. With an AI coding agent it costs a conversation.
-- Two worlds that do not quite fit together used to stay apart. Now an agent can write the missing piece at the door, in seconds.
+- Two realms that do not quite fit together used to stay apart. Now an agent can write the missing piece at the door, in seconds.
 - So the old tradeoff (one central server for compatibility, or freedom and fragmentation) goes away. Compatibility is worked out per visit, by agents.
 
 ## Joining with one click: characters and in-realm forms
@@ -146,7 +160,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 
 **Risks:**
 
-- **Walled gardens.** Businesses may build player apps that keep people inside their own realms. See "Walled gardens".
+- **Walled gardens.** Businesses may build apps that keep people inside their own realms. See "Walled gardens".
 - **Free services must have firm limits from day one.** If Ace runs the default free relays and it goes viral, costs grow as fast as users. The software should make it easy for others to share the load.
 - **"Cannot be shut down" also means illegal content cannot be removed centrally,** so allow lists, block lists and takedown support are essential for ordinary people to feel safe running servers. Describe the design as "no single point of failure, like email", never as built to escape authorities.
 - **The industry is more likely to ignore, copy or compete than to buy.** The open-code-plus-services path still pays in that case.
@@ -171,9 +185,9 @@ If I swing a sword at you, my code runs on my device and yours on yours, and any
 
 1. **The realm is the referee inside the realm.** It runs the physics and the rules, and it checks that every object inside follows them. A sword-fighting realm keeps its own damage count for each visitor and calls `die` when the count runs out. If a visitor's code refuses to die, or reports things the realm's rules do not allow, the realm can simply declare that object no longer inside. The realm's authority ends at its border.
 2. **What happens after leaving belongs to the object and its owner.** A realm can throw you out, or kill your presence inside it, but it cannot reach your device. Your object's own code (and perhaps the server, for bookkeeping) decides what leaving means: back home, a ghost, a scar, nothing at all.
-3. **Things that cross realms carry signatures.** A realm's record ("this player won 12 fights here") is a statement signed by the realm. Another realm decides whether it trusts that statement. Value between worlds comes from trust between realms, not from a central ledger.
+3. **Things that cross realms carry signatures.** A realm's record ("this player won 12 fights here") is a statement signed by the realm. Another realm decides whether it trusts that statement. Value between realms comes from trust between realms, not from a central ledger.
 
-**Single-player games need no host.** All code is public, so a single-player game runs entirely in the player's browser once its files arrive (from mirrors, other players or storage nodes, none of which run game code). It even works offline. Without the realm's key, the player's copy cannot sign results, so scores are not trusted elsewhere unless the moves are sent to the realm's key holder or an authorized host to check and sign.
+**Single-player games need no host.** All code is public, so a single-player game runs entirely in the player's browser once its files arrive (from mirrors, other players or storage nodes, none of which run realm code). It even works offline. Without the realm's key, the player's copy cannot sign results, so scores are not trusted elsewhere unless the moves are sent to the realm's key holder or an authorized host to check and sign.
 
 **Shared state in multiplayer: the official state wins.** Every browser predicts the state so play feels instant; when the official, signed state arrives, it wins and the browser corrects itself. The referee is whoever holds the realm's key or an authorized host (a creator's browser tab, a friend's always-on machine, a paid host). A realm picks one of two ways to share the work:
 
@@ -233,13 +247,13 @@ Five pieces. Everything is an object except the app, which is any program that s
 |---|---|---|---|
 | **The app** | The page you open; runs everything else | Its author (reference app is open) | Browser or any device |
 | **Character** | Your persistent identity, look and feel | You | Anywhere; you operate it |
-| **Realm** | The game: rules, map, referee | Its creator | Anywhere; referee by key |
+| **Realm** | A place or game: rules, map, referee | Its creator | Anywhere; referee by key |
 | **In-realm form** | What your character becomes in that realm | The realm, lent to you | Anywhere; realm referees |
 | **Renderer** | Turns the realm's state into a picture | Its author; you pick it | Your browser |
 
 **The app** holds your keys and saved data, keeps each piece of foreign code in its own sandbox, opens links, hands the realm your character's general API and receives your in-realm form, and owns the menu that is always there (find more realms, change renderer, edit character, leave). It is not called "player", since that word means the person.
 
-**Renderers: state is separate from the picture.** A realm never draws anything itself; it publishes its state as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and anyone can write another that reads the same data: a naturally 2D maze shown as glowing 3D corridors, plain state made to look fantastic. The game cannot tell the difference.
+**Renderers: state is separate from the picture.** A realm never draws anything itself; it publishes its state as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and anyone can write another that reads the same data: a naturally 2D maze shown as glowing 3D corridors, plain state made to look fantastic. The realm cannot tell the difference.
 
 - **A renderer is an object,** with a code hash, so renderers can be shared, traded, remixed and put on allow lists, on the same torrent-like network as everything else. It is separate from the app page, which only runs whichever renderer the player picks.
 - **A renderer is also a controller.** Besides drawing, it can offer its own controls: fancy keyboard layouts, combo actions, joystick and controller support, motion or gesture control, and any device the browser can reach (gamepads, USB and Bluetooth devices, MIDI instruments, and brain-computer interfaces through those or a small local bridge program). It turns whatever the player does into realm terms ("move left", "cast at cell 4,7") and hands that to the app, which sends it to the realm.
@@ -292,9 +306,9 @@ Both mean a key leaves its device as an encrypted backup, which freedom allows w
 - Announcements expire unless renewed.
 - Identical assets are stored once, since they are named by their hash.
 
-**Keeping what matters:** owners keep their own things; fans, hosts or creators can pin (promise to keep) anything; anyone may run an archive that keeps everything; and objects carry their unique parts with them, pointing only to widely used shared ones. Forgotten worlds are truly lost unless someone cared to keep them, which fits "ruins and sealed doors".
+**Keeping what matters:** owners keep their own things; fans, hosts or creators can pin (promise to keep) anything; anyone may run an archive that keeps everything; and objects carry their unique parts with them, pointing only to widely used shared ones. Forgotten realms are truly lost unless someone cared to keep them, which fits "ruins and sealed doors".
 
-## The game container: browser, with limits to design around
+## Running in the browser: limits to design around
 
 A browser tab can act as a referee for the objects it owns. Browsers cannot accept incoming connections, but they can connect directly to each other (WebRTC, as video calls use): both connect out to a small meeting server, learn their public addresses, swap them through it, and send to each other at the same moment so each home router treats the incoming packets as replies ("hole punching"). When that fails, traffic goes through a relay. Limits found so far:
 
@@ -326,17 +340,17 @@ Applied here: the same small server program could offer optional roles, each swi
 People will make games every way there is: from scratch in JavaScript or Rust, with engines such as Unreal, Godot or Unity, or with tools that do not exist yet. Engines are only examples. The browser stays the front door, but nothing depends on it.
 
 - **Object code must stay portable:** JavaScript or WebAssembly (compiled code that runs at near-native speed in browsers and elsewhere). C++, C#, Rust and others compile to WebAssembly, so builders are not limited to JavaScript. This is what keeps every realm playable from a browser link.
-- **Renderers and clients may be native.** An Unreal, Godot or Unity app can join any realm and draw it with full engine graphics, since it speaks the same protocol. The realm cannot tell the difference, like any other renderer.
-- **Native code is never passed around as an object.** A native client is installed deliberately by the player, like any app. Objects stay JavaScript or WebAssembly, so the sandbox remains the safety floor.
+- **Renderers and apps may be native.** An Unreal, Godot or Unity app can join any realm and draw it with full engine graphics, since it speaks the same protocol. The realm cannot tell the difference, like any other renderer.
+- **Native code is never passed around as an object.** A native app is installed deliberately by the player, like any app. Objects stay JavaScript or WebAssembly, so the sandbox remains the safety floor.
 - **Each app does the browser's jobs too:** keeps private keys on the device (in the operating system's secure key store), runs each foreign object in its own sandbox, and asks first before giving any object camera, microphone or device access.
-- **Shared engine players, plus programs of a realm's own.** Both exist side by side:
-  - **Shared players (the default).** Player apps that run many realms, for example one built with Unreal, one with Godot, one written from scratch in Rust. Anyone can write one; none is official. Installed once, it runs every realm built for it with no further installs, because realms ship only data (models, sounds, scene descriptions) and sandboxed JavaScript or WebAssembly. The engine supplies graphics, physics and audio; the realm's behavior is in its portable code.
-  - **A realm's own program (allowed).** A builder who needs more than a shared player offers (for example Unreal's own C++ or Blueprints, its visual scripting) can ship a separate program for their realm. It runs outside any sandbox, so the app warns plainly before install: "This realm needs its own program, which can do anything on your computer."
-- **The manifest says how a realm can be played** (in the browser, in a shared player, or only in its own program), so the app and directories can show it before anyone clicks.
+- **Shared apps, plus apps of a realm's own.** Both exist side by side:
+  - **Shared apps (the default).** Apps that run many realms, for example one built with Unreal, one with Godot, one written from scratch in Rust. Anyone can write one; none is official. Installed once, it runs every realm built for it with no further installs, because realms ship only data (models, sounds, scene descriptions) and sandboxed JavaScript or WebAssembly. The engine supplies graphics, physics and audio; the realm's behavior is in its portable code.
+  - **A realm's own app (allowed).** A builder who needs more than a shared app offers (for example Unreal's own C++ or Blueprints, its visual scripting) can ship a separate app for their realm. It runs outside any sandbox, so the app warns plainly before install: "This realm needs its own app, which can do anything on your computer."
+- **The manifest says how a realm can be played** (in the browser, in a shared app, or only in its own app), so the app and directories can show it before anyone clicks.
 - **Engine-made 3D models** come in as glTF files (the common web format for 3D models), which all these engines export.
 - **Unreal in a browser:** Unreal no longer runs in web pages, but its Pixel Streaming can run it on a server and stream video to the page, at the realm owner's cost.
 
-**Why this is easy in each engine.** Everything a native client needs already exists as an embeddable library with a C interface (usable from all three engines):
+**Why this is easy in each engine.** Everything a native app needs already exists as an embeddable library with a C interface (usable from all three engines):
 
 | Need | Library | Unreal (C++) | Godot | Unity (C#) |
 |---|---|---|---|---|
@@ -346,24 +360,24 @@ People will make games every way there is: from scratch in JavaScript or Rust, w
 | Run JavaScript | QuickJS, V8 | PuerTS | GodotJS | PuerTS, Jint |
 | Run WebAssembly | Wasmtime | Yes | godot-wasm | Wasmtime .NET |
 
-The plan: write one small core library (protocol, signatures, sandbox) once, with a C interface, and wrap it thinly for each engine, so supporting a new engine is a thin wrapper rather than a rewrite. A native client can start with WebSocket only, through the server's relay, and add direct connections later.
+The plan: write one small core library (protocol, signatures, sandbox) once, with a C interface, and wrap it thinly for each engine, so supporting a new engine is a thin wrapper rather than a rewrite. A native app can start with WebSocket only, through the server's relay, and add direct connections later.
 
 ## The server: a small program anyone can run
 
 Goal: simple enough that anyone can clone this repository and run their own server with one command.
 
-- **Helpers, not a center.** Servers help peers meet, relay for peers who cannot connect directly, and store copies, like trackers and seeders in BitTorrent. Game traffic goes peer to peer whenever it can. Browsers need at least one reachable helper to meet (they cannot accept incoming connections); native apps can also find each other through the shared lookup table, with no helper at all. A game may run its own server for its own reasons, but the network never needs one.
+- **Helpers, not a center.** Servers help peers meet, relay for peers who cannot connect directly, and store copies, like trackers and seeders in BitTorrent. Game traffic goes peer to peer whenever it can. Browsers need at least one reachable helper to meet (they cannot accept incoming connections); native apps can also find each other through the shared lookup table, with no helper at all. A realm may run its own server for its own reasons, but the network never needs one.
 
 - **It does three things (each role optional, see storage and relay nodes above):** stores signed announcements (an object's API and how to reach it), tells who is online, and passes messages between two players who cannot connect directly (for example, because both are behind home routers).
-- **It cannot cheat.** Everything it stores is signed by the key that wrote it, so a server cannot forge a realm, object, or transfer. It holds no game state and makes no rules. A bad or dead server is simply one you stop using.
+- **It cannot cheat.** Everything it stores is signed by the key that wrote it, so a server cannot forge a realm, object, or transfer. It holds no realm state and makes no rules. A bad or dead server is simply one you stop using.
 - **Servers do not talk to each other.** A player lists a few servers they like; a realm announces itself on several. No syncing, no voting, no shared ledger.
 - **It also serves the web page** that players open, so one server is all a group of friends needs.
-- **Size target:** a few hundred lines. Growing past that is a sign game logic is leaking in.
+- **Size target:** a few hundred lines. Growing past that is a sign realm rules are leaking in.
 
 ## Offline, safety, and law
 
 - A realm with no referee online loses its official state, though its public code still runs. Friends or paid hosts can host it by the owner's signed permission, and single-player realms need no host at all. Being online becomes part of the story: ruins, sealed doors, sleeping gods.
-- Safety has no central moderator, so it lives on each person's side: your agent examines a realm's code and warns you, your client filters what you see, and you keep block lists and share them if you like.
+- Safety has no central moderator, so it lives on each person's side: your agent examines a realm's code and warns you, your app filters what you see, and you keep block lists and share them if you like.
 - Law: like the web, the protocol cannot enforce law centrally. Each person is responsible for what their own objects and realms do. The project docs must say this honestly.
 
 ## Original work only
