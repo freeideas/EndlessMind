@@ -229,6 +229,8 @@ function nonce(direction, seq) {
 
 /** Direction numbers for lock and unlock: moves go to the realm, views to the visitor. */
 export const TO_REALM = 1, TO_VISITOR = 2;
+/** A third number, for the private part of an entry request (see specs/RUNTIME.md, "Private sessions"). */
+export const ENTERING = 3;
 
 /**
  * @param {CryptoKey} key @param {number} direction @param {number} seq @param {string} text

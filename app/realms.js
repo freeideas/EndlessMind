@@ -102,9 +102,10 @@ export async function upload(name, bytes, server = location.origin) {
   return hash;
 }
 
-/** @param {{keys: CryptoKeyPair, manifest: import("../shared/envelope.js").Envelope}} realm @param {string} [server] @param {number} [lifetimeMs] */
-export async function announce(realm, server = location.origin, lifetimeMs) {
-  const announcement = await makeAnnouncement(realm.keys, realm.manifest, { lifetimeMs, servers: [server] });
+/** @param {{keys: CryptoKeyPair, manifest: import("../shared/envelope.js").Envelope}} realm @param {string} [server] @param {number} [lifetimeMs]
+ * @param {string} [key] the exchange key of the referee now running, if one is */
+export async function announce(realm, server = location.origin, lifetimeMs, key) {
+  const announcement = await makeAnnouncement(realm.keys, realm.manifest, { lifetimeMs, servers: [server], key });
   const response = await fetch(new URL("/announce", server), {
     method: "POST",
     body: JSON.stringify(announcement),
@@ -134,6 +135,7 @@ export async function lookUp(address, server = location.origin, signal) {
   return {
     manifest: checked.manifest,
     referee: checked.referee,
+    key: /** @type {string | undefined} */ (reply.announcement.body.key),
     servers: /** @type {string[]} */ (reply.announcement.body.servers ?? []),
     online: Boolean(reply.online),
     release: await releaseOf(reply.announcement.body.manifest),

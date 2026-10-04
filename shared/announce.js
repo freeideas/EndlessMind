@@ -102,6 +102,7 @@ function isApp(app) {
  * @property {string} name
  * @property {string[]} tags
  * @property {number} expires  milliseconds since 1970
+ * @property {string} [key]  the referee's exchange key ("x25519-..."), for locking entry requests
  * @property {string[]} [servers]  web addresses of every server the realm is refereed on, so one
  *                                working hint leads to the rest
  * @property {import("./envelope.js").Envelope} [pass]  present when a referee key, not the realm's
@@ -136,11 +137,12 @@ export function makeManifest(realmKeys, body) {
 /**
  * @param {CryptoKeyPair} realmKeys
  * @param {import("./envelope.js").Envelope} manifest
- * @param {{ lifetimeMs?: number, pass?: import("./envelope.js").Envelope, servers?: string[] }} [options]
+ * @param {{ lifetimeMs?: number, pass?: import("./envelope.js").Envelope, servers?: string[], key?: string }} [options]
  *   `lifetimeMs` is shorter for a room, which is gone when its host leaves; `pass` is given when the keys
- *   are a referee key the realm gave a pass to; `servers` lists every server the realm is refereed on
+ *   are a referee key the realm gave a pass to; `servers` lists every server the realm is refereed on;
+ *   `key` is the referee's exchange key, with which visitors lock the private part of an entry request
  */
-export function makeAnnouncement(realmKeys, manifest, { lifetimeMs = ANNOUNCEMENT_LIFETIME_MS, pass, servers } = {}) {
+export function makeAnnouncement(realmKeys, manifest, { lifetimeMs = ANNOUNCEMENT_LIFETIME_MS, pass, servers, key } = {}) {
   const m = /** @type {ManifestBody} */ (manifest.body);
   /** @type {AnnouncementBody} */
   const body = {
@@ -150,6 +152,7 @@ export function makeAnnouncement(realmKeys, manifest, { lifetimeMs = ANNOUNCEMEN
     expires: Math.min(Date.now() + lifetimeMs, pass ? /** @type {any} */ (pass.body).expires : Infinity),
     ...(pass ? { pass } : {}),
     ...(servers?.length ? { servers } : {}),
+    ...(key ? { key } : {}),
   };
   return seal(realmKeys, null, "announce", body);
 }
@@ -209,6 +212,7 @@ export async function checkAnnouncement(value) {
   if (body.expires > Date.now() + ANNOUNCEMENT_LIFETIME_MS + 24 * 60 * 60 * 1000) return null;
   if (typeof body.name !== "string" || body.name.length > MAX_NAME || !isTagList(body.tags)) return null;
   if (body.servers !== undefined && !isServerList(body.servers)) return null;
+  if (body.key !== undefined && !(typeof body.key === "string" && /^x25519-[a-z2-7]{52}$/.test(body.key))) return null;
   let realm = announcement.from, authority = announcement.time;
   if (body.pass !== undefined) {
     const pass = await checkPass(body.pass);

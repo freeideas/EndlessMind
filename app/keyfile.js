@@ -95,6 +95,6 @@ export async function loadKeys(text) {
       },
     });
   }
-  if (file.character) await restore(file.experiences);
+  if (file.character) await restore(file.experiences, file.character.secret);
   return { character: Boolean(file.character), realms: prepared.length };
 }

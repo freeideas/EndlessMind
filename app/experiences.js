@@ -2,6 +2,7 @@
 // kept in this browser with its keys. Keeping them, and showing them, is the
 // player's choice. See shared/experience.js.
 
+import { addressOf, keyPairForRealm } from "../shared/crypto.js";
 import { checkExperience } from "../shared/experience.js";
 import * as store from "./store.js";
 
@@ -45,12 +46,17 @@ export async function record() {
   return Promise.all(kept.map(async ({ realm }) => ({ realm, list: await held(realm) })));
 }
 
-/** Replace the record with one from a backup, which belongs to the character in that backup. @param {unknown} experiences */
-export async function restore(experiences) {
-  await turn;
-  for (const { realm } of await store.list("exp:")) await store.put("exp:" + realm, { realm, list: [] });
-  for (const signed of Array.isArray(experiences) ? experiences : []) {
+/**
+ * Add the record from a backup to what is held. Nothing held is thrown away: a backup may be older than
+ * the record here. Only experiences about the backup's character are taken.
+ * @param {unknown} experiences @param {string} secret  the character's secret from the same backup
+ */
+export async function restore(experiences, secret) {
+  // Oldest first, so the newest end up in front as they were.
+  for (const signed of Array.isArray(experiences) ? [...experiences].reverse() : []) {
     const experience = await checkExperience(signed);
-    if (experience) await keep(experience.issuer, "", signed);
+    if (!experience) continue;
+    const mine = await addressOf((await keyPairForRealm(secret, experience.issuer)).publicKey).catch(() => "");
+    if (mine) await keep(experience.issuer, mine, signed);
   }
 }

@@ -13,6 +13,8 @@ import { open, seal } from "./envelope.js";
 
 /** What an experience says is the issuer's business, but it must stay short (characters of JSON). */
 export const MAX_SAYS = 1024;
+/** And the whole signed experience must stay small, whatever else its issuer adds (characters of JSON). */
+export const MAX_EXPERIENCE = 4096;
 
 /**
  * @typedef {object} Experience  a checked experience
@@ -51,6 +53,11 @@ export function makeExperience(issuerKeys, about, says, lifetimeMs, pass) {
  * @returns {Promise<Experience | null>}
  */
 export async function checkExperience(value) {
+  try {
+    if (JSON.stringify(value).length > MAX_EXPERIENCE) return null;
+  } catch {
+    return null;
+  }
   const signed = await open(value);
   const body = /** @type {any} */ (signed?.body);
   if (!signed || signed.kind !== "emind.experience" || !signed.to || !body) return null;

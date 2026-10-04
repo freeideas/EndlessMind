@@ -24,7 +24,7 @@
 // not in a sandbox: host only realms you wrote or trust.
 
 import { checkAnnouncement, checkPass, makeAnnouncement, makeManifest, makePass, manifestBody, releaseOf } from "../shared/announce.js";
-import { addressOf, hashOf, keyPairFromSecret, newPortableKey } from "../shared/crypto.js";
+import { addressOf, hashOf, keyPairFromSecret, newExchangeKey, newPortableKey } from "../shared/crypto.js";
 import { canonicalJson } from "../shared/encoding.js";
 import { directRules, referee } from "../shared/referee.js";
 import { Relays } from "../shared/relay.js";
@@ -127,6 +127,8 @@ export async function startHost(options) {
   for (const [name, hash] of Object.entries(body.files)) {
     if (!files[name] || await hashOf(files[name]) !== hash) throw new Error(`Missing or changed file: ${name}`);
   }
+  // Visitors lock the private part of their entry requests to this key, named in the announcement.
+  const exchange = await newExchangeKey();
   /** @param {URL} server @param {string} path @param {string} method @param {BodyInit} content @param {string} what */
   async function put(server, path, method, content, what) {
     // A server that takes the connection and then says nothing must not hold up the others.
@@ -137,7 +139,7 @@ export async function startHost(options) {
   /** Announce on one server, and give it the files if asked. @param {URL} server @param {boolean} withFiles */
   async function publish(server, withFiles) {
     // A server takes only files that an announced realm lists, so announce first.
-    await put(server, "/announce", "POST", JSON.stringify(await makeAnnouncement(keys, manifest, { pass, servers: origins })), "Announcing");
+    await put(server, "/announce", "POST", JSON.stringify(await makeAnnouncement(keys, manifest, { pass, servers: origins, key: exchange?.publicText })), "Announcing");
     // With public rules the release also stands without the key: anyone can play their own copy.
     if (body.main) await put(server, "/announce", "POST", JSON.stringify(body), "Announcing");
     if (!withFiles) return;
@@ -159,7 +161,7 @@ export async function startHost(options) {
   let ref;
   try {
     await relay.connect();
-    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay, realm: address, pass,
+    ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay, realm: address, pass, exchange,
       announce: () => everywhere(true), status: log, onStop:() => relay.close() });
   } catch (e) { rules.stop(); relay.close(); throw e; }
   const link = `${origins[0]}/#emind:${address}?via=${origins.map(encodeURIComponent).join(",")}`;

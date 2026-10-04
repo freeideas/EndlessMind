@@ -1,6 +1,6 @@
 // A visit has one lifetime, one handshake and one ordered stream of views.
 import { randomId } from "./encoding.js";
-import { addressOf, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
+import { addressOf, ENTERING, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
 import { Relay } from "./relay.js";
 
 /** @param {string} server */
@@ -17,14 +17,15 @@ export function relayUrl(server) {
  * @param {{server?: string, servers?: string[], address: string, keys: CryptoKeyPair, release: string,
  * character: unknown, onView: (view: any) => void, status: (text: string) => void, signal?: AbortSignal,
  * patienceMs?: number, onCheck?: (check: unknown, view: unknown, hasView: boolean, first: boolean) => void,
- * shown?: unknown[], onExperience?: (signed: unknown) => void}} options
+ * shown?: unknown[], onExperience?: (signed: unknown) => void, enterKey?: string}} options
  *   `address` is whoever referees; `patienceMs` is how long silence is borne; `onCheck` receives what a
  *   referee of repeatable rules sends with each view (see shared/check.js); `shown` are experiences the
  *   player chose to show this realm, and `onExperience` receives ones the realm signs for the player
- *   (see shared/experience.js)
+ *   (see shared/experience.js); `enterKey` is the referee's exchange key from the realm's announcement, with
+ *   which the character and anything shown are locked on the way in
  */
 export async function visit(
-  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onExperience },
+  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onExperience, enterKey },
 ) {
   const me = await addressOf(keys.publicKey);
   // Offered to the referee so the session can be private (see "Private sessions" in shared/crypto.js).
@@ -78,8 +79,16 @@ export async function visit(
     if (session && old) send("emind.leave", { session }).finally(() => old.close());
     else old?.close();
   }
-  function enter() {
-    return send("emind.enter", { request, release, character, ...(exchange ? { key: exchange.publicText } : {}), ...(shown?.length ? { shown } : {}) });
+  /** Experiences that have arrived, to tell the referee with the next ping. @type {string[]} */
+  let got = [];
+  async function enter() {
+    const personal = { character, ...(shown?.length ? { shown } : {}) };
+    const asked = request;
+    if (!exchange || !enterKey) return send("emind.enter", { request, release, ...personal, ...(exchange ? { key: exchange.publicText } : {}) });
+    // Who the player is, and what they show, is for the referee alone: a relay sees only a locked box.
+    const key = await sessionKey(exchange.privateKey, enterKey, `enter\n${address}\n${me}\n${asked}`).catch(() => null);
+    if (!key) return send("emind.enter", { request: asked, release, ...personal, key: exchange.publicText });
+    return send("emind.enter", { request: asked, release, key: exchange.publicText, box: await lock(key, ENTERING, 0, JSON.stringify(personal)) });
   }
   const message = (/** @type {Event} */ event) => {
     incoming = incoming.then(() => handle(/** @type {CustomEvent} */ (event).detail)).catch(() => {});
@@ -102,6 +111,10 @@ export async function visit(
       instance = b.instance;
       lastHeard = Date.now();
       status(`You are in ${b.name}.`);
+    } else if (env.kind === "emind.key" && b.request === request && !session) {
+      // The referee could not open the locked entry request: it has a newer exchange key than the announcement said.
+      enterKey = typeof b.key === "string" ? b.key : undefined;
+      enter();
     } else if (env.kind === "emind.pong" && session && b.session === session) {
       lastHeard = Date.now();
     } else if (env.kind === "emind.refused" && b.request === request) {
@@ -126,7 +139,10 @@ export async function visit(
       lastHeard = Date.now();
       const hasView = Object.hasOwn(inner, "view");
       if (hasView) onView(inner.view);
-      for (const signed of Array.isArray(inner.experiences) ? inner.experiences : []) onExperience?.(signed);
+      for (const signed of Array.isArray(inner.experiences) ? inner.experiences.slice(0, 16) : []) {
+        if (typeof signed?.sig === "string" && got.length < 64) got.push(signed.sig);
+        onExperience?.(signed);
+      }
       onCheck?.(inner.check, inner.view, hasView, first);
     }
   }
@@ -177,8 +193,10 @@ export async function visit(
             if (stopped) return detach();
           }
         }
-        if (session) send("emind.ping", { session });
-        else enter();
+        if (session) {
+          send("emind.ping", { session, ...(got.length ? { got } : {}) });
+          got = [];
+        } else enter();
       }, Math.min(5000, patienceMs / 3));
     }
     return {

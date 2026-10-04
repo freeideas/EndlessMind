@@ -1,5 +1,5 @@
 // Opening a realm always visits. Hosting has a separate, explicit lifetime.
-import { addressOf, generateKeyPair, isHash, keyPairForRealm } from "../shared/crypto.js";
+import { addressOf, generateKeyPair, isHash, keyPairForRealm, newExchangeKey } from "../shared/crypto.js";
 import { isManifestBody, makeManifest, releaseOf } from "../shared/announce.js";
 import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import { Relay } from "../shared/relay.js";
@@ -34,8 +34,8 @@ async function firstOf(servers, attempt, signal, nothing) {
 
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal,
- *   mayShow?: (name: string, count: number, realms: number) => Promise<boolean>}} ui
- *   `mayShow` asks the player whether to show this realm their experiences from other realms; `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
+ *   mayShow?: (name: string, realms: string[]) => Promise<string[]>}} ui
+ *   `mayShow` asks the player which of these realms' experiences this realm may be shown; `servers` are tried in turn: the link's hints, then any this app remembers for the realm */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
   const { server, value: found } = await firstOf(ui.servers, (s) => lookUp(address, s, ui.signal), ui.signal,
@@ -62,12 +62,15 @@ export async function play(address, character, container, ui) {
   /** @type {{ realm: string, signed: import("../shared/envelope.js").Envelope }[]} */
   const mine = [];
   for (const realm of (manifest.asks ?? []).filter((r) => r !== address)) {
-    for (const signed of await held(realm)) mine.push({ realm, signed });
+    // Only what is about this character: a record left by another character in this browser is not ours to show.
+    const here = await addressOf((await keyPairForRealm(character.secret, realm)).publicKey);
+    for (const signed of await held(realm)) if (signed.to === here) mine.push({ realm, signed });
   }
   /** @type {unknown[]} */
   const shown = [];
-  if (mine.length && await ui.mayShow?.(manifest.name, mine.length, new Set(mine.map((m) => m.realm)).size)) {
-    for (const { realm, signed } of mine.slice(0, 16)) {
+  const allowed = mine.length ? await ui.mayShow?.(manifest.name, [...new Set(mine.map((m) => m.realm))]) ?? [] : [];
+  {
+    for (const { realm, signed } of mine.filter((m) => allowed.includes(m.realm)).slice(0, 16)) {
       shown.push(await showExperience(await keyPairForRealm(character.secret, realm), signed, `${address}\n${me}`));
     }
   }
@@ -118,6 +121,7 @@ export async function play(address, character, container, ui) {
         renderer.show(view);
       },
       shown,
+      enterKey: found.key,
       onExperience: (signed) => void keep(address, me, signed),
       onCheck: checker && ((check, view, hasView, first) => void checker?.state(check, view, hasView, first)),
     });
@@ -221,7 +225,7 @@ export async function startRoom(source, server, container, status, onStop) {
     put: (/** @type {string} */ key, /** @type {unknown} */ value) => Promise.resolve(void memory.set(key, JSON.parse(JSON.stringify(value)))),
   };
   const rules = await startRules(container, source.files[/** @type {string} */ (source.body.main)], storage);
-  return { address, ...await runReferee(room, rules, server, () => announce(room, server, lifetime), status, onStop) };
+  return { address, ...await runReferee(room, rules, server, (key) => announce(room, server, lifetime, key), status, onStop) };
 }
 
 /** @param {import('./realms.js').OwnedRealm} realm @param {string} server @param {HTMLElement} container
@@ -235,26 +239,30 @@ export async function startHosting(realm, server, container, status, onStop) {
     fromUtf8(/** @type {NonNullable<typeof realm.files>} */ (realm.files)[body.main]),
     realmStorage(realm.address),
   );
-  return runReferee(realm, rules, server, () => announce(realm, server), status, onStop);
+  return runReferee(realm, rules, server, (key) => announce(realm, server, undefined, key), status, onStop);
 }
 
 /**
  * @param {{address: string, name: string, keys: CryptoKeyPair, manifest: import('../shared/envelope.js').Envelope}} realm
- * @param {Awaited<ReturnType<typeof startRules>>} rules @param {string} server @param {() => Promise<void>} renew
+ * @param {Awaited<ReturnType<typeof startRules>>} rules @param {string} server @param {(key?: string) => Promise<void>} renew
  * @param {(text: string) => void} status @param {() => void} onStop
  */
 async function runReferee(realm, rules, server, renew, status, onStop) {
   const relay = new Relay(relayUrl(server));
   try {
+    // Visitors lock the private part of their entry requests to this key, so the announcement must name it.
+    const exchange = await newExchangeKey();
+    await renew(exchange?.publicText);
     await relay.connect();
     const ref = await referee({
+      exchange,
       address: realm.address,
       keys: realm.keys,
       name: realm.name,
       release: await releaseOf(realm.manifest),
       rules,
       relay,
-      announce: renew,
+      announce: () => renew(exchange?.publicText),
       status,
       onStop: () => {
         relay.close();

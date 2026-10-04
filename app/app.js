@@ -7,7 +7,7 @@ import { myCharacter, updateCharacter } from "./character.js";
 import { exampleFiles, ownedRealms, publish, publishOwned, search, serverOrigin } from "./realms.js";
 import { play, startHosting, startRoom } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
-import { askToPersist, get, put } from "./store.js";
+import { askToPersist, get, list, put } from "./store.js";
 import { record } from "./experiences.js";
 
 /** @param {string} id */
@@ -152,6 +152,11 @@ async function showRecord() {
   if (!all.length) list.append(el("li", {}, ["Nothing yet. Realms can sign what you do in them, and you choose where to show it."]));
 }
 
+$("forget-showing").onclick = async () => {
+  for (const kept of await list("show:")) await put("show:" + kept.address, undefined);
+  status("Forgotten. Realms that ask to see your experiences will be asked about again.");
+};
+
 async function showHome() {
   $("realm").hidden = true;
   $("home").hidden = false;
@@ -223,14 +228,18 @@ async function showRealm(address, release, via = []) {
   stage.replaceChildren();
   try {
     const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal,
-      // Asked once for each realm, and remembered.
-      mayShow: async (name, count, realms) => {
-        let answer = await get("show:" + address);
-        if (answer === undefined) {
-          answer = confirm(`${name} asks to see what you have done in ${realms} other realm(s): ${count} signed experience(s) from your record. Showing them tells it which player you are in those realms. Show them?`);
-          await put("show:" + address, answer);
+      // The player answers once for each realm whose experiences are asked for, and is asked again
+      // whenever this realm starts asking for another.
+      mayShow: async (name, realms) => {
+        /** @type {{ address: string, answers: Record<string, boolean> }} */
+        const kept = await get("show:" + address) ?? { address, answers: {} };
+        const fresh = realms.filter((r) => !(r in kept.answers));
+        if (fresh.length) {
+          const answer = confirm(`${name} asks to see what you have done in ${fresh.length} other realm(s) you have played:\n${fresh.join("\n")}\nShowing your signed experiences tells it which player you are in those realms. Show them?`);
+          for (const r of fresh) kept.answers[r] = answer;
+          await put("show:" + address, kept);
         }
-        return answer;
+        return realms.filter((r) => kept.answers[r]);
       } });
     $("realm-name").textContent = opened.name;
     ({ server, servers } = opened);

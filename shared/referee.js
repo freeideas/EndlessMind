@@ -1,5 +1,5 @@
 // One referee and one session path for every visitor, including its owner.
-import { lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
+import { ENTERING, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unlock } from "./crypto.js";
 import { randomId } from "./encoding.js";
 import { checkShown, makeExperience } from "./experience.js";
 
@@ -30,11 +30,13 @@ import { checkShown, makeExperience } from "./experience.js";
 /**
  * @param {{address: string, keys: CryptoKeyPair, name: string, release: string, rules: RulesDriver,
  * relay: Relay, announce: () => Promise<void>, status: (text: string) => void, onStop?: () => void,
- * realm?: string, pass?: Envelope}} options  `address` and `keys` are the referee's. `realm` is the address the
- *   realm is known by and `pass` its word that this referee may speak for it, when they differ.
+ * realm?: string, pass?: Envelope, exchange?: { privateKey: CryptoKey, publicText: string } | null}} options
+ *   `address` and `keys` are the referee's. `realm` is the address the realm is known by and `pass` its word
+ *   that this referee may speak for it, when they differ. `exchange` is the key pair whose public half the
+ *   realm's announcement carries, so visitors can lock the private part of their entry requests.
  */
 export async function referee(
-  { address, keys, name, release, rules, relay, announce, status, onStop, realm = address, pass },
+  { address, keys, name, release, rules, relay, announce, status, onStop, realm = address, pass, exchange },
 ) {
   await relay.addKey(keys);
   const instance = randomId();
@@ -46,6 +48,7 @@ export async function referee(
    * @property {number} seq
    * @property {number} actionSeq
    * @property {number} lastHeard
+   * @property {Set<string>} handed     the experiences owed to its player that this session has been sent
    * @property {boolean} welcomed       nothing is sent in a session before its welcome
    * @property {Promise<void>} ready   settles once the session's key (if any) is worked out
    * @property {string} [key]          this side's public half, when the visitor offered one
@@ -58,31 +61,41 @@ export async function referee(
   const entering = new Map();
   /** @param {string} to @param {string} kind @param {unknown} body */
   const send = (to, kind, body) => relay.send(keys, to, kind, body).catch(console.error);
-  /** Experiences signed for players and not yet handed over. @type {Map<string, Envelope[]>} */
+  /**
+   * Experiences signed for players and not yet known to have arrived. They are sent once in each session
+   * until the visitor says it has them, so a lost message does not lose one for good.
+   * @type {Map<string, Envelope[]>}
+   */
   const owed = new Map();
   rules.onRecord?.(async (player, says, days) => {
     const signed = await makeExperience(keys, player, says, days ? days * 24 * 60 * 60 * 1000 : undefined, pass);
     // The rules get the signed experience to keep if they wish. The player gets it too if they are here
     // or on their way in, inside their session; what they do with it is up to them.
-    const list = owed.get(player) ?? [];
-    if (!stopped && (players.has(player) || entering.has(player)) && list.length < 16) owed.set(player, [...list, signed]);
+    const list = owed.get(player) ?? [], p = players.get(player);
+    if (!stopped && (p || entering.has(player)) && list.length < 16) owed.set(player, [...list, signed]);
     return signed;
   });
   rules.onViews((views, checks) => {
     if (stopped) return;
     // With repeatable rules every player hears every tick, view or not, so their copy never misses a move.
-    for (const player of new Set([...Object.keys(checks ?? views), ...owed.keys()])) {
+    for (const player of owed.keys()) if (!players.has(player) && !entering.has(player)) owed.delete(player);
+    /** @param {string} player */
+    const unsent = (player) => {
       const p = players.get(player);
-      if (!p && !entering.has(player)) owed.delete(player);
+      return p ? (owed.get(player) ?? []).filter((signed) => !p.handed.has(signed.sig)) : [];
+    };
+    const waiting = [...owed.keys()].filter((player) => unsent(player).length);
+    for (const player of new Set([...Object.keys(checks ?? views), ...waiting])) {
+      const p = players.get(player);
       // Until the welcome has gone out the session's key may not be ready, and a view must never go unlocked.
       if (!p?.welcomed) continue;
       const seq = ++p.seq, cipher = p.cipher;
-      const experiences = owed.get(player);
-      owed.delete(player);
+      const experiences = unsent(player);
+      for (const signed of experiences) p.handed.add(signed.sig);
       const inner = {
         ...(Object.hasOwn(views, player) ? { view: views[player] } : {}),
         ...(checks && Object.hasOwn(checks, player) ? { check: checks[player] } : {}),
-        ...(experiences ? { experiences } : {}),
+        ...(experiences.length ? { experiences } : {}),
       };
       if (!cipher) {
         send(player, "emind.state", { session: p.session, seq, ...inner });
@@ -110,6 +123,20 @@ export async function referee(
     let p = players.get(env.from);
     if (env.kind === "emind.enter") {
       if (typeof b.request !== "string" || b.request.length < 16 || b.request.length > 64) return;
+      if (b.box !== undefined) {
+        // The private part of the request (the character, and any experiences shown) is locked to this
+        // referee's exchange key. If it will not open, the visitor has an old key: tell it the current one.
+        try {
+          if (!exchange) throw new Error("no exchange key");
+          const key = await sessionKey(exchange.privateKey, b.key, `enter\n${address}\n${env.from}\n${b.request}`);
+          Object.assign(b, JSON.parse(await unlock(key, ENTERING, 0, b.box)));
+        } catch {
+          send(env.from, "emind.key", { request: b.request, ...(exchange ? { key: exchange.publicText } : {}) });
+          return;
+        }
+        if (stopped) return;
+        p = players.get(env.from);
+      }
       if (b.release !== release) {
         send(env.from, "emind.refused", {
           request: b.request,
@@ -124,8 +151,11 @@ export async function referee(
           // Experiences the visitor chose to show are checked here, so the rules see only true ones:
           // signed by their issuer, in date, about this visitor, and shown to this realm.
           const shown = Array.isArray(b.shown) ? b.shown.slice(0, 16) : [];
+          const seen = new Set();
           pending = Promise.all(shown.map((/** @type {unknown} */ one) => checkShown(one, `${realm}\n${env.from}`).catch(() => null)))
-            .then((checked) => rules.enter(env.from, b.character ?? {}, checked.filter(Boolean)))
+            // The same experience shown twice counts once.
+            .then((checked) => checked.filter((e) => e && !seen.has(e.signed.sig) && seen.add(e.signed.sig)))
+            .then((checked) => rules.enter(env.from, b.character ?? {}, checked))
             .catch((error) => ({ ok: false, reason: String(error) }));
           entering.set(env.from, pending);
         }
@@ -146,6 +176,7 @@ export async function referee(
           seq: 0,
           actionSeq: 0,
           lastHeard: Date.now(),
+          handed: new Set(),
           welcomed: false,
           ready: Promise.resolve(),
           work: Promise.resolve(),
@@ -193,6 +224,11 @@ export async function referee(
       } else if (env.kind === "emind.ping") {
         // Answered, so a visitor can tell a quiet realm (no views to send) from a dead referee.
         send(env.from, "emind.pong", { session: p.session });
+        // The visitor names the experiences that have arrived; those need not be sent again.
+        if (Array.isArray(b.got) && owed.has(env.from)) {
+          const left = /** @type {Envelope[]} */ (owed.get(env.from)).filter((signed) => !b.got.includes(signed.sig));
+          left.length ? owed.set(env.from, left) : owed.delete(env.from);
+        }
       } else if (env.kind === "emind.leave") {
         players.delete(env.from);
         rules.leave(env.from);
@@ -340,7 +376,7 @@ export async function directRules(rules, storage, report = (error) => console.er
       try {
         if (repeatable) {
           // Every player's copy needs what the rules were given, so the signed originals stay behind.
-          const kept = note("enter", player, [character, experiences.map((/** @type {any} */ e) => ({ ...e, signed: undefined }))], 16384);
+          const kept = note("enter", player, [character, experiences.map((/** @type {any} */ e) => ({ ...e, signed: undefined }))], 32768);
           if (!kept) return { ok: false, reason: "Your character's description and shown experiences are too large for this realm, or the realm is too busy just now." };
           [character, experiences] = /** @type {any[]} */ (kept.value);
           inputs[inputs.length - 1] = ["enter", player, character, experiences];

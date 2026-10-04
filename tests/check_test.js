@@ -233,6 +233,6 @@ Deno.test("one player's oversize move is not passed on to everyone", async () =>
   host.act("bo", { by: 2 });
   const m = await tick();
   assertEquals(m.check.inputs, [["act", "bo", { by: 2 }], ["tick"]]);
-  assertEquals((await host.enter("cy", { name: "x".repeat(20_000) })).ok, false);
+  assertEquals((await host.enter("cy", { name: "x".repeat(40_000) })).ok, false);
   host.stop();
 });

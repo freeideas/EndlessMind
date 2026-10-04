@@ -114,7 +114,8 @@ Deno.test("experiences are signed by a realm, kept by the player, and shown to a
       v.stop();
       return views[0] ?? said.find((t) => t.includes("refused"));
     };
-    assertEquals((await tryClub(inClub, shown)).shown, ["entered the guild hall", { standing: "good" }, "pulled the sword from the stone"]);
+    // Showing one twice does not make it count twice.
+    assertEquals((await tryClub(inClub, [...shown, shown[0]])).shown, ["entered the guild hall", { standing: "good" }, "pulled the sword from the stone"]);
     assert(String(await tryClub(await generateKeyPair())).includes("Members of the guild only"), "nothing shown, not let in");
 
     // Someone else cannot use the player's experiences: not as they are, and not with a proof of their own.
@@ -145,6 +146,58 @@ Deno.test("experiences are signed by a realm, kept by the player, and shown to a
   }
 });
 
+Deno.test("an experience lost on the way is sent again in the next session, until the visitor has it", async () => {
+  const { referee } = await import("../shared/referee.js");
+  class TestRelay extends EventTarget {
+    /** @type {any[]} */ sent = [];
+    async addKey() {}
+    release() {}
+    /** @param {unknown} _keys @param {string} to @param {string} kind @param {unknown} body */
+    async send(_keys, to, kind, body) { this.sent.push({ to, kind, body: JSON.parse(JSON.stringify(body)) }); }
+  }
+  const relay = new TestRelay();
+  /** @type {(views: Record<string, unknown>) => void} */
+  let views = () => {};
+  /** @type {(player: string, says: unknown, days?: number) => Promise<unknown>} */
+  let record = () => Promise.resolve(null);
+  const keys = await generateKeyPair(), player = await addressOf((await generateKeyPair()).publicKey);
+  const ref = await referee({
+    address: "realm", keys, name: "Test", release: "release", relay: /** @type {any} */ (relay),
+    announce: async () => {}, status: () => {},
+    rules: {
+      ticksPerSecond: 1, enter: () => Promise.resolve({ ok: true }), act() {}, leave() {}, step() {}, onRemove() {}, stop() {},
+      onViews(fn) { views = fn; },
+      onRecord(fn) { record = fn; },
+    },
+  });
+  const message = (/** @type {string} */ kind, /** @type {unknown} */ body) =>
+    relay.dispatchEvent(new CustomEvent("message", { detail: { from: player, to: "realm", kind, body } }));
+  const turn = () => new Promise((r) => setTimeout(r, 20));
+  const states = () => relay.sent.filter((m) => m.kind === "emind.state");
+  try {
+    message("emind.enter", { request: "a".repeat(26), release: "release" });
+    await turn();
+    const signed = /** @type {any} */ (await record(player, "won"));
+    views({});
+    views({});
+    assertEquals(states().map((m) => m.body.experiences?.length), [1], "sent once in a session, even with no view to send");
+    // The visitor never got it and starts over: the new session is sent it again.
+    message("emind.enter", { request: "b".repeat(26), release: "release" });
+    await turn();
+    views({});
+    assertEquals(states().length, 2);
+    // Once the visitor says it has it, it is not sent again.
+    const session = relay.sent.filter((m) => m.kind === "emind.welcome").at(-1).body.session;
+    message("emind.ping", { session, got: [signed.sig] });
+    message("emind.enter", { request: "c".repeat(26), release: "release" });
+    await turn();
+    views({});
+    assertEquals(states().length, 2);
+  } finally {
+    ref.stop();
+  }
+});
+
 Deno.test("an experience cannot be altered, outlive its date, or say too much", async () => {
   const realm = await generateKeyPair(), player = await addressOf((await generateKeyPair()).publicKey);
   const signed = await makeExperience(realm, player, { award: "spring champion" }, 1000);
@@ -155,4 +208,57 @@ Deno.test("an experience cannot be altered, outlive its date, or say too much", 
   let refused = false;
   await Promise.resolve().then(() => makeExperience(realm, player, "x".repeat(2000))).catch(() => refused = true);
   assert(refused);
+  // Extra fields an issuer adds are signed too, but the whole must stay small.
+  const { seal } = await import("../shared/envelope.js");
+  assertEquals(await checkExperience(await seal(realm, player, "emind.experience", { says: "x", padding: "y".repeat(5000) })), null);
+});
+
+Deno.test("who a visitor is, and what they show, is locked on the way in; an old key is corrected", async () => {
+  const { newExchangeKey } = await import("../shared/crypto.js");
+  const dir = await Deno.makeTempDir();
+  // The referee reaches the server through a tap that keeps a copy of all the server sends it,
+  // which is everything a relay passes on to a referee.
+  let seen = "", port = 0;
+  const tap = Deno.listen({ port: 0, hostname: "127.0.0.1" });
+  const tapped = `http://127.0.0.1:${/** @type {Deno.NetAddr} */ (tap.addr).port}`;
+  (async () => {
+    for await (const c of tap) {
+      const up = await Deno.connect({ port, hostname: "127.0.0.1" });
+      c.readable.pipeTo(up.writable).catch(() => {});
+      const [a, b] = up.readable.tee();
+      a.pipeTo(c.writable).catch(() => {});
+      (async () => { for await (const chunk of b) seen += new TextDecoder().decode(chunk); })().catch(() => {});
+    }
+  })();
+  const s = await startServer({ port: 0, hostname: "127.0.0.1", dataDir: `${dir}/data`, origins: [tapped, "http://127.0.0.1:0"] });
+  port = s.port;
+  const base = `http://127.0.0.1:${s.port}`;
+  try {
+    const rules = `export default { init() { return {}; }, enter(s, p, c) { s[p] = c.name; return true; }, view(s, p) { return { name: s[p] }; } };`;
+    const host = await startHost({ server: tapped, realmDir: await realmFolder(dir, "named", rules), keysFile: `${dir}/named.json`, log: () => {} });
+    const found = await checkAnnouncement((await (await fetch(`${base}/announce/${host.address}`)).json()).announcement);
+    assert(found);
+    const key = /** @type {any} */ (found.announcement.body).key;
+    assert(typeof key === "string", "the announcement names the referee's exchange key");
+    const stale = (await newExchangeKey())?.publicText;
+    for (const [enterKey, name] of [[key, "Secret Otter"], [stale, "Hidden Heron"]]) {
+      /** @type {any[]} */
+      const views = [];
+      const v = await visit({
+        server: tapped, address: found.referee, keys: await generateKeyPair(), release: await releaseOf(/** @type {any} */ (found.announcement.body).manifest),
+        character: { name }, enterKey, onView: (view) => views.push(view), status: () => {},
+      });
+      await until(() => views.length);
+      assertEquals(views[0].name, name);
+      v.stop();
+    }
+    assert(seen.includes("emind.enter"), "the tap saw no entry requests at all");
+    assert(!seen.includes("Otter") && !seen.includes("Heron"), "a character crossed the relay in the clear");
+    host.stop();
+    await new Promise((r) => setTimeout(r, 100));
+  } finally {
+    tap.close();
+    await s.shutdown();
+    await Deno.remove(dir, { recursive: true });
+  }
 });
