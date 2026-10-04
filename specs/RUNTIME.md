@@ -27,6 +27,7 @@ A realm is published from a folder of files:
 
 - `main` is required. With `"privateRules": true` the rules file is never uploaded and the manifest leaves `main` out, so only the host program can referee the realm; the browser portal refuses to publish it.
 - `renderer` may be left out when `portal` is given.
+- `renderers`, `{ "Text only": "text.js" }`, offers other renderers for the same views: a short label for each, and its file. The portal lets the actor choose among them and the default.
 - `portal`, `{ "name": "...", "url": "https://..." }`, names the realm's own portal, a program actors install (see "Portals beyond the browser" in [DESIGN.md](DESIGN.md)).
 - `files` lists other public files the host program uploads with the realm. The browser portal uploads every file chosen.
 - `needs` lists permissions the realm asks the actor's portal for. None exist in version 0, so leave it empty or out.
@@ -105,6 +106,8 @@ export default {
   },
 };
 ```
+
+**More than one look.** Views are plain data, so any renderer that understands them will do, and the rules cannot tell which is in use. A realm can offer several (`renderers` in `realm.json`); the maze example has its drawn maze and a text-only one, [examples/maze-chase/text.js](../examples/maze-chase/text.js). Anyone else can write one too: a link ending in `&renderer=<file hash>` shows the realm with that renderer, as long as a server the link names holds the file. So keep the shape of your views steady between versions, and describe it in a comment, as the maze's rules do.
 
 Input (keyboard, mouse, touch, gamepad) arrives inside the sandbox as usual once the actor clicks or taps it. Views arrive about `ticksPerSecond` times a second; smooth movement between them in the renderer if you like.
 

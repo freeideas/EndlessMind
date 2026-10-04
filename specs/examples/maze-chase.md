@@ -18,3 +18,5 @@ A technical example of how an actor could make their own small game on the Endle
 - The way in is a link, `https://<server>/#emind:<realm address>?via=<server>`. The key names the realm and the `via` hint says where it is announced. Anyone who opens it can join.
 
 A working version of this example is in this repository under `examples/maze-chase/`.
+
+The example ships two renderers for the same views: the drawn maze, and a text-only one offered under `renderers` in its `realm.json`. In the portal, the **Look** menu switches between them while playing.

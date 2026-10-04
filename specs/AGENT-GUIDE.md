@@ -29,6 +29,7 @@ Some realms need their referee run by the host program (see "Hosting without a b
 - **No network, no outside files** in the renderer or in public rules, which run in a sandbox. Embed images and sounds as `data:` URLs, or draw them. Inline any library you need into the module.
 - **Make sense with one actor.** Public rules can be played alone (each actor runs their own copy from the release link) or in a room one actor hosts for friends, as well as in the maker's lasting realm. Do not assume other actors are present, or that saved data from a room lasts.
 - **Make the rules repeatable when you can.** If the realm hides nothing from its actors, needs nothing from outside and saves nothing, write the rules so the same moves always give the same state (random numbers from the `seed`, kept in the state; no `async`; no clock) and set `repeatable: true`. Every actor's portal can then check the referee, so nobody has to trust whoever hosts. See "Checking the referee" in [RUNTIME.md](RUNTIME.md) and the maze example.
+- **Views are for any renderer.** The rules send plain data and never assume how it is drawn. The actor may choose another look: one you offer under `renderers` in `realm.json` (a text-only one helps screen readers and is quick to write), or one someone else made.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
 ## Testing

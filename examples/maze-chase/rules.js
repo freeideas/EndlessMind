@@ -198,7 +198,15 @@ export default {
     }
   },
 
-  /** What one actor is sent: everything here is public, so the whole board. @param {State} s @param {string} who */
+  /**
+   * What one actor is sent: everything here is public, so the whole board. Any renderer can draw it:
+   *   grid     rows of text, top to bottom: "#" wall, "." seed, " " open floor
+   *   actors   each { name, color, x, y, score, safe, me }; `me` marks the actor this view is for
+   *   spirits  each [x, y]
+   *   round    which maze this is, counting from 1
+   *   tick     counts up on every tick
+   * @param {State} s @param {string} who
+   */
   view(s, who) {
     return {
       grid: s.grid.map((row) => row.join("")),
