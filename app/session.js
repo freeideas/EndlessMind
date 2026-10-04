@@ -1,125 +1,23 @@
-// Being in a realm: as its referee (this device holds the realm's key) or as a
-// visitor. The message kinds used here (enter, act, leave, ping, welcome,
-// refused, state) are the "entering and leaving" extension in specs/RUNTIME.md.
+// Being in a realm: as its referee (this browser holds the realm's key and its
+// rules are public) or as a visitor. The referee loop itself is shared with the
+// host program (shared/referee.js); the message kinds are the "entering and
+// leaving" extension in specs/RUNTIME.md.
 
-import { fetchFile, announce, lookUp } from "./realms.js";
+import { referee } from "../shared/referee.js";
+import { announce, fetchFile, lookUp } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
 
-/** @typedef {import("./net.js").Relay} Relay */
+/** @typedef {import("../shared/relay.js").Relay} Relay */
 /** @typedef {import("./character.js").Character} Character */
 /** @typedef {import("./realms.js").OwnedRealm} OwnedRealm */
 /** @typedef {import("../shared/envelope.js").Envelope} Envelope */
 
-const VISITOR_TIMEOUT_MS = 20_000;
 const PING_EVERY_MS = 5_000;
 const REFEREE_SILENT_MS = 15_000;
-const RENEW_ANNOUNCEMENT_MS = 60 * 60 * 1000;
 
 /**
- * Referee a realm this device owns. The rules run in a hidden sandbox here;
- * visitors send signed moves through the relay and get signed views back.
- * @param {OwnedRealm} realm
- * @param {Relay} relay
- * @param {HTMLElement} container
- * @param {(text: string) => void} status
- */
-export async function referee(realm, relay, container, status) {
-  const manifest = /** @type {import("../shared/announce.js").ManifestBody} */ (realm.manifest.body);
-  const rules = await startRules(container, await fetchFile(manifest.files[manifest.main]));
-  await relay.addKey(realm.keys);
-
-  /** Players inside, and how to reach each. @type {Map<string, {deliver: (view: unknown) => void, lastHeard: number, local: boolean}>} */
-  const players = new Map();
-
-  rules.onViews((views) => {
-    for (const [player, view] of Object.entries(views)) players.get(player)?.deliver(view);
-  });
-
-  /** @param {Event} event */
-  async function onMessage(event) {
-    const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
-    if (env.to !== realm.address) return;
-    const body = /** @type {any} */ (env.body) ?? {};
-    const known = players.get(env.from);
-    if (known) known.lastHeard = Date.now();
-    if (env.kind === "emind.enter" && !known) {
-      const verdict = await rules.enter(env.from, body.character ?? {});
-      if (!verdict.ok) {
-        await relay.send(realm.keys, env.from, "emind.refused", { reason: verdict.reason ?? "" });
-        return;
-      }
-      players.set(env.from, {
-        local: false,
-        lastHeard: Date.now(),
-        deliver: (view) => relay.send(realm.keys, env.from, "emind.state", { view }),
-      });
-      await relay.send(realm.keys, env.from, "emind.welcome", { name: manifest.name });
-      status(`${body.character?.name ?? "Someone"} came in.`);
-    } else if (env.kind === "emind.enter" && known) {
-      await relay.send(realm.keys, env.from, "emind.welcome", { name: manifest.name });
-    } else if (env.kind === "emind.act" && known) {
-      rules.act(env.from, body.action);
-    } else if (env.kind === "emind.leave" && known) {
-      players.delete(env.from);
-      rules.leave(env.from);
-    }
-  }
-  relay.addEventListener("message", onMessage);
-
-  /** A key can be carried anywhere; if another holder starts hosting, this copy stops. @param {Event} event */
-  function onReplaced(event) {
-    if (/** @type {CustomEvent<string>} */ (event).detail !== realm.address) return;
-    halt();
-    status(`${manifest.name} is now being hosted from somewhere else, so this copy has stopped.`);
-  }
-  relay.addEventListener("replaced", onReplaced);
-
-  const ticker = setInterval(() => {
-    const now = Date.now();
-    for (const [player, p] of players) {
-      if (!p.local && now - p.lastHeard > VISITOR_TIMEOUT_MS) {
-        players.delete(player);
-        rules.leave(player);
-      }
-    }
-    rules.step();
-  }, 1000 / rules.ticksPerSecond);
-
-  const renewer = setInterval(() => announce(realm).catch(console.error), RENEW_ANNOUNCEMENT_MS);
-  announce(realm).catch(console.error);
-
-  function halt() {
-    clearInterval(ticker);
-    clearInterval(renewer);
-    relay.removeEventListener("message", onMessage);
-    relay.removeEventListener("replaced", onReplaced);
-  }
-
-  return {
-    /**
-     * Let a player on this device in, without the network.
-     * @param {Character} character @param {(view: unknown) => void} deliver
-     */
-    async addLocalPlayer(character, deliver) {
-      const verdict = await rules.enter(character.address, character.info);
-      if (verdict.ok) players.set(character.address, { local: true, lastHeard: Date.now(), deliver });
-      return verdict;
-    },
-    /** @param {string} player @param {unknown} action */
-    act(player, action) {
-      rules.act(player, action);
-    },
-    stop() {
-      halt();
-      relay.release(realm.address);
-      rules.stop();
-    },
-  };
-}
-
-/**
- * Play in a realm: as a local player if this device referees it, otherwise as
- * a visitor through the relay.
+ * Play in a realm: as a local player if this browser referees it (it holds the
+ * key and the rules are public), otherwise as a visitor through the relay.
  * @param {string} address realm address
  * @param {Character} character
  * @param {Relay} relay
@@ -140,13 +38,29 @@ export async function play(address, character, relay, container, ui) {
   if (manifest.needs.length) {
     throw new Error(`This realm asks for permissions this app does not know: ${manifest.needs.join(", ")}.`);
   }
+  if (!manifest.renderer) {
+    throw Object.assign(new Error(`${manifest.name} cannot be played in a browser.`), { app: manifest.app });
+  }
   const rendererCode = await fetchFile(manifest.files[manifest.renderer]);
 
-  if (ui.owned) {
-    const ref = await referee(ui.owned, relay, container, ui.status);
+  // A realm with private rules is refereed by its host program; here its key holder is a visitor like anyone.
+  const owned = ui.owned;
+  const ownManifest = /** @type {import("../shared/announce.js").ManifestBody | undefined} */ (owned?.manifest.body);
+  if (owned && ownManifest?.main) {
+    const rules = await startRules(container, await fetchFile(ownManifest.files[ownManifest.main]));
+    const ref = await referee({
+      address: owned.address,
+      keys: owned.keys,
+      name: ownManifest.name,
+      rules,
+      relay,
+      announce: () => announce(owned),
+      status: ui.status,
+    });
+    announce(owned).catch(console.error);
     const view = await startRenderer(container, rendererCode, character.address, character.info, (action) =>
       ref.act(character.address, action));
-    const verdict = await ref.addLocalPlayer(character, (v) => (lastView(v), view.show(v)));
+    const verdict = await ref.addLocalPlayer(character.address, character.info, (v) => (lastView(v), view.show(v)));
     if (!verdict.ok) throw new Error(`The realm refused you: ${verdict.reason ?? "no reason given"}`);
     ui.status(`You are hosting ${manifest.name}. Keep this tab open so others can play.`);
     return { name: manifest.name, release: found.release, stop: () => (ref.stop(), view.stop()) };
@@ -166,7 +80,7 @@ export async function play(address, character, relay, container, ui) {
     lastHeard = Date.now();
     if (env.kind === "emind.welcome" && !welcomed) {
       welcomed = true;
-      ui.status(`You are in ${manifest.name}.`);
+      ui.status(`You are in ${manifest.name}.` + (manifest.main ? "" : " Its rules are private: only its referee knows them."));
     } else if (env.kind === "emind.refused") {
       ui.status(`The realm refused you: ${body.reason || "no reason given"}`);
     } else if (env.kind === "emind.state") {

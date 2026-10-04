@@ -4,20 +4,21 @@ Instructions for AI agents (and people) changing Endless Mind itself. Agents bui
 
 ## Layout
 
-| Path        | What it is                                                                  |
-| ----------- | --------------------------------------------------------------------------- |
-| `README.md` | For end users: players and creators                                         |
-| `specs/`    | Design, protocol, runtime interface, agent guide, running, examples         |
-| `shared/`   | Code that runs unchanged in browsers and Deno: keys, hashes, signed messages |
-| `server/`   | The helper server (one file, keep it a few hundred lines)                   |
-| `app/`      | The reference browser app, served as plain files                            |
-| `examples/` | Realm source folders (`realm.json`, rules, renderer)                        |
-| `tests/`    | Deno unit tests and the browser end-to-end test                             |
+| Path        | What it is                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| `README.md` | For end users: players and creators                                                          |
+| `specs/`    | Design, protocol, runtime interface, agent guide, running, examples                          |
+| `shared/`   | Code run unchanged in browsers and Deno: keys, hashes, signed messages, relay, referee loop  |
+| `server/`   | The helper server (one file, keep it a few hundred lines)                                    |
+| `host/`     | The host program: referees a realm without a browser                                         |
+| `app/`      | The reference browser app, served as plain files                                             |
+| `examples/` | Realm source folders (`realm.json`, rules, renderer)                                         |
+| `tests/`    | Deno unit tests and the browser end-to-end test                                              |
 
 ## Conventions
 
 - Plain JavaScript ES modules with JSDoc type comments; no build step, no bundler, no npm dependencies in the app or shared code. Browsers must be able to load every file as it is.
-- `deno task check` and `deno task test` must pass before committing; run `uv run tests/e2e.py chromium firefox webkit` after changing the app, sandbox or server. How to run things is in [specs/RUNNING.md](specs/RUNNING.md).
+- `deno task check` and `deno task test` must pass before committing; run `uv run tests/e2e.py chromium firefox webkit` after changing the app, sandbox, server or host program. How to run things is in [specs/RUNNING.md](specs/RUNNING.md).
 - The server holds no game state and makes no rules. If a feature needs the server to understand a game, it belongs in the app or in realm code instead.
 - If a format changes on purpose, regenerate the test vectors with `deno run tests/vectors.js > specs/test-vectors.json` (never to make a failing test pass by accident).
 - Protocol changes (message shapes, signing, manifest, announcements) must be reflected in [specs/PROTOCOL.md](specs/PROTOCOL.md) or [specs/RUNTIME.md](specs/RUNTIME.md), keeping the "rules for the rules" in PROTOCOL.md.

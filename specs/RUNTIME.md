@@ -2,17 +2,17 @@
 
 What a realm's code and a renderer's code look like, and what they can and cannot do inside their sandboxes. This is the "runtime interface" part of the core in [PROTOCOL.md](PROTOCOL.md). Version 0 is a draft and may change. It supports JavaScript only, one file each for rules and renderer, and no saved state.
 
-The reference implementation is [app/sandbox.js](../app/sandbox.js) and [app/session.js](../app/session.js); the example is [examples/maze-chase/](../examples/maze-chase/).
+The reference implementation is [app/sandbox.js](../app/sandbox.js) and [app/session.js](../app/session.js) in the browser, [shared/referee.js](../shared/referee.js) (the referee loop) and [host/host.js](../host/host.js) (the host program, which referees without a browser). The examples are [examples/maze-chase/](../examples/maze-chase/) (public rules) and [examples/listening-well/](../examples/listening-well/) (private rules that ask an AI model).
 
 ## A realm's files
 
 A realm is published from a folder of files:
 
-| File          | What it is                                                                       |
-| ------------- | -------------------------------------------------------------------------------- |
-| `realm.json`  | Name, description, tags, and which file is the rules and which the renderer      |
-| rules file    | The realm's rules: one self-contained JavaScript module (named in `main`)        |
-| renderer file | The default renderer: one self-contained JavaScript module (named in `renderer`) |
+| File          | What it is                                                                          |
+| ------------- | ----------------------------------------------------------------------------------- |
+| `realm.json`  | Name, description, tags, and which file is the rules and which the renderer         |
+| rules file    | The realm's rules: one self-contained JavaScript module (named in `main`)           |
+| renderer file | The default browser renderer: one self-contained JavaScript module (in `renderer`)  |
 
 ```json
 {
@@ -25,15 +25,19 @@ A realm is published from a folder of files:
 }
 ```
 
-`needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
+- `main` is required. With `"privateRules": true` the rules file is never uploaded and the manifest leaves `main` out, so only the host program can referee the realm; the browser app refuses to publish it.
+- `renderer` may be left out when `app` is given.
+- `app`, `{ "name": "...", "url": "https://..." }`, names the realm's own app, a program players install (see "Apps beyond the browser" in [DESIGN.md](DESIGN.md)). The manifest's `play` lists `"browser"` when there is a renderer and `"app"` when there is an app.
+- `files` lists other public files the host program uploads with the realm. The browser app uploads every file chosen.
+- `needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
 
-Publishing makes a new key pair for the realm in the publishing app, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<server>/#emind:<address>?via=<server>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
+Publishing makes a new key pair for the realm in the publishing app, uploads each public file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<server>/#emind:<address>?via=<server>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)). The host program does the same from the realm's folder, keeping the key in a key file, so starting it again publishes the folder's current version under the same address (see [RUNNING.md](RUNNING.md)).
 
 **Version 0 limit:** each module must be self-contained, with no `import` of other files. Inline anything you need (including libraries) into the file itself.
 
 ## The rules module
 
-The rules run on the referee (the app holding the realm's key), in a hidden sandbox. The app keeps the state inside the sandbox and calls these functions; all are optional except `init` and `view`.
+The rules run on the referee: in a hidden sandbox when a browser tab holding the realm's key referees, or directly under the host program. The referee keeps the state and calls these functions; all are optional except `init` and `view`.
 
 ```js
 export default {
@@ -55,6 +59,7 @@ export default {
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick.
 - **State** must be plain data (objects, arrays, strings, numbers, booleans) if you want it to survive future versions that save and move state.
+- **Waiting, and the outside world.** Under the host program the rules run with no sandbox, so `enter`, `act` and `tick` may return promises and may use the network, files or an AI model. A move is then a call: the rules work on it while play goes on, and the answer reaches players in later views. While `tick` waits, no new views go out. In a browser's sandbox these functions must finish at once, with no network; a promise returned from `enter` there counts as a refusal. Rules under the host program can do anything the program can, so host only realms you wrote or trust.
 
 ## The renderer module
 
@@ -76,7 +81,7 @@ Input (keyboard, mouse, touch, gamepad) arrives inside the sandbox as usual once
 
 ## What sandboxed code cannot do
 
-Both modules run in frames with their own blank origin and a strict content security policy:
+In the browser app, renderers and public rules run in frames with their own blank origin and a strict content security policy:
 
 - No network: no `fetch`, WebSocket or loading scripts, images or fonts from elsewhere. Embed assets as `data:` URLs or draw them.
 - No access to the app's storage, keys or other frames.

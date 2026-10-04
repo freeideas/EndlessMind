@@ -19,13 +19,25 @@ Browsers allow the key functions Endless Mind uses only on **https** addresses o
 
 ## Hosting a realm
 
-The browser tab that holds a realm's key is its referee. Keep that tab open and in front: phones pause background tabs almost at once, and desktop browsers slow them down. Other players see "the referee is not online" while it is closed. To referee from another device or server, choose **Save my keys** there, then **Load keys** in the app on the other one. There is no always-on hosting yet, so a realm is playable only while a tab holding its key is open.
+The browser tab that holds a realm's key is its referee. Keep that tab open and in front: phones pause background tabs almost at once, and desktop browsers slow them down. Other players see "the referee is not online" while it is closed. To referee from another device or server, choose **Save my keys** there, then **Load keys** in the app on the other one. A realm is playable while a tab holding its key is open, or while the host program runs it (below).
+
+## Hosting without a browser
+
+The host program referees a realm with no browser, so the realm stays up as long as the program runs, for example on an always-on machine. It is also the only way to referee a realm whose rules are private.
+
+- `deno task host --server <web address> --realm <folder>` reads the realm's folder, uploads its public files to that server, announces the realm and referees it, printing its link. The realm's key is kept in `./keys/<folder name>.json` (git ignores `keys/`), or in the file given with `--keys FILE`. Each start reads the folder again and publishes its current files under the same key, so the link stays the same: this is how to publish a new version of a realm. The key is found in the file by the realm's name, so after renaming a realm add `--address <its address>` to keep it.
+- `deno task host --server <web address> --keys FILE` hosts a realm straight from a key file, including one saved by the browser app's **Save my keys**: the first realm in it, or the one given with `--address`. This does not work for private rules, which are never in a key file; use `--realm` for those.
+- The rules run directly, with no sandbox, and can use the network and read files, so host only realms you wrote or trust.
+- Keep key files inside `keys/`: the task may write only there. Whoever has a key file is that realm, so keep it like a password.
+- If a browser tab or another host program starts refereeing the same realm, the most recent one wins and the other stops.
+
+To try the [listening well](examples/listening-well.md), with a server running: `deno task host --server http://localhost:8000 --realm examples/listening-well`. Its rules ask Claude through the Anthropic SDK when `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_PROFILE`) is set on that machine, and otherwise echo each question back.
 
 ## Tests
 
-- `deno task test`: unit tests for the shared code, the server and the example realm's rules.
+- `deno task test`: unit tests for the shared code, the server, the maze's rules and the host program (with a visitor that uses no browser).
 - `deno task check`: type-checks everything (plain JavaScript with type comments).
-- `uv run tests/e2e.py [chromium] [firefox] [webkit]`: opens two real browsers, publishes the maze from one, joins from the other, and checks that each sees the other move. Needs `uv` (`brew install uv`); the first run for firefox or webkit needs `uv run --with playwright playwright install firefox webkit`.
+- `uv run tests/e2e.py [chromium] [firefox] [webkit]`: opens two real browsers, publishes the maze from one, joins from the other, and checks that each sees the other move, then visits the listening well run by the host program. Needs `uv` (`brew install uv`); the first run for firefox or webkit needs `uv run --with playwright playwright install firefox webkit`.
 
 ## If something does not connect
 

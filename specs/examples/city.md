@@ -18,4 +18,4 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 
 - **One referee carries everything.** A home connection can serve tens of visitors, not a whole city's worth. Splitting a city across several referees would need realms inside realms, which the reference app does not have.
 - **Fast movement waits on the referee.** Every move goes to the referee and back through a relay, so steering feels as fast as that round trip.
-- **The referee's tab must stay open.** A busy city needs an always-on machine holding its key (the headless runner, needed before a public launch).
+- **The referee must stay up.** A busy city needs an always-on machine running the host program with its key, not a browser tab.

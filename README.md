@@ -4,7 +4,7 @@ A worldwide network for anything AI can make: games, places, shops, tools, whole
 
 AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, in any language or engine, and anyone can use it from a link.
 
-**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game stays playable only while a browser tab holding its key stays open. Expect rough edges and frequent changes.
+**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game is playable while a browser tab holding its key is open, or while its maker runs the host program (a small program that keeps it up without a browser). Expect rough edges and frequent changes.
 
 ## Playing
 
@@ -23,7 +23,9 @@ You do not need to be a programmer. You need an AI coding agent (a program such 
 
 To see how it works first, choose **Publish the maze chase example** instead.
 
-Everything people make is public and remixable: anyone can copy a game and ask their own agent to change it. Make your own original work; do not copy other people's games, characters, names, art or music.
+To keep a game up without a browser tab, or to let it do things a browser's sandbox forbids (such as having an AI model answer players), run it with the host program on a computer you control: `deno task host --server <server address> --realm <the game's folder>`. [specs/RUNNING.md](specs/RUNNING.md) explains it.
+
+What runs on players' devices is always public, and a game's rules usually are too, so anyone can copy a game and ask their own agent to change it. A maker may instead keep a game's rules private on their own computer; the app tells players when a game does. Make your own original work; do not copy other people's games, characters, names, art or music.
 
 ## Running a helper server
 
@@ -38,7 +40,8 @@ To play from phones and other devices, browsers need a secure (https) address. [
 ## How it works, in short
 
 - **Everything is an object:** a character, a game world. Each one has its own secret key. Whoever holds the key controls the object, on any device and any server.
-- **All game code is public,** found by its fingerprint (hash). Anyone can run it, but only the key holder can referee a game or speak for it.
+- **Code that runs on your device is public and sandboxed** (kept away from your files and the network), found by its fingerprint (hash).
+- **A game's rules run with whoever holds its key,** who alone can referee it or speak for it. Rules are usually public, but a maker may keep them private, the way a website keeps its server's code private.
 - **Each game makes its own rules** and acts as the referee inside itself.
 - **The network is just a shared way to connect** (a protocol), not an app or a company. Any program that follows it can join.
 
@@ -53,8 +56,8 @@ The technical documents are in [specs/](specs/):
 | [WALKTHROUGH.md](specs/WALKTHROUGH.md) | Step by step, from making a game to a friend playing it |
 | [AGENT-GUIDE.md](specs/AGENT-GUIDE.md) | Instructions for AI agents that build games             |
 | [RUNTIME.md](specs/RUNTIME.md)         | What game code can call from inside its sandbox         |
-| [RUNNING.md](specs/RUNNING.md)         | Running the server and app, including on many devices   |
-| [examples/](specs/examples/)           | Worked examples: a city, a block world, a maze chase    |
+| [RUNNING.md](specs/RUNNING.md)         | Running the server, the app and the host program        |
+| [examples/](specs/examples/)           | Worked examples: a city, blocks, a maze chase, a well   |
 
 ## License
 

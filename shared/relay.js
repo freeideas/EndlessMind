@@ -1,12 +1,12 @@
 // Connection to a helper server: claim addresses, send and receive signed
-// envelopes through its relay. Direct peer connections (WebRTC) come later;
-// the envelope format does not change when they do.
+// envelopes through its relay. Runs the same in a browser and in Deno, so the
+// app and the host program share it.
 
-import { addressOf, sign } from "../shared/crypto.js";
-import { parseStrictJson } from "../shared/encoding.js";
-import { open, ReplayGuard, seal } from "../shared/envelope.js";
+import { addressOf, sign } from "./crypto.js";
+import { parseStrictJson } from "./encoding.js";
+import { open, ReplayGuard, seal } from "./envelope.js";
 
-/** @typedef {import("../shared/envelope.js").Envelope} Envelope */
+/** @typedef {import("./envelope.js").Envelope} Envelope */
 
 export class Relay extends EventTarget {
   /** @param {string} url WebSocket address, e.g. wss://host/ws */
@@ -117,9 +117,4 @@ export class Relay extends EventTarget {
       this.dispatchEvent(new CustomEvent("undeliverable", { detail: msg.to }));
     }
   }
-}
-
-/** The relay address of the server this page came from. */
-export function defaultRelayUrl() {
-  return (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
 }

@@ -4,7 +4,7 @@
 // any realm's control.
 
 import { myCharacter, updateCharacter } from "./character.js";
-import { defaultRelayUrl, Relay } from "./net.js";
+import { Relay } from "../shared/relay.js";
 import { exampleFiles, ownedRealm, ownedRealms, publish, search } from "./realms.js";
 import { play } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
@@ -72,7 +72,7 @@ if (!ed25519Works) {
 
 askToPersist();
 const character = await myCharacter();
-const relay = new Relay(defaultRelayUrl());
+const relay = new Relay((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
 relay.connect().catch(() => status("Cannot reach the server. Retrying..."));
 
 function showMe() {
@@ -142,6 +142,12 @@ async function showRealm(address, release, via = []) {
     const message = el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]);
     if (/** @type {any} */ (error).code === "release-changed") {
       message.append(" ", el("a", { href: `#emind:${address}` }, ["Open the current version"]));
+    }
+    const app = /** @type {any} */ (error).app;
+    if (app) {
+      // Only the https address the realm's own key signed, and only as a link the player chooses to follow.
+      message.append(` It is played in its own app, ${app.name}: `, el("a", { href: app.url, rel: "noopener" }, [app.url]),
+        ". A program you install runs outside any sandbox and can do anything on your computer, so get it only if you trust this realm's maker.");
     }
     if (/** @type {any} */ (error).code === "not-here") {
       for (const host of via) {

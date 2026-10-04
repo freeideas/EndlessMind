@@ -1,20 +1,11 @@
 // Publishing realms and fetching them back, checking every hash and signature.
 
-import { checkAnnouncement, makeAnnouncement, makeManifest, releaseOf } from "../shared/announce.js";
+import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody, releaseOf } from "../shared/announce.js";
 import { addressOf, hashOf, newPortableKey } from "../shared/crypto.js";
 import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import * as store from "./store.js";
 
-/**
- * A realm's source description (realm.json, written by its creator or agent).
- * @typedef {object} RealmSource
- * @property {string} name
- * @property {string} [description]
- * @property {string[]} [tags]
- * @property {string} main      rules file
- * @property {string} renderer  default renderer file
- * @property {string[]} [needs] permissions asked for (none exist yet)
- */
+/** @typedef {import("../shared/announce.js").RealmSource} RealmSource */
 
 /**
  * A realm this device holds the key for.
@@ -37,14 +28,11 @@ export async function publish(files) {
   if (!sourceBytes) throw new Error("A realm needs a realm.json file.");
   /** @type {RealmSource} */
   const source = JSON.parse(fromUtf8(sourceBytes));
-  if (!source.name || !files.has(source.main) || !files.has(source.renderer)) {
-    throw new Error("realm.json must name the realm and point to its main and renderer files.");
+  if (source.privateRules) {
+    throw new Error("This realm keeps its rules private, so a browser tab cannot referee it. Host it with: deno task host (see specs/RUNNING.md).");
   }
-
-  const tags = source.tags ?? [];
-  if (!Array.isArray(tags) || tags.length > 32 || !tags.every((t) => typeof t === "string" && t && t.length <= 40)) {
-    throw new Error("realm.json may list at most 32 tags, each 1 to 40 characters.");
-  }
+  // Checks the description before anything is uploaded.
+  manifestBody(source, Object.fromEntries([...files.keys()].map((name) => [name, "-"])));
 
   /** @type {Record<string, string>} */
   const hashes = {};
@@ -55,16 +43,7 @@ export async function publish(files) {
 
   const { keys, secret } = await newPortableKey();
   const address = await addressOf(keys.publicKey);
-  const manifest = await makeManifest(keys, {
-    name: source.name,
-    description: source.description ?? "",
-    tags,
-    files: hashes,
-    main: source.main,
-    renderer: source.renderer,
-    play: ["browser"],
-    needs: source.needs ?? [],
-  });
+  const manifest = await makeManifest(keys, manifestBody(source, hashes));
   /** @type {OwnedRealm} */
   const realm = { address, name: source.name, keys, secret, manifest };
   await announce(realm);
@@ -149,6 +128,7 @@ export async function exampleFiles(folder) {
   /** @type {Map<string, Uint8Array<ArrayBuffer>>} */
   const files = new Map([["realm.json", sourceBytes]]);
   for (const name of names) {
+    if (!name) continue;
     files.set(name, new Uint8Array(await (await fetch(base + name)).arrayBuffer()));
   }
   return files;

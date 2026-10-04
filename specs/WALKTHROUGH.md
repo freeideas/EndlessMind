@@ -32,7 +32,7 @@ A working version lives in this repository under `examples/maze-chase/`. Walls, 
 4. The files are uploaded to the server by hash, and the realm is announced there.
 5. The creator gets a link: `https://endlessmind.example/#emind:<realm address>?via=endlessmind.example`. The key names the realm; the `via` part says which server it is announced on.
 
-**Refereeing:** the tab holding the realm's key is its referee while it stays open. With "Save my keys" the creator can save that key and load it into the app on another device or another server, and referee the same realm from there.
+**Refereeing:** the tab holding the realm's key is its referee while it stays open. With "Save my keys" the creator can save that key and load it into the app on another device or another server, and referee the same realm from there. To keep it up with no browser at all, the creator gives the key file, or the realm's folder, to the host program (`deno task host`) on an always-on machine. A realm whose rules are private is always refereed this way (see [RUNNING.md](RUNNING.md)).
 
 ## 3. A friend plays
 
@@ -49,5 +49,5 @@ The friend taps the link on their phone.
 ## Where things live afterward
 
 - **The friend's character:** its key is in their phone's browser, or in a key file if they saved one.
-- **The realm's code:** on the server and in every visitor's cache, found by hash.
-- **The realm's official state:** with whoever holds the realm's key and is refereeing (today, the creator's open tab).
+- **The realm's code:** on the server and in every visitor's cache, found by hash. (A realm with private rules uploads only its renderer.)
+- **The realm's official state:** with whoever holds the realm's key and is refereeing (here, the creator's open tab, or a host program).

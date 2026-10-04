@@ -6,7 +6,8 @@
 """End-to-end check in real browsers: one browser publishes and hosts the maze,
 another opens its link, and both see each other move. Then: sandboxed code
 cannot reach the network, a guest carries on after the host reloads, and a
-realm's saved keys let another browser take over hosting.
+realm's saved keys let another browser take over hosting. Last, a browser
+visits a realm with private rules that the host program referees.
 
 Usage: uv run tests/e2e.py [chromium|firefox|webkit ...]
 Starts its own server on a spare port with a temporary data folder. The first
@@ -14,6 +15,8 @@ run for firefox or webkit downloads that browser (uv run --with playwright
 playwright install firefox webkit).
 """
 
+import os
+import re
 import socket
 import subprocess
 import sys
@@ -42,7 +45,7 @@ def wait_for(predicate, timeout=15.0, what="condition"):
     raise AssertionError(f"timed out waiting for {what}")
 
 
-def run(browser_name: str, base: str) -> None:
+def run(browser_name: str, base: str, well_link: str) -> None:
     with sync_playwright() as p:
         launcher = getattr(p, browser_name)
         browser = launcher.launch(channel="chrome") if browser_name == "chromium" else launcher.launch()
@@ -55,6 +58,7 @@ def run(browser_name: str, base: str) -> None:
 
         try:
             steps(host, guest, base, browser_name)
+            well(guest, well_link)
         except Exception:
             print("errors:", errors)
             print("host status:", host.evaluate("document.getElementById('status')?.textContent"), "| guest:", guest.evaluate("document.getElementById('status')?.textContent"))
@@ -133,6 +137,17 @@ def steps(host, guest, base, browser_name):
         wait_for(lambda: "somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
 
 
+def well(page, link):
+    """The well's rules run only in the host program; the browser sends a question and sees the answer."""
+    page.goto(link)
+    page.reload()
+    frame = page.frame_locator("iframe.renderer")
+    frame.locator("input").fill("is anyone down there?")
+    frame.locator("input").press("Enter")
+    answer = wait_for(lambda: page.evaluate("globalThis.endlessmindLastView?.talk?.at(-1)?.answer"), what="the well's answer")
+    assert "is anyone down there?" in answer, answer
+
+
 def main() -> None:
     browsers = sys.argv[1:] or ["chromium"]
     port = free_port()
@@ -145,8 +160,20 @@ def main() -> None:
         try:
             base = f"http://localhost:{port}"
             wait_for(lambda: socket.socket().connect_ex(("127.0.0.1", port)) == 0, what="server")
-            for name in browsers:
-                run(name, base)
+            # The host program, with no model credentials, so the well only echoes.
+            env = {k: v for k, v in os.environ.items() if not k.startswith("ANTHROPIC_")}
+            well_host = subprocess.Popen(
+                ["deno", "run", "--allow-net", "--allow-read", "--allow-env", f"--allow-write={data}", "host/host.js",
+                 "--server", base, "--realm", "examples/listening-well", "--keys", f"{data}/keys/well.json"],
+                cwd=ROOT, stdout=subprocess.PIPE, text=True, env=env,
+            )
+            try:
+                well_link = re.search(r"http\S+", well_host.stdout.readline()).group(0)
+                for name in browsers:
+                    run(name, base, well_link)
+            finally:
+                well_host.terminate()
+                well_host.wait()
         finally:
             server.terminate()
             server.wait()

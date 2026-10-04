@@ -14,12 +14,75 @@ import { open, seal } from "./envelope.js";
  * @property {string} [description]
  * @property {string[]} tags
  * @property {Record<string, string>} files  file name to hash
- * @property {string} main      file name of the realm's rules
- * @property {string} renderer  file name of the default renderer
- * @property {string[]} play    how it can be played, e.g. ["browser"]
+ * @property {string} [main]      file name of the realm's rules; left out when the rules are
+ *                                private (known only to the referee)
+ * @property {string} [renderer]  file name of the default browser renderer; left out when the
+ *                                realm cannot be played in a browser
+ * @property {RealmApp} [app]     the realm's own app, for realms made with an engine
+ * @property {string[]} play      how it can be played: "browser", "app"
  * @property {string[]} needs   permissions the realm asks the player's app for; none are
  *                              defined in version 0, so this is empty for now
  */
+
+/**
+ * A program players install to play a realm (built with a game engine, say).
+ * It is a peer like any other: it speaks the protocol; nothing in it is run by
+ * the browser app.
+ * @typedef {object} RealmApp
+ * @property {string} name
+ * @property {string} url   https address where players can get it
+ */
+
+/**
+ * A realm's source description (realm.json, written by its creator or agent).
+ * @typedef {object} RealmSource
+ * @property {string} name
+ * @property {string} [description]
+ * @property {string[]} [tags]
+ * @property {string} [main]      rules file
+ * @property {boolean} [privateRules]  keep the rules file off the network: only a host program can referee
+ * @property {string} [renderer]  default browser renderer file
+ * @property {string[]} [files]   other public files
+ * @property {RealmApp} [app]
+ * @property {string[]} [needs]   permissions asked for (none exist yet)
+ */
+
+/**
+ * Build a manifest's contents from a realm's source description.
+ * @param {RealmSource} source
+ * @param {Record<string, string>} hashes  public file name to hash
+ * @returns {ManifestBody}
+ */
+export function manifestBody(source, hashes) {
+  if (!source || typeof source.name !== "string" || !source.name) throw new Error("realm.json must name the realm.");
+  const tags = source.tags ?? [];
+  if (!isTagList(tags)) throw new Error("realm.json may list at most 32 tags, each 1 to 40 characters.");
+  if (!source.main) throw new Error("realm.json must point to the realm's rules file (main).");
+  if (!source.renderer && !source.app) throw new Error("realm.json must point to a renderer file, or name the realm's own app.");
+  if (source.app && !isApp(source.app)) throw new Error("realm.json's app needs a name and an https address (url).");
+  const main = source.privateRules ? undefined : source.main;
+  for (const name of [main, source.renderer]) {
+    if (name && !hashes[name]) throw new Error(`The file ${name} named in realm.json is missing.`);
+  }
+  return {
+    name: source.name,
+    description: source.description ?? "",
+    tags,
+    files: hashes,
+    ...(main ? { main } : {}),
+    ...(source.renderer ? { renderer: source.renderer } : {}),
+    ...(source.app ? { app: { name: source.app.name, url: source.app.url } } : {}),
+    play: [...(source.renderer ? ["browser"] : []), ...(source.app ? ["app"] : [])],
+    needs: source.needs ?? [],
+  };
+}
+
+/** @param {unknown} app @returns {app is RealmApp} */
+function isApp(app) {
+  const a = /** @type {any} */ (app);
+  return Boolean(a) && typeof a.name === "string" && a.name.length > 0 && a.name.length <= 80 &&
+    typeof a.url === "string" && a.url.length <= 300 && /^https:\/\/[^\s<>"']+$/.test(a.url);
+}
 
 /**
  * @typedef {object} AnnouncementBody
@@ -91,6 +154,9 @@ export async function checkAnnouncement(value) {
   if (!Array.isArray(m.needs) || !m.needs.every((n) => typeof n === "string")) return null;
   if (!m.files || typeof m.files !== "object") return null;
   if (!Object.values(m.files).every(isHash)) return null;
-  if (!m.files[m.main] || !m.files[m.renderer]) return null;
+  for (const name of [m.main, m.renderer]) {
+    if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return null;
+  }
+  if (m.app !== undefined && !isApp(m.app)) return null;
   return { announcement, manifest: m };
 }

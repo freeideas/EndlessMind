@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { checkAnnouncement, makeAnnouncement, makeManifest } from "../shared/announce.js";
+import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody } from "../shared/announce.js";
 import { addressOf, generateKeyPair, hashOf, isAddress, isHash, sign, verify } from "../shared/crypto.js";
 import { canonicalJson, fromBase32, parseStrictJson, toBase32 } from "../shared/encoding.js";
 import { open, ReplayGuard, seal } from "../shared/envelope.js";
@@ -79,4 +79,29 @@ Deno.test("strict JSON rejects duplicate names, deep nesting and huge text", () 
   assertEquals(parseStrictJson("[".repeat(40) + "]".repeat(40)), undefined);
   assertEquals(parseStrictJson('"' + "x".repeat(300_000) + '"'), undefined);
   assertEquals(parseStrictJson("{not json}"), undefined);
+});
+
+Deno.test("a manifest may leave out private rules or a browser renderer, and may name the realm's own app", async () => {
+  const keys = await generateKeyPair();
+  const hashes = { "view.js": await hashOf("x") };
+  const check = async (/** @type {any} */ body) => (await checkAnnouncement(await makeAnnouncement(keys, await makeManifest(keys, body))))?.manifest;
+
+  const hidden = manifestBody({ name: "Well", main: "rules.js", privateRules: true, renderer: "view.js" }, hashes);
+  assertEquals([hidden.main, hidden.renderer, hidden.play], [undefined, "view.js", ["browser"]]);
+  assert(await check(hidden));
+
+  const app = { name: "Harbor", url: "https://example.org/get" };
+  const engine = manifestBody({ name: "Harbor", main: "server", privateRules: true, app }, {});
+  assertEquals([engine.renderer, engine.app, engine.play], [undefined, app, ["app"]]);
+  assert(await check(engine));
+
+  assertEquals(await check({ ...engine, app: { name: "x", url: "javascript:alert(1)" } }), undefined);
+  assertEquals(await check({ ...hidden, renderer: "missing.js" }), undefined);
+  let refused = false;
+  try {
+    manifestBody({ name: "Nothing to play with", main: "rules.js" }, {});
+  } catch {
+    refused = true;
+  }
+  assert(refused, "a realm needs a renderer or an app");
 });
