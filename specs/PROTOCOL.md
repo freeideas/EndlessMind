@@ -1,10 +1,10 @@
-# The wwg protocol: an outline
+# The emind protocol: an outline
 
-Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The protocol is called **wwg** (World Wide Games); EveryGame is this project and its reference app. The design behind it is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
+Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The protocol is called the **Endless Mind protocol**, and its links start with `emind:`. Endless Mind is also the name of this project and its reference app. The design behind it is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
 
 ## What it is for
 
-EveryGame is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The wwg protocol aims for the same: a shared way to connect, so that any realm, object or app made by anyone, in any language or engine, can meet any other.
+Endless Mind is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The emind protocol aims for the same: a shared way to connect, so that any realm, object or app made by anyone, in any language or engine, can meet any other.
 
 ## Rules for the rules
 
@@ -42,15 +42,15 @@ The exact shapes used by the reference code ([shared/](../shared/)). These are t
 - **Allowed methods:** version 0 accepts only `ed25519` keys and signatures and `sha256` hashes. Anything else is rejected, never guessed at; later versions add methods explicitly, so no one can force a weaker one.
 - **Text rules:** base32 uses the RFC 4648 alphabet in lowercase with no padding; uppercase or padded forms are rejected, not converted, so each value has exactly one written form.
 - **Signatures:** `ed25519-` followed by the 64-byte signature in lowercase base32.
-- **Links:** the canonical form is `wwg:<address>`, which means the realm as it is now (its owner can publish new versions). `wwg:<address>?release=<release hash>` pins one exact version: an app opening it must refuse to run any other version, and should offer the current one instead, so a player can look at an update before trusting it. A release hash is the hash of the canonical JSON of the realm's signed manifest envelope. Links work like `mailto:` or `magnet:` (no `//`, since an address is a key, not a host computer). Because chat apps and web pages make only `https` links clickable, the form people share is `https://<any server>/#wwg:<address>`. The part after `#` is never sent to the server, and any server works, since the key names the realm. Browser apps may register as handlers for `web+wwg:` links (browsers only let web pages handle link types starting with `web+`); installed apps may handle `wwg:` directly.
-- **Envelope:** a JSON object with `v` (protocol version, `"wwg/0"`), `id` (random, at least 16 characters), `from`, `to` (an address, or `null` for a public statement), `kind`, `body`, `time` (milliseconds since 1970) and `sig`. Senders may add more fields.
+- **Links:** the canonical form is `emind:<address>`, which means the realm as it is now (its owner can publish new versions). `emind:<address>?release=<release hash>` pins one exact version: an app opening it must refuse to run any other version, and should offer the current one instead, so a player can look at an update before trusting it. A release hash is the hash of the canonical JSON of the realm's signed manifest envelope. Links work like `mailto:` or `magnet:` (no `//`, since an address is a key, not a host computer). Because chat apps and web pages make only `https` links clickable, the form people share is `https://<any server>/#emind:<address>`. The part after `#` is never sent to the server, and any server works, since the key names the realm. Browser apps may register as handlers for `web+emind:` links (browsers only let web pages handle link types starting with `web+`); installed apps may handle `emind:` directly.
+- **Envelope:** a JSON object with `v` (protocol version, `"emind/0"`), `id` (random, at least 16 characters), `from`, `to` (an address, or `null` for a public statement), `kind`, `body`, `time` (milliseconds since 1970) and `sig`. Senders may add more fields.
 - **What is signed:** every field of the envelope except `sig`, including fields the receiver does not know, so later additions stay signed and are passed on intact. The fields are written as canonical JSON as defined by RFC 8785 (JSON Canonicalization Scheme), so any language can reproduce the exact text.
-- **Purpose labels:** every signature covers the text `wwg-<purpose>`, a line break, then the signed content: `wwg-envelope` for envelopes, `wwg-claim` for proving a key to a server. A claim signs the server's name as the client reached it (for example `example.org:8000`), a line break, then the server's random challenge, so a dishonest server cannot pass the signature on to pose as the player elsewhere. A signature made for one purpose can never be passed off as another.
+- **Purpose labels:** every signature covers the text `emind-<purpose>`, a line break, then the signed content: `emind-envelope` for envelopes, `emind-claim` for proving a key to a server. A claim signs the server's name as the client reached it (for example `example.org:8000`), a line break, then the server's random challenge, so a dishonest server cannot pass the signature on to pose as the player elsewhere. A signature made for one purpose can never be passed off as another.
 - **Replays:** a receiver ignores an envelope whose `from` and `id` it has already seen, or whose `time` is more than 10 minutes from its own clock, so a recorded message cannot be sent again later.
 - **Limits:** a received message may be at most 256 KB of text and nested at most 32 levels deep, and an object may not repeat a field name (different languages' parsers disagree about repeats, which would let one message mean two things). Messages breaking these limits are dropped.
 - **Manifests** carry a `needs` list naming the permissions the realm asks the player's app for (storage, network, camera, and so on). Version 0 defines none, so the list is empty; an app must refuse to run a realm that needs something it does not know.
 - **Test vectors:** [test-vectors.json](test-vectors.json) gives fixed inputs and the exact outputs (base32, canonical JSON, hashes, an address, a signature, an envelope, a release hash) that every implementation must reproduce.
-- **Message kinds:** core kinds have no dot (`manifest`, `announce`). Extension kinds are dotted, following rule 3; the extensions written alongside these documents use the prefix `wwg.` (for example `wwg.enter`, listed in [RUNTIME.md](RUNTIME.md)).
+- **Message kinds:** core kinds have no dot (`manifest`, `announce`). Extension kinds are dotted, following rule 3; the extensions written alongside these documents use the prefix `emind.` (for example `emind.enter`, listed in [RUNTIME.md](RUNTIME.md)).
 
 ## Shared habits: optional extensions
 
@@ -68,7 +68,7 @@ These are not rules. They are published as optional extensions, and they matter 
 
 ## Versions
 
-HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The wwg protocol is expected to grow the same way.
+HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The emind protocol is expected to grow the same way.
 
 - **Meaning is separate from encoding.** The meaning of the core (keys, addresses, signed statements, files named by hash) changes rarely. How messages are encoded and carried can change much more freely, as HTTP/2 and HTTP/3 changed how requests travel without changing what a request is.
 - **Apps agree on a version when they connect.** Each side says which versions it speaks, and they use the newest one both understand. Announcements list the versions a peer speaks.

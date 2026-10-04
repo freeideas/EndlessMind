@@ -1,8 +1,8 @@
-# EveryGame
+# Endless Mind
 
-A worldwide network for games that anyone can make and anyone can play.
+A worldwide network for anything AI can make: games, places, shops, tools, whole universes. Anyone can make it, and anyone can use it from a link.
 
-AI coding agents now let anyone make their own game just by describing it. EveryGame connects all those games into one open network, the way the web connects websites. There is no company in the middle and no central server to depend on. Anyone can make any game, in any language or engine, and anyone can play it from a link.
+AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, in any language or engine, and anyone can use it from a link.
 
 **Status: early.** The first working version runs: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. Expect rough edges and frequent changes.
 
@@ -19,7 +19,7 @@ Open a game's link. That is all: it runs in your web browser, with nothing to in
 You do not need to be a programmer. You need an AI coding agent (a program such as Claude Code that writes code for you).
 
 1. Open your agent in an empty folder.
-2. Tell it: "Read the EveryGame agent guide at `specs/AGENT-GUIDE.md` in the EveryGame repository, then make me a game." Then describe your game, for example: "A top-down maze where lantern spirits chase players who collect glowing seeds."
+2. Tell it: "Read the Endless Mind agent guide at `specs/AGENT-GUIDE.md` in the Endless Mind repository, then make me a game." Then describe your game, for example: "A top-down maze where lantern spirits chase players who collect glowing seeds."
 3. Your agent writes the game's files. Open a helper server's page (see below), choose **Publish from files**, and pick those files. You get a link to share. Keep that browser tab open: it is the game's referee while others play.
 
 To see how it works first, choose **Publish the maze chase example** instead.
@@ -31,7 +31,7 @@ Everything people make is public and remixable: anyone can copy a game and ask t
 Helper servers let players find each other, pass messages along when devices cannot connect directly, and keep copies of game files. Anyone can run one, none is in charge, and a group of friends needs only one. To run one on your own computer:
 
 1. Install Deno (a program that runs JavaScript): `brew install deno` on macOS or Linux, or `winget install DenoLand.Deno` on Windows.
-2. Get this repository: `git clone https://github.com/freeideas/EveryGame.git`, then `cd EveryGame`.
+2. Get this repository: `git clone https://github.com/freeideas/Endless Mind.git`, then `cd Endless Mind`.
 3. Start it: `deno task start`. It prints the address to open in your browser.
 
 To play from phones and other devices, browsers need a secure (https) address. [specs/RUNNING.md](specs/RUNNING.md) explains the easy ways to get one.
@@ -59,4 +59,4 @@ The technical documents are in [specs/](specs/):
 
 ## License
 
-The code is yours to use under your choice of the MIT license ([LICENSE-MIT](LICENSE-MIT)) or the Apache License 2.0 ([LICENSE-APACHE](LICENSE-APACHE)). The Apache option includes a patent grant from contributors. The documents in [specs/](specs/) are dedicated to the public domain under CC0 1.0 ([specs/LICENSE](specs/LICENSE)), so anyone can copy, change and republish the protocol. To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md).
+The code is yours to use under your choice of the MIT license ([LICENSE-MIT](LICENSE-MIT)) or the Apache License 2.0 ([LICENSE-APACHE](LICENSE-APACHE)). The Apache option includes a patent grant from contributors. The documents in [specs/](specs/) are dedicated to the public domain under CC0 1.0 ([specs/LICENSE](specs/LICENSE)), so anyone can copy, change and republish the protocol. To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md). The name "Endless Mind" is covered separately by [TRADEMARK.md](TRADEMARK.md).

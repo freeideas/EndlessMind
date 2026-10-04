@@ -41,24 +41,24 @@ export async function referee(realm, relay, container, status) {
     const body = /** @type {any} */ (env.body) ?? {};
     const known = players.get(env.from);
     if (known) known.lastHeard = Date.now();
-    if (env.kind === "wwg.enter" && !known) {
+    if (env.kind === "emind.enter" && !known) {
       const verdict = await rules.enter(env.from, body.character ?? {});
       if (!verdict.ok) {
-        await relay.send(realm.keys, env.from, "wwg.refused", { reason: verdict.reason ?? "" });
+        await relay.send(realm.keys, env.from, "emind.refused", { reason: verdict.reason ?? "" });
         return;
       }
       players.set(env.from, {
         local: false,
         lastHeard: Date.now(),
-        deliver: (view) => relay.send(realm.keys, env.from, "wwg.state", { view }),
+        deliver: (view) => relay.send(realm.keys, env.from, "emind.state", { view }),
       });
-      await relay.send(realm.keys, env.from, "wwg.welcome", { name: manifest.name });
+      await relay.send(realm.keys, env.from, "emind.welcome", { name: manifest.name });
       status(`${body.character?.name ?? "Someone"} came in.`);
-    } else if (env.kind === "wwg.enter" && known) {
-      await relay.send(realm.keys, env.from, "wwg.welcome", { name: manifest.name });
-    } else if (env.kind === "wwg.act" && known) {
+    } else if (env.kind === "emind.enter" && known) {
+      await relay.send(realm.keys, env.from, "emind.welcome", { name: manifest.name });
+    } else if (env.kind === "emind.act" && known) {
       rules.act(env.from, body.action);
-    } else if (env.kind === "wwg.leave" && known) {
+    } else if (env.kind === "emind.leave" && known) {
       players.delete(env.from);
       rules.leave(env.from);
     }
@@ -137,7 +137,7 @@ export async function play(address, character, relay, container, ui) {
 
   await relay.addKey(character.keys);
   const view = await startRenderer(container, rendererCode, character.address, character.info, (action) =>
-    relay.send(character.keys, address, "wwg.act", { action }));
+    relay.send(character.keys, address, "emind.act", { action }));
 
   let welcomed = false;
   /** @param {Event} event */
@@ -145,12 +145,12 @@ export async function play(address, character, relay, container, ui) {
     const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
     if (env.from !== address || env.to !== character.address) return;
     const body = /** @type {any} */ (env.body) ?? {};
-    if (env.kind === "wwg.welcome" && !welcomed) {
+    if (env.kind === "emind.welcome" && !welcomed) {
       welcomed = true;
       ui.status(`You are in ${manifest.name}.`);
-    } else if (env.kind === "wwg.refused") {
+    } else if (env.kind === "emind.refused") {
       ui.status(`The realm refused you: ${body.reason || "no reason given"}`);
-    } else if (env.kind === "wwg.state") {
+    } else if (env.kind === "emind.state") {
       welcomed = true;
       lastView(body.view);
       view.show(body.view);
@@ -165,11 +165,11 @@ export async function play(address, character, relay, container, ui) {
   relay.addEventListener("message", onMessage);
   relay.addEventListener("undeliverable", onUndeliverable);
 
-  const enter = () => relay.send(character.keys, address, "wwg.enter", { character: character.info });
+  const enter = () => relay.send(character.keys, address, "emind.enter", { character: character.info });
   await enter();
   ui.status(found.online ? `Entering ${manifest.name}...` : "This realm's referee is not online right now. Waiting for it...");
   const pinger = setInterval(() => {
-    if (welcomed) relay.send(character.keys, address, "wwg.ping", {});
+    if (welcomed) relay.send(character.keys, address, "emind.ping", {});
     else enter();
   }, PING_EVERY_MS);
 
@@ -178,7 +178,7 @@ export async function play(address, character, relay, container, ui) {
     release: found.release,
     stop() {
       clearInterval(pinger);
-      relay.send(character.keys, address, "wwg.leave", {});
+      relay.send(character.keys, address, "emind.leave", {});
       relay.removeEventListener("message", onMessage);
       relay.removeEventListener("undeliverable", onUndeliverable);
       view.stop();
@@ -188,5 +188,5 @@ export async function play(address, character, relay, container, ui) {
 
 /** Keep the latest view where tests and debugging tools can see it. @param {unknown} view */
 function lastView(view) {
-  /** @type {any} */ (globalThis).everygameLastView = view;
+  /** @type {any} */ (globalThis).endlessmindLastView = view;
 }

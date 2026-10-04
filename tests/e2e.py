@@ -67,17 +67,17 @@ def steps(host, guest, base, browser_name):
         host.goto(base + "/")
         host.wait_for_selector("body[data-ready]")
         host.click("#publish-example")
-        wait_for(lambda: "#wwg:" in host.evaluate("location.href"), what="publish")
+        wait_for(lambda: "#emind:" in host.evaluate("location.href"), what="publish")
         link = host.evaluate("location.href")
-        wait_for(lambda: host.evaluate("globalThis.everygameLastView?.players?.length") == 1, what="host view")
+        wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.players?.length") == 1, what="host view")
 
         guest.goto(link)
-        wait_for(lambda: guest.evaluate("globalThis.everygameLastView?.players?.length") == 2, what="guest view")
-        wait_for(lambda: host.evaluate("globalThis.everygameLastView?.players?.length") == 2, what="host sees guest")
+        wait_for(lambda: guest.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, what="guest view")
+        wait_for(lambda: host.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, what="host sees guest")
 
         # The guest moves; the host must see the guest's position change.
         def guest_pos():
-            return host.evaluate("JSON.stringify(globalThis.everygameLastView.players.filter(p => !p.me).map(p => [p.x, p.y]))")
+            return host.evaluate("JSON.stringify(globalThis.endlessmindLastView.players.filter(p => !p.me).map(p => [p.x, p.y]))")
 
         frame = guest.frame_locator("iframe.renderer")
         frame.locator("canvas").click()
@@ -94,7 +94,7 @@ def steps(host, guest, base, browser_name):
                 continue
         assert moved, "the host never saw the guest move" 
 
-        Path(tempfile.gettempdir(), f"everygame-{browser_name}-guest.png").write_bytes(guest.screenshot())
+        Path(tempfile.gettempdir(), f"endlessmind-{browser_name}-guest.png").write_bytes(guest.screenshot())
 
 
 def main() -> None:

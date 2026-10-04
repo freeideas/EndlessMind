@@ -1,6 +1,6 @@
 # Working on this repository
 
-Instructions for AI agents (and people) changing EveryGame itself. Agents building realms for players should read [specs/AGENT-GUIDE.md](specs/AGENT-GUIDE.md) instead.
+Instructions for AI agents (and people) changing Endless Mind itself. Agents building realms for players should read [specs/AGENT-GUIDE.md](specs/AGENT-GUIDE.md) instead.
 
 ## Layout
 

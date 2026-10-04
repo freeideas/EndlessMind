@@ -1,13 +1,13 @@
 # Walkthrough: from launch to a friend playing
 
-Written 2026-09-27. A concrete, step-by-step picture of how EveryGame works in practice, using the [maze chase example](examples/maze-chase.md). The design behind it is in [DESIGN.md](DESIGN.md). This is also an outline of what the first version has to build.
+Written 2026-09-27. A concrete, step-by-step picture of how Endless Mind works in practice, using the [maze chase example](examples/maze-chase.md). The design behind it is in [DESIGN.md](DESIGN.md). This is also an outline of what the first version has to build.
 
 ## 1. Launching the platform
 
 There is no company system to switch on. Launching means making three things available:
 
 1. **The code:** this repository, public under the MIT or Apache 2.0 license (the user's choice), with the documents in the public domain. It contains the server, the app and the agent guide.
-2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `everygame.example`, running one command (`deno task start`); for a group of friends, any computer they already have will do. It serves the app page, introduces browsers to each other, relays traffic when direct connections fail, and stores encrypted files.
+2. **At least one server:** a small always-on machine (around $5 a month) with a web address such as `endlessmind.example`, running one command (`deno task start`); for a group of friends, any computer they already have will do. It serves the app page, introduces browsers to each other, relays traffic when direct connections fail, and stores encrypted files.
 3. **The agent guide:** a file any AI coding agent reads to learn how to build realms and objects.
 
 There is no user database and no accounts. On day one, "the network" is one server plus whoever opens it. It grows as other people run servers too.
@@ -37,7 +37,7 @@ A working version lives in this repository under `examples/maze-chase/`.
 2. Each file gets its hash (fingerprint).
 3. The realm's key signs a manifest (a list of contents): name, tags, the file hashes, and who referees.
 4. The files are uploaded to storage nodes, and the realm is announced on the server.
-5. The creator gets a link: `https://everygame.example/#wwg:<realm address>`. The key, not the server, names the realm, so the same link works from any mirror and in any app.
+5. The creator gets a link: `https://endlessmind.example/#emind:<realm address>`. The key, not the server, names the realm, so the same link works from any mirror and in any app.
 
 **Refereeing:** a multiplayer realm needs a referee. Either the creator keeps a browser tab open in "host" mode, or gives a server signed permission to host the realm around the clock with the headless runner. A single-player realm needs neither.
 
@@ -60,7 +60,7 @@ The friend, still in the browser with nothing installed, finds a realm made with
 1. **Finding it** works like any realm: a portal, the app's "More realms" menu, a friend's link, or a directory. The realm's manifest says how it can be played, and the app shows that as a badge: "Plays in browser", "Plays in browser · better in an Unreal-based app", or "Needs an Unreal-based app (1.2 GB)".
 2. **If it has a browser renderer** (most will), they start playing at once with simpler graphics, and a button offers "Play in full Unreal graphics".
 3. **Installing.** The browser shows a landing card (preview video, size, supported systems) and an install button that uses a store or package manager. If the realm owner pays for streaming, "Play now (streamed)" also appears.
-4. **Handoff.** The installed app opens from a link such as `wwg:<realm address>`, the way meeting links open a meeting app.
+4. **Handoff.** The installed app opens from a link such as `emind:<realm address>`, the way meeting links open a meeting app.
 5. **Bringing the character.** Keys never move, so the browser gives the character to the installed app: the app makes a new key and the browser signs the transfer note. One tap.
 6. **Playing.** The app fetches the realm's files by hash (portable code, models, scene description), connects to the referee and draws it with the engine. Every other realm built for that app now runs with no further installs.
 

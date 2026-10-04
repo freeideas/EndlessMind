@@ -1,4 +1,4 @@
-// The EveryGame helper server: a small program anyone can run.
+// The Endless Mind helper server: a small program anyone can run.
 //
 // It serves the app's web page, keeps signed announcements, stores files by
 // hash, and relays signed messages between peers that cannot reach each other
@@ -289,7 +289,7 @@ if (import.meta.main) {
     key: tls ? await Deno.readTextFile(args.key) : undefined,
     onListen() {
       const scheme = tls ? "https" : "http";
-      console.log(`EveryGame server running.`);
+      console.log(`Endless Mind server running.`);
       console.log(`  On this computer: ${scheme}://localhost:${port}/`);
       const nics = (() => { try { return Deno.networkInterfaces(); } catch { return []; } })();
       for (const nic of nics) {

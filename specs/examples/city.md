@@ -1,6 +1,6 @@
 # Example: a large shared city
 
-Written 2026-09-27. A technical example of how the EveryGame model described in [DESIGN.md](../DESIGN.md) handles a large, busy world with vehicles, many visitors and fast movement. All names here are invented for this example. Anything built with EveryGame should be the builder's own original work (see "Original work only" in the design).
+Written 2026-09-27. A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a large, busy world with vehicles, many visitors and fast movement. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
 
 ## Splitting a big world across many hosts
 

@@ -1,10 +1,10 @@
-# EveryGame: design
+# Endless Mind: design
 
-The living design record: what EveryGame is, the decisions made so far and why. Started 2026-09-24 as a brainstorm. The protocol outline is in [PROTOCOL.md](PROTOCOL.md), a step-by-step story in [WALKTHROUGH.md](WALKTHROUGH.md), and worked examples in [examples/](examples/). Sources: Ace's chat notes of 2026-09-24, follow-up decisions in the same session, and the earlier "Sovereign Nodes Game" design document (summarized here, not copied).
+The living design record: what Endless Mind is, the decisions made so far and why. Started 2026-09-24 as a brainstorm. The protocol outline is in [PROTOCOL.md](PROTOCOL.md), a step-by-step story in [WALKTHROUGH.md](WALKTHROUGH.md), and worked examples in [examples/](examples/). Sources: Ace's chat notes of 2026-09-24, follow-up decisions in the same session, and the earlier "Sovereign Nodes Game" design document (summarized here, not copied).
 
 ## The idea in one paragraph
 
-A massively multiplayer world where both the code and the running of that code are spread across the players. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code. The code is public and anyone can run it, but only the holder of an object's private key can operate it or speak for it. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). Because AI coding agents let everyone make their own games, EveryGame is the peer network that unites them, the way BitTorrent unites file sharers: anyone can make any game, in any language or engine, and anyone can play it. There is no central server; helper servers are small programs anyone can clone and run, and a game may run its own server if it wants, but none is required. It is not one game but every game anyone can imagine.
+A new web: a worldwide network of living, AI-made places and programs, where both the code and the running of that code are spread across the people using it. Players create realms and objects (a body, a weapon, a pet, a cloud of dust, anything). Their own AI coding agent writes the code. The code is public and anyone can run it, but only the holder of an object's private key can operate it or speak for it. An object can enter a realm if it implements what the realm requires (a sword-fighting realm might require a damage count and a `die` function; another realm might require `kiss` and `caress`). Because AI coding agents let everyone make their own games, Endless Mind is the peer network that unites them, the way BitTorrent unites file sharers: anyone can make any game, in any language or engine, and anyone can play it. There is no central server; helper servers are small programs anyone can clone and run, and a game may run its own server if it wants, but none is required. It is not one game but every game anyone can imagine, and not only games: shops, tools, places and whole universes too.
 
 ## Words used here
 
@@ -21,6 +21,9 @@ A massively multiplayer world where both the code and the running of that code a
 - **Server:** an optional helper program anyone can run (meeting, relaying, storage). Never in charge.
 
 ## Decisions so far
+
+- **Not just games: a new web.** Games are the first and clearest use, but the network is for anything AI can make: games, places, shops, tools, universes. It is a new web in which AI-generated programs of any kind take the place of HTML pages. Decided 2026-10-04.
+- **Name: Endless Mind.** The project, the reference app and the protocol are all "Endless Mind"; links start with `emind:` (a technical prefix only, never a product name, since "eMind" is crowded in AI software). It is presented as a platform, never as "a game", which also keeps it clear of an existing small game called *Endless mind*. The main address is endlessmind.com. The name is protected only against impostors, never against compatible software; see [TRADEMARK.md](../TRADEMARK.md). Chosen 2026-10-04 after preliminary trademark screens rejected EveryGame (an existing sportsbook and casino) and World Wide Games (an existing games trademark); a full clearance search by a trademark lawyer is still to come.
 
 - **Freedom almost always wins over safety.** Anything should be possible. The sandbox is the safety floor: foreign code only ever runs sandboxed (in a web page, or in a JavaScript or WebAssembly sandbox inside another app), where it cannot do much catastrophic harm to a player's machine, so the project adds few protections of its own.
 - **The browser is the front door, not a requirement.** Every realm link opens in a browser with one click, but the app is any program that speaks the open protocol; the reference app runs in the browser and is not the only way in. Other apps (an app built with Unreal, Godot or Unity, a native desktop app, the headless host runner) can join the same realms. See "Other apps and game engines".
@@ -46,11 +49,11 @@ A massively multiplayer world where both the code and the running of that code a
 - **The containing object has the final say** about what happens inside it. When a call involves several devices (my lent sword strikes a visitor in your realm), the realm's referee (its key holder or authorized host) decides the outcome.
 - **The runtime keeps private keys on their device by default.** Browsers can create keys that a page can use but never export, so the one-device rule is true unless someone deliberately works around it.
 - **The server is small enough to clone and run.** Many interchangeable servers, none in charge.
-- **Growth over control.** The goal is for EveryGame to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
-- **The protocol is the network.** The protocol is called **wwg** (World Wide Games); EveryGame is this project and its reference app. It is a set of conventions (keys, signed messages, code found by hash), not an app or a server. Any program that follows them is a full peer, whether it is the reference browser app, a game written from scratch in JavaScript or Rust, or one built with an engine such as Unreal, Godot or Unity.
+- **Growth over control.** The goal is for Endless Mind to spread as fast as possible, even at the cost of Ace's own control. Once it is popular, no one, including Ace, should be able to shut it down. Code and rules are fully open; Ace earns from optional services (see "Growth and money").
+- **The protocol is the network.** The protocol is called the **Endless Mind protocol**, and its links start with `emind:`. Endless Mind is also the name of this project and its reference app. It is a set of conventions (keys, signed messages, code found by hash), not an app or a server. Any program that follows them is a full peer, whether it is the reference browser app, a game written from scratch in JavaScript or Rust, or one built with an engine such as Unreal, Godot or Unity.
 - **One click to play.** For any realm that offers a browser version (most will), anyone can open its link and start playing at once, with no install, no account and no AI agent. Each realm turns a visitor's character into an in-realm form and ships a renderer so this works (see "Joining with one click").
 - **Every realm leads to more realms.** From inside any realm, a player can always find other realms (see "Finding realms: three ways").
-- **Links are neutral.** A realm's link is its key, like a BitTorrent magnet link, so any app can open any realm and no website or company owns the link. The canonical form is `wwg:<address>`; the form people share is `https://<any server>/#wwg:<address>`, which works from any mirror, since the key, not the server, names the realm. See "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md).
+- **Links are neutral.** A realm's link is its key, like a BitTorrent magnet link, so any app can open any realm and no website or company owns the link. The canonical form is `emind:<address>`; the form people share is `https://<any server>/#emind:<address>`, which works from any mirror, since the key, not the server, names the realm. See "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md).
 - **License: MIT or Apache 2.0, the user's choice; the specs in the public domain (CC0).** A copyleft license such as the GPL stops copying of the code but not rebuilding of the same features, so it protects little and slows growth. A permissive license spreads fastest. The Apache option adds an explicit patent grant from contributors, which matters for a protocol meant to be implemented everywhere. Contributions come in under the same terms (with a Developer Certificate of Origin sign-off), so no one, including the founder, holds extra rights, and nothing ever needs relicensing. Decided 2026-10-04.
 - **Realm creators can charge money,** separately and independently, however they like. The platform takes no cut and plays no part.
 - **Custom renderers and controls are a headline feature.** Anyone can write their own renderer (make plain state look fantastic, show a 2D game in 3D) and their own controls suited to a kind of play (custom keyboard actions, joysticks, brain-computer interfaces). Renderers are objects, traded like any other. See "How it fits together".
@@ -157,7 +160,7 @@ Most people have no AI coding agent, so playing must not need one. Agents are fo
 - **Always-on hosting** for realms that must stay up while their owner's device is off, by the owner's signed permission, including keeping copies of their data.
 - **The built-in AI builder:** a free tier, then paid heavier use.
 - **Fast relays** for players whose routers block direct connections: a free tier with limits.
-- **The best-known app and directory,** under the name "EveryGame" (a trademark Ace keeps).
+- **The best-known app and directory,** under the name "Endless Mind" (a trademark Ace keeps).
 
 **Risks:**
 
@@ -383,7 +386,7 @@ Goal: simple enough that anyone can clone this repository and run their own serv
 
 ## Original work only
 
-EveryGame is a tool for making original worlds. The project must never suggest, show or encourage copying anyone else's game, characters, names, art, music or other protected work, in its docs, examples, demos, code or promotion.
+Endless Mind is a tool for making original worlds. The project must never suggest, show or encourage copying anyone else's game, characters, names, art, music or other protected work, in its docs, examples, demos, code or promotion.
 
 - **Examples are technical and original.** Example worlds use invented names and generic kinds of game (a large city, a world made of blocks, a maze chase). They explain how the system works, not how to recreate an existing product. See [the city](examples/city.md), [the block world](examples/block-world.md) and [the maze chase](examples/maze-chase.md).
 - **The agent guide steers agents toward original work.** It tells AI agents to build original designs, and to decline to copy another product's names, characters, art, music, logos or level designs, suggesting an original alternative instead.
@@ -410,4 +413,3 @@ Success test: two people on two machines, each with their own AI agent, each bui
 
 - Should visitors be able to demand guarantees from a realm (for example "forget me after I leave"), or is "leave if you do not trust it" enough?
 - When to add the lockstep multiplayer mode alongside "the host keeps the full state", which the first demo uses.
-- Name: keep "EveryGame", or call it "Infinite Worlds Unlimited"?

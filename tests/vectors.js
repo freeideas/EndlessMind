@@ -17,7 +17,7 @@ export async function buildVectors() {
   const address = await addressOf(keys.publicKey);
   const to = "ed25519-" + toBase32(new Uint8Array(32));
 
-  const envelope = await seal(keys, to, "wwg.act", { action: { dir: "up" } }, { id: "aaaaaaaaaaaaaaaaaaaaaaaaaa", time: 1790000000000 });
+  const envelope = await seal(keys, to, "emind.act", { action: { dir: "up" } }, { id: "aaaaaaaaaaaaaaaaaaaaaaaaaa", time: 1790000000000 });
   const { sig: _, ...unsigned } = envelope;
   const manifest = await seal(keys, null, "manifest", {
     name: "Vector Realm", description: "", tags: ["test"], files: { "rules.js": await hashOf("export default {}") },
@@ -26,7 +26,7 @@ export async function buildVectors() {
 
   const canonicalInputs = ['{"b":1,"a":[true,null,{"d":2,"c":"x"}]}', '{"n":[1e30,4.50,0.002,-0,1e-7]}', '{"\\u20ac":1,"\\r":2,"\\ud83d\\ude00":3,"1":4}'];
   return {
-    about: "wwg protocol version 0 (draft) test vectors. See specs/PROTOCOL.md, \"Version 0 formats\". Strings in base32 are lowercase RFC 4648 without padding.",
+    about: "emind protocol version 0 (draft) test vectors. See specs/PROTOCOL.md, \"Version 0 formats\". Strings in base32 are lowercase RFC 4648 without padding.",
     base32: [
       { hex: "", base32: toBase32(new Uint8Array()) },
       { hex: "66", base32: toBase32(fromHex("66")) },
@@ -38,10 +38,10 @@ export async function buildVectors() {
     signature: {
       purpose: "claim",
       text: "example.org:8000\nchallenge-nonce",
-      signedBytesUtf8: "wwg-claim\nexample.org:8000\nchallenge-nonce",
+      signedBytesUtf8: "emind-claim\nexample.org:8000\nchallenge-nonce",
       sig: await sign(keys.privateKey, "claim", "example.org:8000\nchallenge-nonce"),
     },
-    envelope: { envelope, signedBytesUtf8: "wwg-envelope\n" + canonicalJson(unsigned) },
+    envelope: { envelope, signedBytesUtf8: "emind-envelope\n" + canonicalJson(unsigned) },
     release: { manifest, release: await releaseOf(manifest) },
   };
 }

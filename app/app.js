@@ -1,4 +1,4 @@
-// The reference EveryGame app: the page players open. It keeps the player's
+// The reference Endless Mind app: the page players open. It keeps the player's
 // keys and character, finds and publishes realms, and runs realms and
 // renderers in sandboxes. Its menu ("More realms") is always there, outside
 // any realm's control.
@@ -33,7 +33,7 @@ function el(tag, attrs = {}, children = []) {
 
 /** @param {string} address @param {string} [release] */
 function realmLink(address, release) {
-  return `${location.origin}/#wwg:${address}` + (release ? `?release=${release}` : "");
+  return `${location.origin}/#emind:${address}` + (release ? `?release=${release}` : "");
 }
 
 /** @param {string} text */
@@ -53,15 +53,15 @@ function cannotRun(title, html) {
 }
 
 if (!globalThis.crypto?.subtle) {
-  cannotRun("This page needs a secure connection", `Browsers only allow the key functions EveryGame uses on
+  cannotRun("This page needs a secure connection", `Browsers only allow the key functions Endless Mind uses on
     <b>https</b> addresses or on <b>localhost</b>. Open this server through https, or on the computer running it.
-    See <code>specs/RUNNING.md</code> in the EveryGame repository.`);
+    See <code>specs/RUNNING.md</code> in the Endless Mind repository.`);
 }
 // Having Web Crypto does not mean having Ed25519 keys, so test the exact operation.
 const ed25519Works = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])
   .then(() => true, () => false);
 if (!ed25519Works) {
-  cannotRun("This browser is too old", `EveryGame needs Ed25519 keys, which arrived in Chrome and Edge 137,
+  cannotRun("This browser is too old", `Endless Mind needs Ed25519 keys, which arrived in Chrome and Edge 137,
     Firefox 129 and Safari 17. Please update your browser, or try another one.`);
 }
 
@@ -82,7 +82,7 @@ async function showSearch(tag) {
   list.replaceChildren(...(realms.length ? realms : []).map((r) =>
     el("li", {}, [
       el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
-      el("a", { href: `#wwg:${r.address}` }, [r.name]),
+      el("a", { href: `#emind:${r.address}` }, [r.name]),
       el("span", { class: "tags" }, [r.tags.join(", ")]),
     ])
   ));
@@ -95,7 +95,7 @@ async function showOwned() {
   list.replaceChildren(...realms.map((r) => {
     const copyButton = el("button", {}, ["Copy link"]);
     copyButton.onclick = () => copy(realmLink(r.address));
-    return el("li", {}, [el("a", { href: `#wwg:${r.address}` }, [r.name]), copyButton]);
+    return el("li", {}, [el("a", { href: `#emind:${r.address}` }, [r.name]), copyButton]);
   }));
   if (!realms.length) list.append(el("li", {}, ["None yet."]));
 }
@@ -136,7 +136,7 @@ async function showRealm(address, release) {
   } catch (error) {
     const message = el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]);
     if (/** @type {any} */ (error).code === "release-changed") {
-      message.append(" ", el("a", { href: `#wwg:${address}` }, ["Open the current version"]));
+      message.append(" ", el("a", { href: `#emind:${address}` }, ["Open the current version"]));
     }
     stage.replaceChildren(message);
   }
@@ -145,7 +145,7 @@ async function showRealm(address, release) {
 async function route() {
   current?.stop();
   current = null;
-  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?wwg:([a-z0-9-]+)(?:\?release=([a-z0-9-]+))?/);
+  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?release=([a-z0-9-]+))?/);
   if (match) await showRealm(match[1], match[2]);
   else await showHome();
 }
@@ -181,7 +181,7 @@ async function publishAndOpen(files) {
     status("Publishing...");
     const realm = await publish(files);
     status(`Published ${realm.name}. Share the link so others can join.`, 8000);
-    location.hash = `wwg:${realm.address}`;
+    location.hash = `emind:${realm.address}`;
   } catch (error) {
     status(String(/** @type {Error} */ (error).message ?? error), 8000);
   }
@@ -203,7 +203,7 @@ if ("registerProtocolHandler" in navigator && location.protocol === "https:") {
   $("links-section").hidden = false;
   $("register-links").onclick = () => {
     try {
-      navigator.registerProtocolHandler("web+wwg", `${location.origin}/#%s`);
+      navigator.registerProtocolHandler("web+emind", `${location.origin}/#%s`);
     } catch (error) {
       status(String(error));
     }

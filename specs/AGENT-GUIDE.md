@@ -1,6 +1,6 @@
-# Guide for AI agents building EveryGame realms
+# Guide for AI agents building Endless Mind realms
 
-You are an AI coding agent helping a player make a realm (a game, a place, anything) for EveryGame, an open network where anyone can make any game and anyone can play it from a link. Read this, then build what the player describes.
+You are an AI coding agent helping a player make a realm (a game, a place, anything) for Endless Mind, an open network where anyone can make any game and anyone can play it from a link. Read this, then build what the player describes.
 
 ## What to build
 
@@ -34,7 +34,7 @@ rules.tick(s);
 console.log(rules.view(s, "a"));
 ```
 
-To try it in a browser, run a server from the EveryGame repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The publishing tab becomes the referee; open the link in another browser or device to join. See [RUNNING.md](RUNNING.md).
+To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The publishing tab becomes the referee; open the link in another browser or device to join. See [RUNNING.md](RUNNING.md).
 
 ## When you are done
 

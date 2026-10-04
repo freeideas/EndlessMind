@@ -7,7 +7,7 @@
 // Each starts with a label naming the method that made it, so stronger methods
 // can be added in later protocol versions without changing anything else.
 //
-// Every signature also covers a purpose label ("wwg-envelope", "wwg-claim"),
+// Every signature also covers a purpose label ("emind-envelope", "emind-claim"),
 // so a signature made for one purpose can never be passed off as another.
 
 import { fromBase32, toBase32, utf8 } from "./encoding.js";
@@ -90,7 +90,7 @@ function publicKeyFor(address) {
 /** @param {string} purpose @param {string} text */
 function signedBytes(purpose, text) {
   if (!/^[a-z0-9-]+$/.test(purpose)) throw new Error("bad signature purpose: " + purpose);
-  return utf8(`wwg-${purpose}\n${text}`);
+  return utf8(`emind-${purpose}\n${text}`);
 }
 
 /**

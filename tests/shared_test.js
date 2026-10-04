@@ -40,7 +40,7 @@ Deno.test("envelopes sign every field, including ones added later", async () => 
   const a = await generateKeyPair();
   const b = await generateKeyPair();
   const to = await addressOf(b.publicKey);
-  const env = await seal(a, to, "wwg.act", { dir: "up" });
+  const env = await seal(a, to, "emind.act", { dir: "up" });
   assert(await open(env));
   assertEquals(await open({ ...env, body: { dir: "down" } }), null);
   assertEquals(await open({ ...env, from: to }), null);

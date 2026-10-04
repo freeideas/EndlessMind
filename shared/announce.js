@@ -31,7 +31,7 @@ import { open, seal } from "./envelope.js";
 
 /**
  * A release is one exact signed manifest. Its hash pins that version, so a
- * link can say "this realm, exactly as it was" (`wwg:<address>?release=<hash>`).
+ * link can say "this realm, exactly as it was" (`emind:<address>?release=<hash>`).
  * @param {import("./envelope.js").Envelope} manifest
  */
 export function releaseOf(manifest) {

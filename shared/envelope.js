@@ -5,7 +5,7 @@ import { canonicalJson, randomId } from "./encoding.js";
 import { addressOf, isAddress, sign, verify } from "./crypto.js";
 
 /** The protocol version this code speaks. Draft versions start at 0. */
-export const PROTOCOL_VERSION = "wwg/0";
+export const PROTOCOL_VERSION = "emind/0";
 
 /**
  * @typedef {object} Envelope
@@ -14,7 +14,7 @@ export const PROTOCOL_VERSION = "wwg/0";
  * @property {string} from   sender's address
  * @property {string | null} to  receiver's address, or null for a public statement
  * @property {string} kind   what kind of message: core kinds have no dot ("announce");
- *                           extension kinds are dotted ("wwg.enter", "com.example.move")
+ *                           extension kinds are dotted ("emind.enter", "com.example.move")
  * @property {unknown} body  anything JSON can hold
  * @property {number} time   milliseconds since 1970, by the sender's clock
  * @property {string} sig    sender's signature over every other field
@@ -52,7 +52,7 @@ export async function seal(keyPair, to, kind, body, fixed = {}) {
 export async function open(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const { sig, ...unsigned } = /** @type {Record<string, unknown>} */ (value);
-  if (typeof unsigned.v !== "string" || !unsigned.v.startsWith("wwg/")) return null;
+  if (typeof unsigned.v !== "string" || !unsigned.v.startsWith("emind/")) return null;
   if (typeof unsigned.id !== "string" || unsigned.id.length < 16 || unsigned.id.length > 64) return null;
   if (!isAddress(unsigned.from)) return null;
   if (unsigned.to !== null && !isAddress(unsigned.to)) return null;

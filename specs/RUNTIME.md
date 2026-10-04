@@ -27,7 +27,7 @@ A realm is published from a folder of files:
 
 `needs` lists permissions the realm asks the player's app for. None exist in version 0, so leave it empty or out.
 
-Publishing makes a new key pair for the realm on the publishing device, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<any server>/#wwg:<address>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
+Publishing makes a new key pair for the realm on the publishing device, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<any server>/#emind:<address>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
 
 **Version 0 limit:** each module must be self-contained, with no `import` of other files. Inline anything you need (including libraries) into the file itself.
 
@@ -86,16 +86,16 @@ This is the safety floor: players can open any realm without trusting its author
 
 ## Messages between visitors and the referee
 
-These are the "entering and leaving" extension (prefix `wwg.`), carried in signed envelopes (see [PROTOCOL.md](PROTOCOL.md)). The app handles them; realm code never sees them.
+These are the "entering and leaving" extension (prefix `emind.`), carried in signed envelopes (see [PROTOCOL.md](PROTOCOL.md)). The app handles them; realm code never sees them.
 
 | Kind          | From → to       | Body            | Meaning                      |
 | ------------- | --------------- | --------------- | ---------------------------- |
-| `wwg.enter`   | visitor → realm | `{ character }` | Please let me in             |
-| `wwg.welcome` | realm → visitor | `{ name }`      | You are in                   |
-| `wwg.refused` | realm → visitor | `{ reason }`    | You are not let in           |
-| `wwg.act`     | visitor → realm | `{ action }`    | A move                       |
-| `wwg.state`   | realm → visitor | `{ view }`      | What you can see now         |
-| `wwg.ping`    | visitor → realm | `{}`            | Still here (every 5 seconds) |
-| `wwg.leave`   | visitor → realm | `{}`            | Goodbye                      |
+| `emind.enter`   | visitor → realm | `{ character }` | Please let me in             |
+| `emind.welcome` | realm → visitor | `{ name }`      | You are in                   |
+| `emind.refused` | realm → visitor | `{ reason }`    | You are not let in           |
+| `emind.act`     | visitor → realm | `{ action }`    | A move                       |
+| `emind.state`   | realm → visitor | `{ view }`      | What you can see now         |
+| `emind.ping`    | visitor → realm | `{}`            | Still here (every 5 seconds) |
+| `emind.leave`   | visitor → realm | `{}`            | Goodbye                      |
 
 Every message is signed by its sender, and each side checks the signature and that it came from the expected address before acting on it.

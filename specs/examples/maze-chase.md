@@ -1,6 +1,6 @@
 # Example: a small 2D maze chase
 
-Written 2026-09-27. A technical example of how a player could make their own small game on the EveryGame model described in [DESIGN.md](../DESIGN.md), and go from an idea to a game others can join. All names here are invented for this example. Anything built with EveryGame should be the builder's own original work (see "Original work only" in the design).
+Written 2026-09-27. A technical example of how a player could make their own small game on the Endless Mind model described in [DESIGN.md](../DESIGN.md), and go from an idea to a game others can join. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
 
 ## Making it
 

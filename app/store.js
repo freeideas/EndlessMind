@@ -1,7 +1,7 @@
 // The app's local storage: one IndexedDB database holding key pairs (which
 // cannot be exported) and small records. Nothing here leaves the device.
 
-const DB_NAME = "everygame";
+const DB_NAME = "endlessmind";
 const STORE = "things";
 
 /** @type {Promise<IDBDatabase> | null} */

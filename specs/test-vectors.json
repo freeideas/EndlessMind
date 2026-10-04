@@ -1,5 +1,5 @@
 {
-  "about": "wwg protocol version 0 (draft) test vectors. See specs/PROTOCOL.md, \"Version 0 formats\". Strings in base32 are lowercase RFC 4648 without padding.",
+  "about": "emind protocol version 0 (draft) test vectors. See specs/PROTOCOL.md, \"Version 0 formats\". Strings in base32 are lowercase RFC 4648 without padding.",
   "base32": [
     {
       "hex": "",
@@ -46,29 +46,29 @@
   "signature": {
     "purpose": "claim",
     "text": "example.org:8000\nchallenge-nonce",
-    "signedBytesUtf8": "wwg-claim\nexample.org:8000\nchallenge-nonce",
-    "sig": "ed25519-lwk2523ysmnuh5s7mn5o24ktqd43vqzkqb4vzpzbcctufc43rd4zq5vly5bb27zks477r3yo3sdd2wih6zbsdhllnqa7rxlvzj6yaba"
+    "signedBytesUtf8": "emind-claim\nexample.org:8000\nchallenge-nonce",
+    "sig": "ed25519-aup6vhkau7ntkrpfzgmoqbu4k5wumsgaos5jarlnb6v4hyg5w3f6xs45n6ldrtbuhd7ew2rlgkd4r6uhjbbbh4nof5i43vrqfe7o4aq"
   },
   "envelope": {
     "envelope": {
-      "v": "wwg/0",
+      "v": "emind/0",
       "id": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
       "from": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
       "to": "ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "kind": "wwg.act",
+      "kind": "emind.act",
       "body": {
         "action": {
           "dir": "up"
         }
       },
       "time": 1790000000000,
-      "sig": "ed25519-ellqvxp4qiikyckzgdc76u3jgcsjnltpbpn4zfma22f3gwirgj2c6qp6nuws4lamedd6wudehqk7hr6nxizkxhtall3vqt5u7ldaiby"
+      "sig": "ed25519-7eqfwyaqbjitigid74qffjw624nfbne24ni6ey4462pognwdys4fgh6lcslttamym3ffh6af6mlzx52lh27iolq33h3h367gg5ogwai"
     },
-    "signedBytesUtf8": "wwg-envelope\n{\"body\":{\"action\":{\"dir\":\"up\"}},\"from\":\"ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\",\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"wwg.act\",\"time\":1790000000000,\"to\":\"ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"v\":\"wwg/0\"}"
+    "signedBytesUtf8": "emind-envelope\n{\"body\":{\"action\":{\"dir\":\"up\"}},\"from\":\"ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena\",\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"emind.act\",\"time\":1790000000000,\"to\":\"ed25519-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"v\":\"emind/0\"}"
   },
   "release": {
     "manifest": {
-      "v": "wwg/0",
+      "v": "emind/0",
       "id": "bbbbbbbbbbbbbbbbbbbbbbbbbb",
       "from": "ed25519-25njqamcweflpvkl73j4szahhihoc4xt3ktcgjnpaingr5yhkena",
       "to": null,
@@ -90,8 +90,8 @@
         "needs": []
       },
       "time": 1790000000000,
-      "sig": "ed25519-za5nkpv4z4ncld2kjoe3ylayvjdqb35vpyz7kqsxh3eupbjlx6xw5anw6uuvjqevsrzekaohzmhfumhjg5ex76mui4g5h2ou525hybq"
+      "sig": "ed25519-4g3kn76xrrsfzwquf7vn73oa4tasbdr357y5vvbaqyl3otrfg25iddm5xesut4ryvmfdtk2xvwby5idbuvmmhepqm5w5lu6grs4nmby"
     },
-    "release": "sha256-kkb2wfhwitd4lgytmfmregxe6z46sf6gp75d74wmkysyfjqw2ezq"
+    "release": "sha256-cqgxrtza6kv6c6dacypldcn7qogppzqscwod2btrj5wuntpapvdq"
   }
 }

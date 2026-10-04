@@ -131,7 +131,7 @@ Deno.test("a claim signed for another server is refused", () =>
 Deno.test("the server serves the app page", () =>
   withServer(async (base) => {
     const page = await fetch(`${base}/`);
-    assert((await page.text()).includes("EveryGame"));
+    assert((await page.text()).includes("Endless Mind"));
     const hidden = await fetch(`${base}/../deno.json`);
     assert(hidden.status === 404 || !(await hidden.text()).includes("tasks"));
   }));
