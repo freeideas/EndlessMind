@@ -41,24 +41,24 @@ export async function referee(realm, relay, container, status) {
     const body = /** @type {any} */ (env.body) ?? {};
     const known = players.get(env.from);
     if (known) known.lastHeard = Date.now();
-    if (env.kind === "enter" && !known) {
+    if (env.kind === "wwg.enter" && !known) {
       const verdict = await rules.enter(env.from, body.character ?? {});
       if (!verdict.ok) {
-        await relay.send(realm.keys, env.from, "refused", { reason: verdict.reason ?? "" });
+        await relay.send(realm.keys, env.from, "wwg.refused", { reason: verdict.reason ?? "" });
         return;
       }
       players.set(env.from, {
         local: false,
         lastHeard: Date.now(),
-        deliver: (view) => relay.send(realm.keys, env.from, "state", { view }),
+        deliver: (view) => relay.send(realm.keys, env.from, "wwg.state", { view }),
       });
-      await relay.send(realm.keys, env.from, "welcome", { name: manifest.name });
+      await relay.send(realm.keys, env.from, "wwg.welcome", { name: manifest.name });
       status(`${body.character?.name ?? "Someone"} came in.`);
-    } else if (env.kind === "enter" && known) {
-      await relay.send(realm.keys, env.from, "welcome", { name: manifest.name });
-    } else if (env.kind === "act" && known) {
+    } else if (env.kind === "wwg.enter" && known) {
+      await relay.send(realm.keys, env.from, "wwg.welcome", { name: manifest.name });
+    } else if (env.kind === "wwg.act" && known) {
       rules.act(env.from, body.action);
-    } else if (env.kind === "leave" && known) {
+    } else if (env.kind === "wwg.leave" && known) {
       players.delete(env.from);
       rules.leave(env.from);
     }
@@ -129,7 +129,7 @@ export async function play(address, character, relay, container, ui) {
 
   await relay.addKey(character.keys);
   const view = await startRenderer(container, rendererCode, character.address, character.info, (action) =>
-    relay.send(character.keys, address, "act", { action }));
+    relay.send(character.keys, address, "wwg.act", { action }));
 
   let welcomed = false;
   /** @param {Event} event */
@@ -137,12 +137,12 @@ export async function play(address, character, relay, container, ui) {
     const env = /** @type {CustomEvent<Envelope>} */ (event).detail;
     if (env.from !== address || env.to !== character.address) return;
     const body = /** @type {any} */ (env.body) ?? {};
-    if (env.kind === "welcome" && !welcomed) {
+    if (env.kind === "wwg.welcome" && !welcomed) {
       welcomed = true;
       ui.status(`You are in ${manifest.name}.`);
-    } else if (env.kind === "refused") {
+    } else if (env.kind === "wwg.refused") {
       ui.status(`The realm refused you: ${body.reason || "no reason given"}`);
-    } else if (env.kind === "state") {
+    } else if (env.kind === "wwg.state") {
       welcomed = true;
       lastView(body.view);
       view.show(body.view);
@@ -157,11 +157,11 @@ export async function play(address, character, relay, container, ui) {
   relay.addEventListener("message", onMessage);
   relay.addEventListener("undeliverable", onUndeliverable);
 
-  const enter = () => relay.send(character.keys, address, "enter", { character: character.info });
+  const enter = () => relay.send(character.keys, address, "wwg.enter", { character: character.info });
   await enter();
   ui.status(found.online ? `Entering ${manifest.name}...` : "This realm's referee is not online right now. Waiting for it...");
   const pinger = setInterval(() => {
-    if (welcomed) relay.send(character.keys, address, "ping", {});
+    if (welcomed) relay.send(character.keys, address, "wwg.ping", {});
     else enter();
   }, PING_EVERY_MS);
 
@@ -169,7 +169,7 @@ export async function play(address, character, relay, container, ui) {
     name: manifest.name,
     stop() {
       clearInterval(pinger);
-      relay.send(character.keys, address, "leave", {});
+      relay.send(character.keys, address, "wwg.leave", {});
       relay.removeEventListener("message", onMessage);
       relay.removeEventListener("undeliverable", onUndeliverable);
       view.stop();

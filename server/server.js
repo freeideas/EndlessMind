@@ -109,7 +109,7 @@ export async function startServer(options = {}) {
       } else if (msg.type === "prove" && challenges.has(msg.address)) {
         const nonce = challenges.get(msg.address);
         challenges.delete(msg.address);
-        if (await verify(msg.address, "everygame-claim:" + nonce, msg.sig)) {
+        if (await verify(msg.address, "claim", String(nonce), msg.sig)) {
           mine.add(msg.address);
           if (!claims.has(msg.address)) claims.set(msg.address, new Set());
           claims.get(msg.address)?.add(socket);
@@ -187,7 +187,7 @@ export async function startServer(options = {}) {
   /** @param {Request} request @param {string} hash */
   async function handleBlob(request, hash) {
     if (!isHash(hash)) return json({ error: "bad hash" }, 400);
-    const path = `${blobDir}/${hash.replace(":", "-")}`;
+    const path = `${blobDir}/${hash}`;
     if (request.method === "PUT") {
       const bytes = new Uint8Array(await request.arrayBuffer());
       if (bytes.length > MAX_BLOB_BYTES) return json({ error: "too large" }, 413);

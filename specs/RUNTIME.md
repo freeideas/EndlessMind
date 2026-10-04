@@ -8,10 +8,10 @@ The reference implementation is [app/sandbox.js](../app/sandbox.js) and [app/ses
 
 A realm is published from a folder of files:
 
-| File          | What it is                                                                     |
-| ------------- | ------------------------------------------------------------------------------ |
-| `realm.json`  | Name, description, tags, and which file is the rules and which the renderer    |
-| rules file    | The realm's rules: one self-contained JavaScript module (named in `main`)      |
+| File          | What it is                                                                       |
+| ------------- | -------------------------------------------------------------------------------- |
+| `realm.json`  | Name, description, tags, and which file is the rules and which the renderer      |
+| rules file    | The realm's rules: one self-contained JavaScript module (named in `main`)        |
 | renderer file | The default renderer: one self-contained JavaScript module (named in `renderer`) |
 
 ```json
@@ -24,7 +24,7 @@ A realm is published from a folder of files:
 }
 ```
 
-Publishing makes a new key pair for the realm on the publishing device, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `<any server>/#realm=<address>`.
+Publishing makes a new key pair for the realm on the publishing device, uploads each file under its hash (at most 2 MB per file), signs a manifest listing the files by hash, and announces it. The realm's address is its public key, and its link is `https://<any server>/#wwg:<address>` (see "Version 0 formats" in [PROTOCOL.md](PROTOCOL.md)).
 
 **Version 0 limit:** each module must be self-contained, with no `import` of other files. Inline anything you need (including libraries) into the file itself.
 
@@ -47,7 +47,7 @@ export default {
 };
 ```
 
-- **`player`** is the player's character address (a string such as `ed25519:...`). It is stable, so you can key state by it.
+- **`player`** is the player's character address (a string such as `ed25519-...`). It is stable, so you can key state by it.
 - **`character`** is the character's general description, sent by the visitor's app. The default layout is `{ name, color, description }`, but any field may be missing or strange. Treat it as untrusted input: use what you understand, clean it up, ignore the rest.
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick.
@@ -83,16 +83,16 @@ This is the safety floor: players can open any realm without trusting its author
 
 ## Messages between visitors and the referee
 
-These are the "entering and leaving" extension, carried in signed envelopes (see [PROTOCOL.md](PROTOCOL.md)). The app handles them; realm code never sees them.
+These are the "entering and leaving" extension (prefix `wwg.`), carried in signed envelopes (see [PROTOCOL.md](PROTOCOL.md)). The app handles them; realm code never sees them.
 
-| Kind      | From → to         | Body                     | Meaning                              |
-| --------- | ----------------- | ------------------------ | ------------------------------------ |
-| `enter`   | visitor → realm   | `{ character }`          | Please let me in                     |
-| `welcome` | realm → visitor   | `{ name }`               | You are in                           |
-| `refused` | realm → visitor   | `{ reason }`             | You are not let in                   |
-| `act`     | visitor → realm   | `{ action }`             | A move                               |
-| `state`   | realm → visitor   | `{ view }`               | What you can see now                 |
-| `ping`    | visitor → realm   | `{}`                     | Still here (every 5 seconds)         |
-| `leave`   | visitor → realm   | `{}`                     | Goodbye                              |
+| Kind          | From → to       | Body            | Meaning                      |
+| ------------- | --------------- | --------------- | ---------------------------- |
+| `wwg.enter`   | visitor → realm | `{ character }` | Please let me in             |
+| `wwg.welcome` | realm → visitor | `{ name }`      | You are in                   |
+| `wwg.refused` | realm → visitor | `{ reason }`    | You are not let in           |
+| `wwg.act`     | visitor → realm | `{ action }`    | A move                       |
+| `wwg.state`   | realm → visitor | `{ view }`      | What you can see now         |
+| `wwg.ping`    | visitor → realm | `{}`            | Still here (every 5 seconds) |
+| `wwg.leave`   | visitor → realm | `{}`            | Goodbye                      |
 
 Every message is signed by its sender, and each side checks the signature and that it came from the expected address before acting on it.

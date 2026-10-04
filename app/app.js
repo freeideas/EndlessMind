@@ -33,7 +33,7 @@ function el(tag, attrs = {}, children = []) {
 
 /** @param {string} address */
 function realmLink(address) {
-  return `${location.origin}/#realm=${address}`;
+  return `${location.origin}/#wwg:${address}`;
 }
 
 /** @param {string} text */
@@ -72,7 +72,7 @@ async function showSearch(tag) {
   list.replaceChildren(...(realms.length ? realms : []).map((r) =>
     el("li", {}, [
       el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
-      el("a", { href: `#realm=${r.address}` }, [r.name]),
+      el("a", { href: `#wwg:${r.address}` }, [r.name]),
       el("span", { class: "tags" }, [r.tags.join(", ")]),
     ])
   ));
@@ -85,7 +85,7 @@ async function showOwned() {
   list.replaceChildren(...realms.map((r) => {
     const copyButton = el("button", {}, ["Copy link"]);
     copyButton.onclick = () => copy(realmLink(r.address));
-    return el("li", {}, [el("a", { href: `#realm=${r.address}` }, [r.name]), copyButton]);
+    return el("li", {}, [el("a", { href: `#wwg:${r.address}` }, [r.name]), copyButton]);
   }));
   if (!realms.length) list.append(el("li", {}, ["None yet."]));
 }
@@ -128,8 +128,8 @@ async function showRealm(address) {
 async function route() {
   current?.stop();
   current = null;
-  const match = location.hash.match(/realm=([^&]+)/);
-  if (match) await showRealm(decodeURIComponent(match[1]));
+  const match = decodeURIComponent(location.hash.slice(1)).match(/^(?:web\+)?wwg:([a-z0-9-]+)/);
+  if (match) await showRealm(match[1]);
   else await showHome();
 }
 
@@ -164,7 +164,7 @@ async function publishAndOpen(files) {
     status("Publishing...");
     const realm = await publish(files);
     status(`Published ${realm.name}. Share the link so others can join.`, 8000);
-    location.hash = `realm=${realm.address}`;
+    location.hash = `wwg:${realm.address}`;
   } catch (error) {
     status(String(/** @type {Error} */ (error).message ?? error), 8000);
   }
@@ -180,6 +180,18 @@ $("publish-files").onchange = async (e) => {
   input.value = "";
   await publishAndOpen(files);
 };
+
+// Browsers let a web page handle only link types that start with "web+".
+if ("registerProtocolHandler" in navigator && location.protocol === "https:") {
+  $("links-section").hidden = false;
+  $("register-links").onclick = () => {
+    try {
+      navigator.registerProtocolHandler("web+wwg", `${location.origin}/#%s`);
+    } catch (error) {
+      status(String(error));
+    }
+  };
+}
 
 addEventListener("hashchange", route);
 showMe();

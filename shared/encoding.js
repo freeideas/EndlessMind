@@ -13,32 +13,59 @@ export function fromUtf8(bytes) {
   return textDecoder.decode(bytes);
 }
 
-/** @param {Uint8Array} bytes @returns {string} */
-export function toHex(bytes) {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
+// Lowercase base32 (RFC 4648 alphabet, no padding). Chosen for addresses and
+// hashes because it survives everywhere text gets mangled: case-insensitive
+// systems, host names (a 32-byte key fits in one 63-character DNS label),
+// double-click selection, and reading aloud.
+const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 
 /** @param {Uint8Array} bytes @returns {string} */
-export function toBase64Url(bytes) {
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+export function toBase32(bytes) {
+  let out = "";
+  let bits = 0;
+  let value = 0;
+  for (const b of bytes) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
+  return out;
 }
 
 /** @param {string} text @returns {Uint8Array<ArrayBuffer>} */
-export function fromBase64Url(text) {
-  const padded = text.replaceAll("-", "+").replaceAll("_", "/") +
-    "=".repeat((4 - (text.length % 4)) % 4);
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+export function fromBase32(text) {
+  const out = new Uint8Array(Math.floor((text.length * 5) / 8));
+  let bits = 0;
+  let value = 0;
+  let i = 0;
+  for (const ch of text) {
+    const v = BASE32.indexOf(ch);
+    if (v < 0) throw new Error("not base32: " + ch);
+    value = (value << 5) | v;
+    bits += 5;
+    if (bits >= 8) {
+      out[i++] = (value >>> (bits - 8)) & 255;
+      bits -= 8;
+    }
+  }
+  return out;
+}
+
+/** @param {number} byteCount @returns {string} random base32 text */
+export function randomId(byteCount = 16) {
+  return toBase32(crypto.getRandomValues(new Uint8Array(byteCount)));
 }
 
 /**
- * Canonical JSON: object keys sorted at every level, no extra spaces.
+ * Canonical JSON, as defined by RFC 8785 (JSON Canonicalization Scheme):
+ * object keys sorted by UTF-16 code units at every level, no extra spaces,
+ * strings and numbers written the way JavaScript's JSON.stringify writes them.
  * Two programs that build the same value always produce the same text, so a
- * signature over it can be checked anywhere.
+ * signature over it can be checked anywhere, in any language.
  * @param {unknown} value
  * @returns {string}
  */
@@ -47,7 +74,10 @@ export function canonicalJson(value) {
     if (typeof value === "number" && !Number.isFinite(value)) {
       throw new Error("canonicalJson: numbers must be finite");
     }
-    return JSON.stringify(value) ?? "null";
+    if (value === undefined || typeof value === "function" || typeof value === "bigint") {
+      throw new Error("canonicalJson: not a JSON value");
+    }
+    return JSON.stringify(value);
   }
   if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
   const obj = /** @type {Record<string, unknown>} */ (value);

@@ -1,16 +1,16 @@
-# EveryGame protocol: an outline
+# The wwg protocol: an outline
 
-Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The design behind it is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
+Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The protocol is called **wwg** (World Wide Games); EveryGame is this project and its reference app. The design behind it is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
 
 ## What it is for
 
-EveryGame is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The EveryGame protocol aims for the same: a shared way to connect, so that any realm, object or app made by anyone, in any language or engine, can meet any other.
+EveryGame is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The wwg protocol aims for the same: a shared way to connect, so that any realm, object or app made by anyone, in any language or engine, can meet any other.
 
 ## Rules for the rules
 
 1. **Rules describe how to connect, never what may be built.** A rule that limits what someone can create does not belong in the protocol.
 2. **The core stays tiny.** It holds only what two strangers' software must share to talk at all.
-3. **Everything else is an optional extension.** Anyone can write one without asking permission or registering it anywhere. Extensions are named so names cannot collide, for example by the hash of their description or by their author's key.
+3. **Everything else is an optional extension.** Anyone can write one without asking permission or registering it anywhere. Extensions are named so names cannot collide: a dotted name starting with something the author controls, such as a domain name they own written in reverse (`com.example.chess`) or their key. Names without a dot belong to the core.
 4. **Ignore what you do not understand; never reject it.** Unknown fields, message kinds and extensions are skipped, so new ideas never break old software.
 5. **Versions are added, never forced.** A new version may change how things are encoded or sent, but apps agree on a version each time they connect, and an older version keeps working as long as people still run it (see "Versions").
 6. **Nothing needs a central authority.** No registry, no gatekeeper, no official server. If this project disappeared, the protocol would still work.
@@ -33,6 +33,20 @@ EveryGame is meant to be a worldwide network, like the World Wide Web. The web w
 - **Object description.** How an object publishes what others may call and the code behind it, with any encrypted parts marked, so any other object can examine it before trusting it.
 - **Runtime interface.** The small, fixed set of calls that object code (JavaScript or WebAssembly) may use from inside its sandbox. This is what lets the same realm code run unchanged in the browser app, an app written from scratch in Rust, or an app built with Unreal, Godot or Unity. It plays the role WASI plays for WebAssembly: a standard set of calls that works in any host program. The first draft is in [RUNTIME.md](RUNTIME.md).
 
+## Version 0 formats (draft)
+
+The exact shapes used by the reference code ([shared/](../shared/)). These are the choices that are hardest to change later, so they were made carefully before release.
+
+- **Addresses:** `ed25519-` followed by the 32-byte public key in lowercase base32 (RFC 4648 alphabet, no padding): 60 characters, only lowercase letters, digits and one hyphen. Lowercase base32 survives case-insensitive systems, fits in one host-name label (so a realm could one day be reached as `<address>.example.org`), and selects with a double-click.
+- **Hashes:** `sha256-` followed by the 32-byte SHA-256 digest in lowercase base32.
+- **Signatures:** `ed25519-` followed by the 64-byte signature in lowercase base32.
+- **Links:** the canonical form is `wwg:<address>`, like `mailto:` or `magnet:` (no `//`, since an address is a key, not a host computer). Because chat apps and web pages make only `https` links clickable, the form people share is `https://<any server>/#wwg:<address>`. The part after `#` is never sent to the server, and any server works, since the key names the realm. Browser apps may register as handlers for `web+wwg:` links (browsers only let web pages handle link types starting with `web+`); installed apps may handle `wwg:` directly.
+- **Envelope:** a JSON object with `v` (protocol version, `"wwg/0"`), `id` (random, at least 16 characters), `from`, `to` (an address, or `null` for a public statement), `kind`, `body`, `time` (milliseconds since 1970) and `sig`. Senders may add more fields.
+- **What is signed:** every field of the envelope except `sig`, including fields the receiver does not know, so later additions stay signed and are passed on intact. The fields are written as canonical JSON as defined by RFC 8785 (JSON Canonicalization Scheme), so any language can reproduce the exact text.
+- **Purpose labels:** every signature covers the text `wwg-<purpose>`, a line break, then the signed content: `wwg-envelope` for envelopes, `wwg-claim` for proving a key to a server. A signature made for one purpose can never be passed off as another.
+- **Replays:** a receiver ignores an envelope whose `from` and `id` it has already seen, or whose `time` is more than 10 minutes from its own clock, so a recorded message cannot be sent again later.
+- **Message kinds:** core kinds have no dot (`manifest`, `announce`). Extension kinds are dotted, following rule 3; the extensions written alongside these documents use the prefix `wwg.` (for example `wwg.enter`, listed in [RUNTIME.md](RUNTIME.md)).
+
 ## Shared habits: optional extensions
 
 These are not rules. They are published as optional extensions, and they matter only as long as people find them useful. The reference app ships with them as defaults; anyone may ignore or replace them.
@@ -49,12 +63,12 @@ These are not rules. They are published as optional extensions, and they matter 
 
 ## Versions
 
-HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The EveryGame protocol is expected to grow the same way.
+HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The wwg protocol is expected to grow the same way.
 
 - **Meaning is separate from encoding.** The meaning of the core (keys, addresses, signed statements, files named by hash) changes rarely. How messages are encoded and carried can change much more freely, as HTTP/2 and HTTP/3 changed how requests travel without changing what a request is.
 - **Apps agree on a version when they connect.** Each side says which versions it speaks, and they use the newest one both understand. Announcements list the versions a peer speaks.
 - **Old versions fade, they are not shut off.** An old version stays usable as long as people run software that speaks it. No one can switch it off for everyone, only stop using it.
-- **Algorithms carry labels.** Every key, hash and signature says which method made it (for example `ed25519:` or `sha256:`), so a stronger method can be added later, such as one that resists future quantum computers, without changing the meaning of anything else.
+- **Algorithms carry labels.** Every key, hash and signature says which method made it (for example `ed25519-` or `sha256-`), so a stronger method can be added later, such as one that resists future quantum computers, without changing the meaning of anything else.
 - **Addresses and signed history survive every version.** A key made under an early version is still the same address later, a file's hash still names the same file, and an old signature still checks. Moving to a new algorithm is done the same way as giving an object: the old key signs a note naming the new one.
 - **Extensions have versions of their own,** chosen and changed by their authors, independent of the core.
 

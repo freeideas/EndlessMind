@@ -67,7 +67,7 @@ def steps(host, guest, base, browser_name):
         host.goto(base + "/")
         host.wait_for_selector("body[data-ready]")
         host.click("#publish-example")
-        wait_for(lambda: "realm=" in host.evaluate("location.href"), what="publish")
+        wait_for(lambda: "#wwg:" in host.evaluate("location.href"), what="publish")
         link = host.evaluate("location.href")
         wait_for(lambda: host.evaluate("globalThis.everygameLastView?.players?.length") == 1, what="host view")
 

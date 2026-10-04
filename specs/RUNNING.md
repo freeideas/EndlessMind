@@ -26,3 +26,8 @@ The browser tab that published a realm holds its key and is its referee. Keep th
 - `deno task test`: unit tests for the shared code, the server and the example realm's rules.
 - `deno task check`: type-checks everything (plain JavaScript with type comments).
 - `uv run tests/e2e.py [chromium] [firefox] [webkit]`: opens two real browsers, publishes the maze from one, joins from the other, and checks that each sees the other move. Needs `uv` (`brew install uv`); the first run for firefox or webkit needs `uv run --with playwright playwright install firefox webkit`.
+
+## If something does not connect
+
+- **Device clocks.** Each device ignores messages stamped more than 10 minutes away from its own clock (this blocks replayed messages). Make sure every device sets its time automatically.
+- **Old data.** Data saved under an earlier draft format is ignored. Delete `./data` on the server, and in the browser clear this site's data, to start fresh.

@@ -3,7 +3,7 @@
 // the envelope format does not change when they do.
 
 import { addressOf, sign } from "../shared/crypto.js";
-import { open, seal } from "../shared/envelope.js";
+import { open, ReplayGuard, seal } from "../shared/envelope.js";
 
 /** @typedef {import("../shared/envelope.js").Envelope} Envelope */
 
@@ -21,6 +21,7 @@ export class Relay extends EventTarget {
     /** @type {Promise<void> | null} */
     this.ready = null;
     this.closedByUs = false;
+    this.replays = new ReplayGuard();
   }
 
   /** Connect (or reconnect) and re-claim every address. */
@@ -93,14 +94,14 @@ export class Relay extends EventTarget {
     if (msg.type === "challenge") {
       const keyPair = this.keys.get(msg.address);
       if (!keyPair) return;
-      const sig = await sign(keyPair.privateKey, "everygame-claim:" + msg.nonce);
+      const sig = await sign(keyPair.privateKey, "claim", msg.nonce);
       this.#raw({ type: "prove", address: msg.address, sig });
     } else if (msg.type === "claimed") {
       this.pendingClaims.get(msg.address)?.();
       this.pendingClaims.delete(msg.address);
     } else if (msg.type === "deliver") {
       const envelope = await open(msg.envelope);
-      if (envelope && envelope.to && this.keys.has(envelope.to)) {
+      if (envelope && envelope.to && this.keys.has(envelope.to) && this.replays.accept(envelope)) {
         this.dispatchEvent(new CustomEvent("message", { detail: envelope }));
       }
     } else if (msg.type === "undeliverable") {

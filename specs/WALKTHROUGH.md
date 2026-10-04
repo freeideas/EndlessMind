@@ -37,7 +37,7 @@ A working version lives in this repository under `examples/maze-chase/`.
 2. Each file gets its hash (fingerprint).
 3. The realm's key signs a manifest (a list of contents): name, tags, the file hashes, and who referees.
 4. The files are uploaded to storage nodes, and the realm is announced on the server.
-5. The creator gets a link: `everygame.example/#realm=<realm key>`. The key, not the server, names the realm, so the same link works from any mirror and in any app.
+5. The creator gets a link: `https://everygame.example/#wwg:<realm address>`. The key, not the server, names the realm, so the same link works from any mirror and in any app.
 
 **Refereeing:** a multiplayer realm needs a referee. Either the creator keeps a browser tab open in "host" mode, or gives a server signed permission to host the realm around the clock with the headless runner. A single-player realm needs neither.
 
@@ -60,7 +60,7 @@ The friend, still in the browser with nothing installed, finds a realm made with
 1. **Finding it** works like any realm: a portal, the app's "More realms" menu, a friend's link, or a directory. The realm's manifest says how it can be played, and the app shows that as a badge: "Plays in browser", "Plays in browser · better in an Unreal-based app", or "Needs an Unreal-based app (1.2 GB)".
 2. **If it has a browser renderer** (most will), they start playing at once with simpler graphics, and a button offers "Play in full Unreal graphics".
 3. **Installing.** The browser shows a landing card (preview video, size, supported systems) and an install button that uses a store or package manager. If the realm owner pays for streaming, "Play now (streamed)" also appears.
-4. **Handoff.** The installed app opens from a link such as `everygame://realm/<key>`, the way meeting links open a meeting app.
+4. **Handoff.** The installed app opens from a link such as `wwg:<realm address>`, the way meeting links open a meeting app.
 5. **Bringing the character.** Keys never move, so the browser gives the character to the installed app: the app makes a new key and the browser signs the transfer note. One tap.
 6. **Playing.** The app fetches the realm's files by hash (portable code, models, scene description), connects to the referee and draws it with the engine. Every other realm built for that app now runs with no further installs.
 

@@ -26,7 +26,7 @@ async function connect(base, keys) {
   socket.onmessage = async (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "challenge") {
-      socket.send(JSON.stringify({ type: "prove", address: m.address, sig: await sign(keys.privateKey, "everygame-claim:" + m.nonce) }));
+      socket.send(JSON.stringify({ type: "prove", address: m.address, sig: await sign(keys.privateKey, "claim", m.nonce) }));
       return;
     }
     const w = waiters.shift();
