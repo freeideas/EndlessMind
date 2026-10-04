@@ -104,7 +104,7 @@ export async function visit(
       Number.isSafeInteger(b.seq) && b.seq > seq
     ) {
       // In a private session only locked views count: one that fails to unlock is ignored.
-      const view = cipher ? JSON.parse(await unlock(cipher, TO_VISITOR, b.seq, b.box)) : b.view;
+      const { view } = cipher ? JSON.parse(await unlock(cipher, TO_VISITOR, b.seq, b.box)) : b;
       if (stopped || b.session !== session || b.seq <= seq) return;
       seq = b.seq;
       lastHeard = Date.now();
@@ -169,7 +169,7 @@ export async function visit(
         if (stopped || !session) return;
         const n = ++actionSeq, to = session, key = cipher;
         if (!key) return void send("emind.act", { session: to, seq: n, action });
-        const text = JSON.stringify(action ?? null);
+        const text = JSON.stringify({ action });
         outgoing = outgoing.then(async () => {
           await send("emind.act", { session: to, seq: n, box: await lock(key, TO_REALM, n, text) });
         }).catch(() => {});

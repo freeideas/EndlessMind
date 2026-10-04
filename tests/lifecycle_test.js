@@ -358,7 +358,9 @@ Deno.test("a visitor that offers a key gets a private session the relay cannot r
     const mine = await newExchangeKey();
     assert(mine);
     message("emind.enter", { request: "a".repeat(26), release: "release", key: mine.publicText });
+    views({ player: { hand: "dealt before the welcome" } });
     for (let i = 0; i < 50 && !relay.sent.length; i++) await delay();
+    assertEquals(relay.sent[0].kind, "emind.welcome", "nothing goes out before the welcome, when the key may not be ready");
     const welcome = relay.sent[0].body;
     const cipher = await sessionKey(mine.privateKey, welcome.key, `realm\nplayer\n${welcome.session}`);
 
@@ -366,12 +368,12 @@ Deno.test("a visitor that offers a key gets a private session the relay cannot r
     for (let i = 0; i < 50 && relay.sent.length < 2; i++) await delay();
     const state = relay.sent[1].body;
     assert(!JSON.stringify(relay.sent).includes("hidden ace"), "the view crossed the relay in the clear");
-    assertEquals(JSON.parse(await unlock(cipher, TO_VISITOR, state.seq, state.box)), { hand: "the hidden ace" });
+    assertEquals(JSON.parse(await unlock(cipher, TO_VISITOR, state.seq, state.box)), { view: { hand: "the hidden ace" } });
     let moved = false;
     await unlock(cipher, TO_VISITOR, state.seq + 1, state.box).catch(() => moved = true);
     assert(moved, "a box replayed under another number must not open");
 
-    message("emind.act", { session: welcome.session, seq: 1, box: await lock(cipher, TO_REALM, 1, JSON.stringify({ play: "ace" })) });
+    message("emind.act", { session: welcome.session, seq: 1, box: await lock(cipher, TO_REALM, 1, JSON.stringify({ action: { play: "ace" } })) });
     message("emind.act", { session: welcome.session, seq: 2, action: { play: "in the clear" } });
     await delay();
     assertEquals(actions, [{ play: "ace" }], "in a private session only locked moves count");

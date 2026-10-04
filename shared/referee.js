@@ -34,6 +34,7 @@ export async function referee(
    * @property {number} seq
    * @property {number} actionSeq
    * @property {number} lastHeard
+   * @property {boolean} welcomed       nothing is sent in a session before its welcome
    * @property {Promise<void>} ready   settles once the session's key (if any) is worked out
    * @property {string} [key]          this side's public half, when the visitor offered one
    * @property {CryptoKey} [cipher]    locks views and unlocks moves for this session
@@ -49,14 +50,15 @@ export async function referee(
     if (stopped) return;
     for (const [player, view] of Object.entries(views)) {
       const p = players.get(player);
-      if (!p) continue;
+      // Until the welcome has gone out the session's key may not be ready, and a view must never go unlocked.
+      if (!p?.welcomed) continue;
       const seq = ++p.seq, cipher = p.cipher;
       if (!cipher) {
         send(player, "emind.state", { session: p.session, seq, view });
         continue;
       }
       // Copy the view as text now, lock it, and send in order: the relay sees only the locked box.
-      const text = JSON.stringify(view ?? null);
+      const text = JSON.stringify({ view });
       p.work = p.work.then(async () => send(player, "emind.state", { session: p.session, seq, box: await lock(cipher, TO_VISITOR, seq, text) }))
         .catch(console.error);
     }
@@ -111,6 +113,7 @@ export async function referee(
           seq: 0,
           actionSeq: 0,
           lastHeard: Date.now(),
+          welcomed: false,
           ready: Promise.resolve(),
           work: Promise.resolve(),
         };
@@ -130,6 +133,7 @@ export async function referee(
       const current = p;
       await current.ready;
       if (stopped || players.get(env.from) !== current) return;
+      current.welcomed = true;
       send(env.from, "emind.welcome", {
         request: current.request,
         session: current.session,
@@ -147,7 +151,7 @@ export async function referee(
         else {
           // In a private session only locked moves count, taken in the order they came.
           p.work = p.work.then(async () => {
-            const action = JSON.parse(await unlock(cipher, TO_REALM, b.seq, b.box));
+            const { action } = JSON.parse(await unlock(cipher, TO_REALM, b.seq, b.box));
             if (!stopped && players.get(env.from) === session) rules.act(env.from, action);
           }).catch(() => {});
         }
