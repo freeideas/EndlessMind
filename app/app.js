@@ -170,6 +170,7 @@ async function showHome() {
   /** @type {HTMLInputElement} */ ($("char-name")).value = character.info.name;
   /** @type {HTMLInputElement} */ ($("char-desc")).value = character.info.description;
   /** @type {HTMLInputElement} */ ($("char-color")).value = toHexColor(character.info.color);
+  /** @type {HTMLInputElement} */ ($("char-private")).checked = Boolean(await get("private"));
   await Promise.all([showSearch(), showOwned(), showRecord()]);
 }
 
@@ -296,6 +297,8 @@ function toHexColor(color) {
   probe.fillStyle = color;
   return probe.fillStyle.startsWith("#") ? probe.fillStyle : "#888888";
 }
+
+$("char-private").onchange = (e) => put("private", /** @type {HTMLInputElement} */ (e.target).checked);
 
 $("character-form").onsubmit = async (e) => {
   e.preventDefault();

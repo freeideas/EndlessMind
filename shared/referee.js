@@ -40,7 +40,8 @@ import { verify } from "./crypto.js";
 export async function referee(
   { address, keys, name, release, rules, relay, announce, status, onStop, realm = address, pass, exchange },
 ) {
-  await relay.addKey(keys);
+  // A realm has one referee on a server: holding the address alone replaces any earlier one.
+  await relay.addKey(keys, true);
   const instance = randomId();
   let stopped = false;
   /**
@@ -154,7 +155,7 @@ export async function referee(
           // signed by their issuer, in date, about this visitor, and shown to this realm.
           const shown = Array.isArray(b.shown) ? b.shown.slice(0, 16) : [];
           const seen = new Set();
-          pending = Promise.all(shown.map((/** @type {unknown} */ one) => checkShown(one, `${realm}\n${env.from}`).catch(() => null)))
+          pending = Promise.all(shown.map((/** @type {unknown} */ one) => checkShown(one, `${realm}\n${env.from}`, env.from).catch(() => null)))
             // The same claim shown twice counts once.
             .then((checked) => checked.filter((e) => e && !seen.has(e.signed.sig) && seen.add(e.signed.sig)))
             .then((checked) => rules.enter(env.from, b.character ?? {}, checked))
@@ -171,6 +172,9 @@ export async function referee(
         p = players.get(env.from);
       }
       if (!p || p.request !== b.request) {
+        // An actor has one session in a realm. One that enters again from elsewhere (another tab or
+        // device) ends the earlier visit, which is told why.
+        if (p?.welcomed) send(env.from, "emind.refused", { request: p.request, reason: "Your character came in from another tab or device." });
         /** @type {Session} */
         const fresh = p = {
           request: b.request,

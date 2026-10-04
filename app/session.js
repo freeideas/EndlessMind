@@ -1,5 +1,6 @@
 // Opening a realm always visits. Hosting has a separate, explicit lifetime.
-import { addressOf, generateKeyPair, isHash, keyPairForRealm, newExchangeKey } from "../shared/crypto.js";
+import { addressOf, generateKeyPair, isHash, newExchangeKey } from "../shared/crypto.js";
+import { addressesIn, keysIn } from "./character.js";
 import { isManifestBody, makeManifest, releaseOf } from "../shared/announce.js";
 import { fromUtf8, parseStrictJson } from "../shared/encoding.js";
 import { Relay } from "../shared/relay.js";
@@ -54,24 +55,29 @@ export async function play(address, character, container, ui) {
     });
   }
   const code = await fetchFile(manifest.files[manifest.renderer], server, ui.signal);
-  const keys = await keyPairForRealm(character.secret, address);
+  const keys = await keysIn(character, address);
   const me = await addressOf(keys.publicKey);
   ui.signal.throwIfAborted();
   // The realm may ask to see what the player has done elsewhere. The player decides; each claim
   // goes with proof, made with the player's key in the realm that signed it, that it is theirs.
-  /** @type {{ realm: string, signed: import("../shared/envelope.js").Envelope }[]} */
+  /** @type {{ realm: string, signed: import("../shared/envelope.js").Envelope, by: CryptoKeyPair }[]} */
   const mine = [];
   for (const realm of (manifest.asks ?? []).filter((r) => r !== address)) {
     // Only what is about this character: a record left by another character in this browser is not ours to show.
-    const here = await addressOf((await keyPairForRealm(character.secret, realm)).publicKey);
-    for (const signed of await held(realm)) if (signed.to === here) mine.push({ realm, signed });
+    const known = await addressesIn(character.secret, realm);
+    for (const signed of await held(realm)) {
+      const by = known.get(/** @type {string} */ (signed.to));
+      if (by) mine.push({ realm, signed, by });
+    }
   }
   /** @type {unknown[]} */
   const shown = [];
   const allowed = mine.length ? await ui.mayShow?.(manifest.name, [...new Set(mine.map((m) => m.realm))]) ?? [] : [];
   {
-    for (const { realm, signed } of mine.filter((m) => allowed.includes(m.realm)).slice(0, 16)) {
-      shown.push(await showClaim(await keyPairForRealm(character.secret, realm), signed, `${address}\n${me}`));
+    for (const { signed, by } of mine.filter((m) => allowed.includes(m.realm)).slice(0, 16)) {
+      // A claim about the address used here speaks for itself. One about another address of this
+      // character (a realm entered privately) needs that address's word that it is the same character.
+      shown.push(signed.to === me ? { claim: signed } : await showClaim(by, signed, `${address}\n${me}`));
     }
   }
   ui.signal.throwIfAborted();
@@ -169,7 +175,7 @@ async function playAlone(release, character, container, ui) {
   );
   // Using a release keeps it on the server: posting it again renews it.
   postRelease(body, server).catch(() => {});
-  const me = await addressOf((await keyPairForRealm(character.secret, release)).publicKey);
+  const me = await addressOf((await keysIn(character, release)).publicKey);
   ui.signal.throwIfAborted();
   const rules = await startRules(container, rulesCode, realmStorage(release, true), ui.signal);
   /** @type {ReturnType<typeof setInterval> | undefined} */

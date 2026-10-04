@@ -193,12 +193,19 @@ export async function startServer(options = {}) {
   }
 
   /**
-   * The socket that most recently proved it holds each address. A key can be
-   * carried anywhere, so two holders may turn up; the most recent holder wins
-   * and the earlier holder is told it was replaced.
-   * @type {Map<string, WebSocket>}
+   * The sockets that have proved they hold each address. An actor uses one address in every realm it is
+   * in, each visit over its own connection, so several may hold it. A referee holds its address alone:
+   * holding with `only` replaces every other holder, who is told so (the most recent referee wins).
+   * @type {Map<string, Set<WebSocket>>}
    */
   const holders = new Map();
+  /** Whom each socket has sent to, so replies go to the connection that asked. @type {Map<WebSocket, Set<string>>} */
+  const talked = new Map();
+  /** @param {string} address @param {WebSocket} socket */
+  function letGo(address, socket) {
+    const set = holders.get(address);
+    if (set?.delete(socket) && !set.size) holders.delete(address);
+  }
 
   /** @param {string} address */
   function isOnline(address) {
@@ -255,8 +262,11 @@ export async function startServer(options = {}) {
     let windowStart = Date.now(), messages = 0, bytes = 0;
     /** Addresses this socket has proved. @type {Set<string>} */
     const mine = new Set();
-    /** Challenges sent, by address. @type {Map<string, string>} */
+    /** Challenges sent, by address. @type {Map<string, { nonce: string, only: boolean }>} */
     const challenges = new Map();
+    /** @type {Set<string>} */
+    const peers = new Set();
+    talked.set(socket, peers);
 
     socket.onopen = () => sendTo(socket, { type: "welcome", versions: [PROTOCOL_VERSION], time: Date.now() });
 
@@ -286,17 +296,20 @@ export async function startServer(options = {}) {
         }
         if (challenges.size + mine.size >= 64) { socket.close(1008, "Address limit"); return; }
         const nonce = crypto.randomUUID();
-        challenges.set(msg.address, nonce);
+        challenges.set(msg.address, { nonce, only: msg.only === true });
         sendTo(socket, { type: "challenge", address: msg.address, nonce });
       } else if (msg.type === "prove" && challenges.has(msg.address)) {
-        const nonce = challenges.get(msg.address);
+        const { nonce, only } = /** @type {{ nonce: string, only: boolean }} */ (challenges.get(msg.address));
         challenges.delete(msg.address);
         if (await verify(msg.address, "hold", `${host}\n${nonce}`, msg.sig)) {
           if (socket.readyState !== WebSocket.OPEN) return;
           mine.add(msg.address);
-          const earlier = holders.get(msg.address);
-          if (earlier && earlier !== socket) sendTo(earlier, { type: "replaced", address: msg.address });
-          holders.set(msg.address, socket);
+          const set = holders.get(msg.address) ?? new Set();
+          if (only) {
+            for (const earlier of set) if (earlier !== socket) sendTo(earlier, { type: "replaced", address: msg.address });
+            set.clear();
+          }
+          holders.set(msg.address, set.add(socket));
           sendTo(socket, { type: "held", address: msg.address });
         } else {
           sendTo(socket, { type: "error", error: "bad proof", address: msg.address });
@@ -304,27 +317,32 @@ export async function startServer(options = {}) {
       } else if (msg.type === "release" && mine.has(msg.address)) {
         // Giving an address up, for example a referee leaving its realm.
         mine.delete(msg.address);
-        if (holders.get(msg.address) === socket) holders.delete(msg.address);
+        letGo(msg.address, socket);
       } else if (msg.type === "send") {
         // Relay. The server checks only that the sender holds the "from"
         // address; receivers check the signature themselves.
         const env = msg.envelope;
-        if (!env || holders.get(env.from) !== socket || !isAddress(env.to)) {
+        if (!env || !holders.get(env.from)?.has(socket) || !isAddress(env.to)) {
           sendTo(socket, { type: "error", error: "cannot send", ref: msg.ref });
           return;
         }
-        const target = holders.get(env.to);
-        if (!target || !sendTo(target, { type: "deliver", envelope: env })) {
-          sendTo(socket, { type: "undeliverable", to: env.to, ref: msg.ref });
+        if (peers.size < 1024) peers.add(env.to);
+        // Among several holders of the receiving address, the ones that have written to this sender get
+        // its messages (an actor's visit to this realm, not its visits elsewhere); failing that, all do.
+        const all = [...holders.get(env.to) ?? []];
+        const asked = all.filter((t) => talked.get(t)?.has(env.from));
+        let delivered = false;
+        for (const target of asked.length ? asked : all) {
+          if (sendTo(target, { type: "deliver", envelope: env })) delivered = true;
         }
+        if (!delivered) sendTo(socket, { type: "undeliverable", to: env.to, ref: msg.ref });
       }
     };
 
     socket.onclose = () => {
       sockets.delete(socket);
-      for (const address of mine) {
-        if (holders.get(address) === socket) holders.delete(address);
-      }
+      talked.delete(socket);
+      for (const address of mine) letGo(address, socket);
     };
   }
 

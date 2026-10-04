@@ -55,7 +55,7 @@ export default {
 };
 ```
 
-- **`player`** is the address the player uses in this realm (a string such as `ed25519-...`). A returning player always has the same address here, so you can key state by it; in every other realm the same player has a different one.
+- **`player`** is the address the player is known by (a string such as `ed25519-...`). A returning player always has the same address, so you can key state by it. It is usually the character's lasting address, the same in every realm; a player who entered privately has an address used only here.
 - **`character`** is the character's general description, sent by the visitor's app. The default layout is `{ name, color, description }`, but any field may be missing or strange. Treat it as untrusted input: use what you understand, clean it up, ignore the rest.
 - **`action`** comes from the player's renderer, which may be any renderer, not just yours. Check it; ignore what your rules do not allow ("there is no cheating, only rules").
 - **`view`** decides what each player can see. Anything you put in a player's view counts as seen by that player, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every player on every tick. A view is copied as plain JSON at the moment `view` returns it, so later changes to the state never leak into a view already made. A message over 256 KB cannot be carried: it is not sent, and the referee logs an error naming its size.
@@ -170,7 +170,7 @@ export default {
   enter(state, player, character, claims) {
     const good = claims.find((e) => e.issuer === GUILD && e.says?.standing === "good");
     if (!good) return "Members of the guild only.";
-    // One guild member, one player here: a member could sign proofs for friends, so remember who came as whom.
+    // One guild member, one player here: a member who entered the guild privately could sign for a friend.
     state[good.about] ??= player;
     return state[good.about] === player ? true : "That guild member is already here as someone else.";
   },
@@ -178,9 +178,10 @@ export default {
 };
 ```
 
-- **The referee has already checked** each claim in the list: its issuer signed it, it is in date, whoever it is about agreed to its being shown here by this visitor, and none is listed twice. Rules only decide what it is worth.
-- **A claim can be lent, so count each holder once.** The proof shows that the holder of the address in `about` signed for this visitor. Nothing can show that the two are one person, so a member could vouch this way for a friend. `about` is the same every time, so rules can allow one visitor for each, as the club does.
+- **The referee has already checked** each claim in the list: its issuer signed it, it is in date, it is about this visitor (or about a private address that signed for this visitor), and none is listed twice. Rules only decide what it is worth.
+- **Count each holder once.** Usually `about` is the visitor's own address, and nothing more need be said. A claim earned under a private address is shown with that address's signature for this visitor, and such a signature could be made for a friend. `about` is the same every time, so rules can allow one visitor for each, as the club does.
 - **Trust issuers by address.** Anyone can make a realm that signs anything, so name the realms whose word you accept.
+- **A returning address is the same character.** Because a character has one address everywhere, the guild's player and the club's visitor are recognizably the same.
 - **A player decides what to show.** The app asks once for each realm that asks, and a player may hold nothing from the realms you name. Leave a way in for newcomers if you want any.
 - **A note about a removal is yours to keep.** The player will not carry it. Its effect is that you stop renewing their standing.
 - **Only a lasting realm's word counts.** Played alone there is no key to sign with, and a room's key is thrown away. Under a referee pass, a claim ends when the pass does.

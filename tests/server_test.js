@@ -17,7 +17,7 @@ async function withServer(body) {
 }
 
 /** A minimal relay client for tests. @param {string} base @param {CryptoKeyPair} keys */
-async function connect(base, keys) {
+async function connect(base, keys, only = false) {
   const socket = new WebSocket(base.replace("http", "ws") + "/ws");
   /** @type {any[]} */
   const inbox = [];
@@ -36,7 +36,7 @@ async function connect(base, keys) {
   await new Promise((r) => (socket.onopen = r));
   const next = () => inbox.length ? Promise.resolve(inbox.shift()) : new Promise((r) => waiters.push(r));
   assertEquals((await next()).type, "welcome");
-  socket.send(JSON.stringify({ type: "hold", address: await addressOf(keys.publicKey) }));
+  socket.send(JSON.stringify({ type: "hold", address: await addressOf(keys.publicKey), ...(only ? { only } : {}) }));
   assertEquals((await next()).type, "held");
   return { socket, next, close: () => socket.close() };
 }
@@ -232,8 +232,8 @@ Deno.test("the most recent holder of an address wins, and an address can be rele
     const realm = await generateKeyPair();
     const address = await addressOf(realm.publicKey);
     const visitor = await connect(base, await generateKeyPair().then((k) => (visitorKeys = k)));
-    const first = await connect(base, realm);
-    const second = await connect(base, realm);
+    const first = await connect(base, realm, true);
+    const second = await connect(base, realm, true);
     assertEquals(await first.next(), { type: "replaced", address });
     first.socket.send(JSON.stringify({type:"send",envelope:await seal(realm, await addressOf(visitorKeys.publicKey), "hello", {})}));
     assertEquals((await first.next()).type, "error", "a replaced connection must lose permission to send");

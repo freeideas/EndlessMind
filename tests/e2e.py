@@ -151,13 +151,13 @@ def steps(host, guest, base, browser_name):
         mover.goto(link)
         # Merely opening a realm whose key we hold must not take over hosting.
         wait_for(lambda: mover.evaluate('globalThis.endlessmindLastView?.players?.length') == 2, what='owner visiting existing host')
-        assert 'somewhere else' not in host.locator('#status').inner_text()
+        assert 'hosted from somewhere else' not in host.locator('#status').inner_text()
         mover.goto(base + '/#')
         mover.click('#owned .host-toggle')
         wait_for(lambda: mover.locator('#owned .host-toggle').inner_text() == 'Stop hosting', what='explicit takeover')
         mover.click('#owned a')
         wait_for(lambda: mover.evaluate("globalThis.endlessmindLastView?.players?.length") == 2, timeout=40, what="guest joining the moved realm")
-        wait_for(lambda: "somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
+        wait_for(lambda: "hosted from somewhere else" in host.evaluate("document.getElementById('status').textContent"), what="old host told it was replaced")
 
 
 def link_of(page):

@@ -135,6 +135,11 @@ Deno.test("claims are signed by a realm, kept by the player, and shown to anothe
     assert(String(await tryClub(thief, forged)).includes("Members"), "a proof by the wrong key was accepted");
     assertEquals(await checkShown(shown[0], `${guild.address}\n${meInClub}`), null, "a proof names the one realm it is shown to");
 
+    // Entering under the very address the claims are about needs no proof: that address is at the door.
+    const bare = record.map((claim) => ({ claim }));
+    assertEquals((await tryClub(inGuild, bare)).shown.length, 3);
+    assert(String(await tryClub(thief, bare)).includes("Members"), "a claim about someone else was accepted without proof");
+
     // Kicked out: the realm keeps its own signed note of it. The player is gone before it could be handed over.
     visitGuild.act({ rude: true });
     await until(() => statuses.some((t) => t.includes("Kicked for rudeness")));

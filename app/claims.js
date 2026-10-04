@@ -2,7 +2,7 @@
 // kept in this browser with its keys. Keeping them, and showing them, is the
 // player's choice. See shared/claim.js.
 
-import { addressOf, keyPairForRealm } from "../shared/crypto.js";
+import { addressesIn } from "./character.js";
 import { checkClaim } from "../shared/claim.js";
 import * as store from "./store.js";
 
@@ -58,7 +58,7 @@ export async function restore(claims, secret) {
   for (const signed of Array.isArray(claims) ? [...claims].reverse() : []) {
     const claim = await checkClaim(signed);
     if (!claim) continue;
-    const mine = await addressOf((await keyPairForRealm(secret, claim.issuer)).publicKey).catch(() => "");
-    if (mine) await keep(claim.issuer, mine, signed);
+    const mine = await addressesIn(secret, claim.issuer).catch(() => new Map());
+    if (mine.has(claim.about)) await keep(claim.issuer, claim.about, signed);
   }
 }

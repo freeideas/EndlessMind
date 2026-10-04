@@ -17,6 +17,8 @@ export class Relay extends EventTarget {
     this.socket = null;
     /** Key pairs this connection speaks for. @type {Map<string, CryptoKeyPair>} */
     this.keys = new Map();
+    /** Addresses held alone, replacing any other holder (a referee's). @type {Set<string>} */
+    this.alone = new Set();
     /** @type {Map<string, { done: () => void, fail: (e: Error) => void }>} */
     this.pendingHolds = new Map();
     /** @type {Promise<void> | null} */
@@ -72,10 +74,16 @@ export class Relay extends EventTarget {
     this.socket?.close();
   }
 
-  /** Speak for this key pair: messages to its address will arrive here. @param {CryptoKeyPair} keyPair */
-  async addKey(keyPair) {
+  /**
+   * Speak for this key pair: messages to its address will arrive here.
+   * @param {CryptoKeyPair} keyPair
+   * @param {boolean} [only]  hold the address alone, replacing any other holder: what a referee does. Left
+   *   out, the address may be held by other connections too: an actor is in several realms under one address.
+   */
+  async addKey(keyPair, only = false) {
     const address = await addressOf(keyPair.publicKey);
     this.keys.set(address, keyPair);
+    only ? this.alone.add(address) : this.alone.delete(address);
     if (this.socket?.readyState === WebSocket.OPEN) await this.#hold(keyPair);
     return address;
   }
@@ -93,7 +101,7 @@ export class Relay extends EventTarget {
         fail: (e) => { clearTimeout(deadline); reject(e); },
       });
     });
-    this.#raw({ type: "hold", address });
+    this.#raw({ type: "hold", address, ...(this.alone.has(address) ? { only: true } : {}) });
     await done;
   }
 
@@ -204,9 +212,9 @@ export class Relays extends EventTarget {
     return Relays.#any(this.relays.map((r) => r.connect()));
   }
 
-  /** @param {CryptoKeyPair} keyPair */
-  async addKey(keyPair) {
-    await Relays.#any(this.relays.map((r) => r.addKey(keyPair)));
+  /** @param {CryptoKeyPair} keyPair @param {boolean} [only] */
+  async addKey(keyPair, only = false) {
+    await Relays.#any(this.relays.map((r) => r.addKey(keyPair, only)));
     return addressOf(keyPair.publicKey);
   }
 

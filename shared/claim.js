@@ -86,14 +86,17 @@ export async function showClaim(subjectKeys, claim, audience) {
 }
 
 /**
- * Check a shown claim.
+ * Check a shown claim. A claim about the very address showing it needs no proof: whoever is showing it has
+ * already proved, by signing their messages, that they are the one it is about.
  * @param {unknown} shown @param {string} audience
+ * @param {string} [shownBy]  the address showing it, when that is known for certain
  * @returns {Promise<Claim | null>}
  */
-export async function checkShown(shown, audience) {
+export async function checkShown(shown, audience, shownBy) {
   const s = /** @type {any} */ (shown);
   const claim = await checkClaim(s?.claim);
   if (!claim) return null;
+  if (shownBy && claim.about === shownBy) return claim;
   return await verify(claim.about, "show", `${audience}\n${claim.signed.sig}`, s.proof) ? claim : null;
 }
 
