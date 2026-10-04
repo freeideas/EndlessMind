@@ -1,12 +1,12 @@
 # Example: a world made of blocks
 
-Written 2026-09-27. A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a world built from millions of small pieces that players keep changing. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
+A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a world built from millions of small pieces that players keep changing. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
 
 ## Bulk content is data, not objects
 
 - Giving every block its own key pair would mean billions of objects per world. Instead, a region of the world (a "chunk", for example 16 by 16 blocks wide and the full height of the world) is the object, and its blocks are just data kept by that region's code.
 - Blocks that act on their own can be full objects: a storage box, a machine, a creature. Each keeps its own contents and rules.
-- The design already allows this, since what counts as an object is decided by code. The agent guide should state the general rule: make something an object when it acts or matters on its own, and keep bulk content as data inside an object.
+- What counts as an object is decided by code, so this needs nothing special. The general rule for builders and agents: make something an object when it acts or matters on its own, and keep bulk content as data inside an object.
 
 ## The world is a realm made of regions
 

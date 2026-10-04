@@ -1,6 +1,6 @@
 # Runtime interface, version 0 (draft)
 
-What a realm's code and a renderer's code look like, and what they can and cannot do inside their sandboxes. This is the "runtime interface" part of the core in [PROTOCOL.md](PROTOCOL.md). Version 0 is a draft: it will change, and later versions will add to it (WebAssembly, more files per realm, saved state).
+What a realm's code and a renderer's code look like, and what they can and cannot do inside their sandboxes. This is the "runtime interface" part of the core in [PROTOCOL.md](PROTOCOL.md). Version 0 is a draft and may change. It supports JavaScript only, one file each for rules and renderer, and no saved state.
 
 The reference implementation is [app/sandbox.js](../app/sandbox.js) and [app/session.js](../app/session.js); the example is [examples/maze-chase/](../examples/maze-chase/).
 

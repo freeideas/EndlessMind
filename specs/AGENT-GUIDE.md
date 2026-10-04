@@ -1,6 +1,6 @@
 # Guide for AI agents building Endless Mind realms
 
-You are an AI coding agent helping a player make a realm (a game, a place, anything) for Endless Mind, an open network where anyone can make any game and anyone can play it from a link. Read this, then build what the player describes.
+You are an AI coding agent helping a player make a realm (a game, a place, a shop, a tool, anything) for Endless Mind, an open network where anyone can make anything and anyone can use it from a link. Read this, then build what the player describes.
 
 ## What to build
 

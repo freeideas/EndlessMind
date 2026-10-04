@@ -1,6 +1,6 @@
 # Example: a small 2D maze chase
 
-Written 2026-09-27. A technical example of how a player could make their own small game on the Endless Mind model described in [DESIGN.md](../DESIGN.md), and go from an idea to a game others can join. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
+A technical example of how a player could make their own small game on the Endless Mind model described in [DESIGN.md](../DESIGN.md), and go from an idea to a game others can join. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
 
 ## Making it
 
@@ -13,8 +13,8 @@ Written 2026-09-27. A technical example of how a player could make their own sma
 
 ## Putting it online
 
-- The player marks the realm "wants to be found" and gives it a few tags ("maze", "2D", "multiplayer"). The device then announces it to its servers.
-- While the player's browser tab is open, the realm is online. To keep it up all the time, the same code runs on an always-on machine with the headless runner, which runs object code without a browser.
-- The simplest way in is a link: the realm's public key plus the servers where it announces itself. The key, not the server, names the realm, so the link works from any mirror and in any app. Anyone who opens it can join.
+- The realm's `realm.json` gives it a few tags ("maze", "chase", "multiplayer"). Publishing announces it on the server under those tags, so it shows up in "Find realms".
+- While the publishing browser tab is open, the realm is online. To keep it up all the time, the same code is meant to run on an always-on machine with the headless runner, which runs object code without a browser (not built yet).
+- The way in is a link, `https://<any server>/#emind:<realm address>`. The key, not the server, names the realm, so the link works from any mirror and in any app. Anyone who opens it can join.
 
-A working version of this example is the first demo; its source files are in this repository under `examples/maze-chase/`.
+A working version of this example is in this repository under `examples/maze-chase/`.

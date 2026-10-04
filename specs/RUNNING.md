@@ -19,7 +19,7 @@ Browsers allow the key functions Endless Mind uses only on **https** addresses o
 
 ## Hosting a realm
 
-The browser tab that published a realm holds its key and is its referee. Keep that tab open and in front: phones pause background tabs almost at once, and desktop browsers slow them down. Other players see "the referee is not online" while it is closed. Always-on hosting (a headless runner holding a signed hosting permission) comes later; see [DESIGN.md](DESIGN.md).
+The browser tab that published a realm holds its key and is its referee. Keep that tab open and in front: phones pause background tabs almost at once, and desktop browsers slow them down. Other players see "the referee is not online" while it is closed. There is no always-on hosting yet, so a realm is playable only while that tab is open.
 
 ## Tests
 
@@ -30,4 +30,4 @@ The browser tab that published a realm holds its key and is its referee. Keep th
 ## If something does not connect
 
 - **Device clocks.** Each device ignores messages stamped more than 10 minutes away from its own clock (this blocks replayed messages). Make sure every device sets its time automatically.
-- **Old data.** Data saved under an earlier draft format is ignored. Delete `./data` on the server, and in the browser clear this site's data, to start fresh.
+- **Starting fresh.** Delete `./data` on the server, and in the browser clear this site's data. Clearing site data deletes your character and the keys of realms you published.

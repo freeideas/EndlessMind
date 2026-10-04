@@ -1,10 +1,10 @@
-# The emind protocol: an outline
+# The Endless Mind protocol
 
-Draft, started 2026-10-04. This is the shape of the protocol, not the protocol itself; the details come later as numbered proposals. The protocol is called the **Endless Mind protocol**, and its links start with `emind:`. Endless Mind is also the name of this project and its reference app. The design behind it is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
+**Status: draft, version 0.** The core parts and the version 0 formats below are implemented by the reference code in this repository. Object descriptions and most extensions are outlined here but not yet specified in detail. Links start with `emind:`. The design behind the protocol is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
 
 ## What it is for
 
-Endless Mind is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The emind protocol aims for the same: a shared way to connect, so that any realm, object or app made by anyone, in any language or engine, can meet any other.
+Endless Mind is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The Endless Mind protocol aims for the same: a shared way to connect, so that any realm, object or app made by anyone, in any language or engine, can meet any other.
 
 ## Rules for the rules
 
@@ -31,13 +31,13 @@ Endless Mind is meant to be a worldwide network, like the World Wide Web. The we
 - **Messages.** One envelope for everything: who sent it, to whom, what kind of message, the body, the time, and the sender's signature. It does not care how it travels (WebSocket, WebRTC, a relay, or anything later).
 - **Announcements.** How an object that wants to be found says so: its key, its tags, where to reach it, and when the note expires. Servers and directories keep and index them; peers can pass them along.
 - **Object description.** How an object publishes what others may call and the code behind it, with any encrypted parts marked, so any other object can examine it before trusting it.
-- **Runtime interface.** The small, fixed set of calls that object code (JavaScript or WebAssembly) may use from inside its sandbox. This is what lets the same realm code run unchanged in the browser app, an app written from scratch in Rust, or an app built with Unreal, Godot or Unity. It plays the role WASI plays for WebAssembly: a standard set of calls that works in any host program. The first draft is in [RUNTIME.md](RUNTIME.md).
+- **Runtime interface.** The small, fixed set of calls that object code (JavaScript or WebAssembly) may use from inside its sandbox. This is what lets the same realm code run unchanged in the browser app, an app written from scratch in Rust, or an app built with Unreal, Godot or Unity. It plays the role WASI plays for WebAssembly: a standard set of calls that works in any host program. Version 0 is in [RUNTIME.md](RUNTIME.md).
 
-## Version 0 formats (draft)
+## Version 0 formats
 
-The exact shapes used by the reference code ([shared/](../shared/)). These are the choices that are hardest to change later, so they were made carefully before release.
+The exact shapes used by the reference code ([shared/](../shared/)). These are the hardest things to change once in use.
 
-- **Addresses:** `ed25519-` followed by the 32-byte public key in lowercase base32 (RFC 4648 alphabet, no padding): 60 characters, only lowercase letters, digits and one hyphen. Lowercase base32 survives case-insensitive systems, fits in one host-name label (so a realm could one day be reached as `<address>.example.org`), and selects with a double-click.
+- **Addresses:** `ed25519-` followed by the 32-byte public key in lowercase base32 (RFC 4648 alphabet, no padding): 60 characters, only lowercase letters, digits and one hyphen. Lowercase base32 survives case-insensitive systems, fits in one host-name label (so it can be part of a web address such as `<address>.example.org`), and selects with a double-click.
 - **Hashes:** `sha256-` followed by the 32-byte SHA-256 digest in lowercase base32. A file's hash covers its raw bytes exactly as stored, with no other processing.
 - **Allowed methods:** version 0 accepts only `ed25519` keys and signatures and `sha256` hashes. Anything else is rejected, never guessed at; later versions add methods explicitly, so no one can force a weaker one.
 - **Text rules:** base32 uses the RFC 4648 alphabet in lowercase with no padding; uppercase or padded forms are rejected, not converted, so each value has exactly one written form.
@@ -54,7 +54,7 @@ The exact shapes used by the reference code ([shared/](../shared/)). These are t
 
 ## Shared habits: optional extensions
 
-These are not rules. They are published as optional extensions, and they matter only as long as people find them useful. The reference app ships with them as defaults; anyone may ignore or replace them.
+These are not rules. They are optional extensions, and they matter only as long as people find them useful. The reference app uses them by default; anyone may ignore or replace them. Entering and leaving a realm, and tag search, are implemented (see [RUNTIME.md](RUNTIME.md)); the others are outlined in [DESIGN.md](DESIGN.md).
 
 - Entering and leaving a realm, and lending an in-realm form
 - Signed commands and official results; hosting permissions
@@ -68,7 +68,7 @@ These are not rules. They are published as optional extensions, and they matter 
 
 ## Versions
 
-HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The emind protocol is expected to grow the same way.
+HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The Endless Mind protocol is expected to grow the same way.
 
 - **Meaning is separate from encoding.** The meaning of the core (keys, addresses, signed statements, files named by hash) changes rarely. How messages are encoded and carried can change much more freely, as HTTP/2 and HTTP/3 changed how requests travel without changing what a request is.
 - **Apps agree on a version when they connect.** Each side says which versions it speaks, and they use the newest one both understand. Announcements list the versions a peer speaks.

@@ -4,15 +4,14 @@ A worldwide network for anything AI can make: games, places, shops, tools, whole
 
 AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, in any language or engine, and anyone can use it from a link.
 
-**Status: early.** The first working version runs: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. Expect rough edges and frequent changes.
+**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game stays playable only while the browser tab that published it stays open. Expect rough edges and frequent changes.
 
 ## Playing
 
-Open a game's link. That is all: it runs in your web browser, with nothing to install and no account to make.
+Open a game's link. That is all: it runs in your web browser, with nothing to install and no account to make. (Everything here applies equally to anything else people make, not only games.)
 
-- The first time, the app makes you a **character** (a name and a look you can change). Your character is yours: it lives on your device, and you take it from game to game.
-- Inside a game, the app's menu always offers a way to find more games, so no game can trap you.
-- Some games may also offer a richer version in an installed app, for example one built with a game engine. The browser link always comes first.
+- The first time, the app makes you a **character** (a name and a look you can change). Your character is yours: it lives in your browser, and you take it from game to game. Clearing your browser's data for the site deletes it.
+- The app's menu always offers a way to find more games, so no game can trap you.
 
 ## Creating
 
@@ -49,7 +48,7 @@ The technical documents are in [specs/](specs/):
 
 | Document                               | What it covers                                          |
 | -------------------------------------- | ------------------------------------------------------- |
-| [DESIGN.md](specs/DESIGN.md)           | The full design: decisions so far and why               |
+| [DESIGN.md](specs/DESIGN.md)           | The full design and the reasons behind it               |
 | [PROTOCOL.md](specs/PROTOCOL.md)       | The shared way to connect, and how it grows in versions |
 | [WALKTHROUGH.md](specs/WALKTHROUGH.md) | Step by step, from making a game to a friend playing it |
 | [AGENT-GUIDE.md](specs/AGENT-GUIDE.md) | Instructions for AI agents that build games             |
