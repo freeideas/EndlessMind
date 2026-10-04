@@ -1,4 +1,4 @@
-# Endless Mind
+# Endless Mind™
 
 A worldwide network for anything AI can make: games, places, shops, tools, whole universes. Anyone can make it, and anyone can use it from a link.
 
