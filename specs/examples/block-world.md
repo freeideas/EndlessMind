@@ -1,6 +1,6 @@
 # Example: a world made of blocks
 
-A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a world built from many small pieces that players keep changing. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
+A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a world built from many small pieces that players keep changing. No realm like this has been built: it is a sketch of how the present model would be used and where it runs out. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
 
 ## Blocks are data, not objects
 
@@ -15,7 +15,7 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 
 ## Gathering and value
 
-- Anyone can make anything, so a rare material is worth something only because a world says so. The world's rules record what each visitor gathered. Materials from a strict gathering world are trusted elsewhere; materials from a free-building world are not.
+- Anyone can make anything, so a rare material is worth something only because a world says so. The world's rules record what each visitor gathered. They cannot be carried to another world: nothing crosses realms.
 - Materials found in untouched terrain are checked against the seed by the rules on the referee, so a player cannot invent them.
 
 ## What limits it today

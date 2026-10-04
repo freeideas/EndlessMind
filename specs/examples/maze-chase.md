@@ -9,7 +9,7 @@ A technical example of how a player could make their own small game on the Endle
 3. **Forms are lent, not required.** The realm gives each visitor a runner in their character's color on entry and removes it on exit, so anyone can play at once.
 4. **Multiplayer comes almost free.** Every visitor is a rival runner after the same seeds. The realm referees who collected what.
 5. **2D is just a viewpoint.** The realm's default renderer draws a flat top-down view of plain data. Anyone could write a 3D renderer for the same views.
-6. **Scores are realm state,** sent in views signed by the realm, so they can be trusted by anyone who trusts that realm.
+6. **Scores are realm state.** They live in the maze while its referee runs and are not saved or carried anywhere else.
 
 ## Putting it online
 

@@ -1,6 +1,6 @@
 # Example: a large shared city
 
-A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a large, busy world with vehicles, many visitors and fast movement. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
+A technical example of how the Endless Mind model described in [DESIGN.md](../DESIGN.md) handles a large, busy world with vehicles, many visitors and fast movement. No realm like this has been built: it is a sketch of how the present model would be used and where it runs out. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
 
 ## One realm, refereed in one place
 
@@ -11,8 +11,8 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 
 ## Money and records
 
-- Currency is a balance in the city's state, sent in views signed by the city. Another realm can trust it, accept it at a discount, or ignore it.
-- A visitor's standing in the city (good standing, bans) is also city state. Other realms decide for themselves whether to trust what the city says.
+- Currency is a balance in the city's state, shown to each visitor in their view.
+- A visitor's standing in the city (good standing, bans) is also city state. Neither can be carried to another realm: nothing crosses realms.
 
 ## What limits it today
 

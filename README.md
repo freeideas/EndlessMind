@@ -2,9 +2,9 @@
 
 A worldwide network for anything AI can make: games, places, shops, tools, whole universes. Anyone can make it, and anyone can use it from a link.
 
-AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, in any language or engine, and anyone can use it from a link.
+AI coding agents now let anyone make their own software just by describing it. Endless Mind connects all of it into one open network, the way the web connects websites. Think of it as a new web where living, AI-made programs take the place of web pages. Games come first, because they show the idea best, but anything goes. There is no company in the middle and no central server to depend on. Anyone can make anything, and anyone can use it from a link.
 
-**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game is playable while a browser tab holding its key is open, or while its maker runs the host program (a small program that keeps it up without a browser). Expect rough edges and frequent changes.
+**Status: early.** What works today: a helper server and a browser app in which one person publishes a game and others join it from a link on their own devices. A game is playable while a browser tab holding its key is open, or while its maker runs the host program (a small program that keeps it up without a browser). Games written in JavaScript play in the browser; programs made with game engines can join by speaking the protocol, but nothing for any engine has been built. It has been tested with several browsers on one computer, not yet by strangers on the open internet. Expect rough edges and frequent changes.
 
 ## Playing
 
@@ -25,7 +25,7 @@ To see how it works first, choose **Publish the maze chase example** instead.
 
 To keep a game up without a browser tab, or to let it do things a browser's sandbox forbids (such as having an AI model answer players), run it with the host program on a computer you control: `deno task host --server <server address> --realm <the game's folder>`. [specs/RUNNING.md](specs/RUNNING.md) explains it.
 
-What runs on players' devices is always public, and a game's rules usually are too, so anyone can copy a game and ask their own agent to change it. A maker may instead keep a game's rules private on their own computer; the app tells players when a game does. Make your own original work; do not copy other people's games, characters, names, art or music.
+What runs on players' devices is always public, and a game's rules usually are too, so anyone can read a game's files and have their own agent make something new from them. A maker may instead keep a game's rules private on their own computer; the app tells players when a game does. Make your own original work; do not copy other people's games, characters, names, art or music.
 
 ## Running a helper server
 
@@ -55,7 +55,7 @@ The technical documents are in [specs/](specs/):
 | [PROTOCOL.md](specs/PROTOCOL.md)       | The shared way to connect, and how it grows in versions |
 | [WALKTHROUGH.md](specs/WALKTHROUGH.md) | Step by step, from making a game to a friend playing it |
 | [AGENT-GUIDE.md](specs/AGENT-GUIDE.md) | Instructions for AI agents that build games             |
-| [RUNTIME.md](specs/RUNTIME.md)         | What game code can call from inside its sandbox         |
+| [RUNTIME.md](specs/RUNTIME.md)         | What a game's code looks like and what it may do        |
 | [RUNNING.md](specs/RUNNING.md)         | Running the server, the app and the host program        |
 | [examples/](specs/examples/)           | Worked examples: a city, blocks, a maze chase, a well   |
 

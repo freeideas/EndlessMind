@@ -12,7 +12,7 @@ Endless Mind is meant to be a worldwide network, like the World Wide Web. The we
 2. **The core stays tiny.** It holds only what two strangers' software must share to talk at all.
 3. **Everything else is an optional extension.** Anyone can write one without asking permission or registering it anywhere. Extensions are named so names cannot collide: a dotted name starting with something the author controls, such as a domain name they own written in reverse (`com.example.chess`) or their key. Names without a dot belong to the core.
 4. **Ignore what you do not understand; never reject it.** Unknown fields, message kinds and extensions are skipped, so new ideas never break old software.
-5. **Versions are added, never forced.** A new version may change how things are encoded or sent, but apps agree on a version each time they connect, and an older version keeps working as long as people still run it (see "Versions").
+5. **Versions are added, never forced.** A new version may change how things are encoded or sent, but an older version keeps working as long as people still run it (see "Versions").
 6. **Nothing needs a central authority.** No registry, no gatekeeper, no official server. If this project disappeared, the protocol would still work.
 
 ## The core
@@ -66,15 +66,15 @@ These are not rules. They are optional extensions, and they matter only as long 
 HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The Endless Mind protocol is expected to grow the same way.
 
 - **Meaning is separate from encoding.** The meaning of the core (keys, addresses, signed statements, files named by hash) changes rarely. How messages are encoded and carried can change much more freely, as HTTP/2 and HTTP/3 changed how requests travel without changing what a request is.
-- **Apps agree on a version when they connect.** Each side says which versions it speaks, and they use the newest one both understand. A server's first message on a relay connection lists the versions it speaks.
+- **Every envelope names its version** (`v`), and a server's first message on a relay connection lists the versions it speaks. Only version 0 exists, so nothing is negotiated yet; these two places are where agreeing on a version will happen.
 - **Old versions fade, they are not shut off.** An old version stays usable as long as people run software that speaks it. No one can switch it off for everyone, only stop using it.
 - **Algorithms carry labels.** Every key, hash and signature says which method made it (for example `ed25519-` or `sha256-`), so a stronger method can be added later, such as one that resists future quantum computers, without changing the meaning of anything else.
-- **Addresses and signatures survive every version.** A key made under an early version is still the same address later, a file's hash still names the same file, and an old signature still checks. Moving to a new algorithm: the old key signs a note naming its successor key.
+- **Addresses and signatures survive every version.** A key made under an early version is still the same address later, a file's hash still names the same file, and an old signature still checks. How an address moves to a new algorithm is not defined yet.
 - **Extensions have versions of their own,** chosen and changed by their authors, independent of the core.
 
 ## How the protocol changes
 
-- **Numbered proposals, in the open,** like the internet's RFCs (its numbered public design documents). Anyone can write one, for the core or for an extension.
+- **Numbered proposals, in the open,** like the internet's RFCs (its numbered public design documents). Anyone can write one, for the core or for an extension. None has been written yet.
 - **A proposal counts when independent apps implement it,** not when someone approves it. "Rough consensus and running code," as the people who built the internet put it.
 - **The core changes only by new versions,** following "Rules for the rules". Extensions change whenever their authors and users like.
 - **This repository holds the reference documents and the reference app,** but it is a convenience, not an authority. Anyone may copy the documents and carry on.

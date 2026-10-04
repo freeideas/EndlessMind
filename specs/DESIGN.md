@@ -4,13 +4,13 @@ What Endless Mind is, the decisions behind it, and why. The protocol outline is 
 
 ## The idea in one paragraph
 
-A new web: a worldwide network of living, AI-made places and programs, where both the code and the running of that code are spread across the people using it. Players describe realms (a game, a garden, a shop, a tool) and their own AI coding agents write the code. Code that runs on players' devices is public and sandboxed. A realm's rules run with whoever holds its private key, who alone can referee it or speak for it; the rules are usually public too, but may be kept private. Each realm's own code decides who may enter and what happens inside. Like BitTorrent for file sharing, there is no central server: helper servers are small programs anyone can run, and none is in charge. Anyone can make anything, and anyone can use it from a link. Games come first because they show the idea best.
+A new web: a worldwide network of living, AI-made places and programs, where both the code and the running of that code are spread across the people using it. Players describe realms (a game, a garden, a shop, a tool) and their own AI coding agents write the code. Code that runs on players' devices is public and sandboxed. A realm's rules run with whoever holds its private key, who alone can referee it or speak for it; the rules are usually public too, but may be kept private. Each realm's own code decides who may enter and what happens inside. There is no central server: helper servers are small programs anyone can run, and none is in charge. Anyone can make anything, and anyone can use it from a link. Games come first because they show the idea best.
 
 ## Words used here
 
 - **Object:** anything with its own key: a character or a realm. The key is its identity, and whoever holds it speaks for it.
 - **Realm:** an object with rules: a place, game or tool that visitors enter. Its referee runs the rules, which decide what happens inside. The design and protocol word.
-- **Game:** an everyday word for something people play, usually with rules and goals. A game may be one realm or several linked realms, and not every realm is a game (a calm garden, a chat room, a hub full of doors).
+- **Game:** an everyday word for something people play, usually with rules and goals. Not every realm is a game (a calm garden, a chat room).
 - **World:** a friendly word, used only in plain-language and pitch text, for a realm you can walk around in.
 - **Player:** always the person.
 - **App:** the software a player uses to reach realms. The reference app runs in the browser; anyone may write another, in any language or engine.
@@ -27,7 +27,7 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 - **Not just games: a new web.** Games are the first and clearest use, but the network is for anything AI can make. AI-generated programs take the place of HTML pages.
 - **Name: Endless Mind.** The project, the reference app and the protocol are all "Endless Mind". Links start with `emind:`, a technical prefix only, never a product name ("eMind" is crowded in AI software). It is presented as a platform, never as "a game", which also keeps it clear of an existing small game called *Endless mind*. The main address is endlessmind.com. The name is claimed through public use (Endless Mind™) and protected only against impostors, never against compatible software; see [TRADEMARK.md](../TRADEMARK.md).
 - **The protocol is the network.** The Endless Mind protocol is a set of conventions (keys, signed messages, code found by hash), not an app or a server. Any program that follows them is a full peer. See [PROTOCOL.md](PROTOCOL.md).
-- **The browser is the front door, not a requirement.** A realm with a browser renderer opens in a browser with one click, with no install, no account and no AI agent. Other apps, including ones built with game engines, may join the same realms by speaking the protocol (see "Apps beyond the browser"). Renderers are portable JavaScript (later also WebAssembly) so that any app can run them in a sandbox.
+- **The browser is the front door, not a requirement.** A realm with a browser renderer opens in a browser with one click, with no install, no account and no AI agent. Other apps, including ones built with game engines, may join the same realms by speaking the protocol (see "Apps beyond the browser"). Renderers are plain JavaScript so that any app can run them in a sandbox.
 - **Freedom almost always wins over safety.** Anything should be possible. The sandbox is the safety floor: foreign code only ever runs sandboxed on a player's device, where it cannot do much harm, so the project adds few protections of its own.
 - **Growth over control.** The goal is for Endless Mind to spread as fast as possible, even at the cost of the founder's control. Once it is popular, no one, including the founder, should be able to shut it down. The project's code and the protocol are fully open.
 
@@ -38,7 +38,7 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 - **The key is the object, wherever it is.** A private key is a 32-byte secret. Its holder can save it and carry it to any device, or to any server's copy of the app, at any time. Domain names and servers come and go, and people who dislike a realm can attack them; if the key alone can move an object anywhere, there is much less to attack.
 - **Whoever holds a copy of the key is the object.** A copied key cannot be un-copied or revoked, so a key is guarded like a password. Backing up is saving the key; hosting on an always-on machine is putting the key there, with the host program.
 - **A separate key in every realm.** The app makes the key a character uses in a realm from the character's one secret and that realm's address. A realm always sees the same address for a returning player, and no two realms see the same one, so realms cannot compare notes about a player by address. Known limits: a realm still sees whatever name and description the player sends, and a server can tell which addresses share one connection.
-- **Ownership that matters is recorded by realms.** With no shared ledger, nothing can be handed over for everyone (a giver who copies a key still has it). Who has which sword, coin or score is realm state, signed by the realm and trusted by whoever trusts that realm. In-realm forms are realm state the same way, lent to visitors while they are inside.
+- **Ownership that matters is recorded by realms.** With no shared ledger, nothing can be handed over for everyone (a giver who copies a key still has it). Who has which sword, coin or score is state kept by one realm, and it stays there: nothing carries a record from one realm to another. In-realm forms are realm state the same way, lent to visitors while they are inside.
 
 **Realms and rules**
 
@@ -67,7 +67,7 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 
 1. **The realm is the referee inside the realm.** Its rules run on the referee's device. A sword-fighting realm keeps its own damage count for each visitor; visitors send only moves, which the rules judge. The realm's authority ends at its border.
 2. **What happens after leaving belongs to the player.** A realm can throw you out, but it cannot reach your device or change your character.
-3. **Things that cross realms carry signatures.** A realm's record ("this player won 12 fights here") is a statement signed by the realm. Another realm decides whether it trusts that statement. Value between realms comes from trust between realms, not from a central ledger.
+3. **Nothing crosses realms.** Each realm keeps its own records, and a player has a different address in each realm, so one realm cannot look a player up in another. The views a realm sends are signed, but nothing yet lets a player carry a signed record elsewhere.
 
 **The official state wins.** The referee keeps the full state and sends each player their view after each tick. The referee is wherever the realm's key is: a creator's browser tab, or the host program on any machine. Its connection carries everything, so a home connection handles tens of players, not hundreds.
 
@@ -79,7 +79,6 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 - **Moving a realm.** Load its key into the app on another device or another server, or give the key file to the host program, and referee it from there. The link stays the same apart from its server hint.
 - **Two holders online at once.** If two connections prove the same key to one server, the most recent wins and the older one is told to stop. A referee that leaves gives its address up, so the realm shows as offline. Visitors who receive nothing for 15 seconds ask to enter again, so play resumes when a referee restarts or moves.
 - **When no referee is online,** the realm's public files still exist, but nothing official happens until a key holder returns.
-- **Moving to a stronger algorithm.** A key signs a note naming its successor key.
 
 ## How it fits together
 
@@ -89,17 +88,17 @@ If my character swings a sword and the sword's code runs on my device, I can lie
 | **Character**     | Your name, look and description        | Whoever holds its secret   | Wherever its secret is   |
 | **Realm**         | A place or game: rules and referee     | Whoever holds its key      | Rules on the referee     |
 | **In-realm form** | Your character as that realm shows it  | The realm, lent to you     | Realm state              |
-| **Renderer**      | Turns the realm's state into a picture | Its author; you pick it    | Your app, sandboxed      |
+| **Renderer**      | Turns the realm's state into a picture | The realm's maker          | Your app, sandboxed      |
 
-**The app** holds your keys, keeps each piece of foreign code in its own sandbox, opens links, sends realms your character's description, and owns the menu that is always there. A server that serves the app page could take the keys that page holds, not just use them, so players should get the app from a server they trust or keep a local copy.
+**The app** holds your keys, keeps each piece of foreign code in its own sandbox, opens links, sends realms your character's description, and owns the menu that is always there. A server that serves the app page could take the keys that page holds, not just use them, so players should open the app only from a server they trust. The app talks only to the server it was loaded from.
 
-**State is separate from the picture.** A realm never draws anything itself; its rules produce each player's view as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and anyone can write another that reads the same data; the realm cannot tell the difference. A renderer is also a controller: it turns whatever the player does into moves ("move left"), which the rules judge like any other move. A renderer sees only what its player is sent, so it cannot reveal hidden information, and players can swap renderers freely.
+**State is separate from the picture.** A realm never draws anything itself; its rules produce each player's view as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and another app could draw the same data its own way; the realm cannot tell the difference. The reference app always uses the realm's default renderer. A renderer is also a controller: it turns whatever the player does into moves ("move left"), which the rules judge like any other move. A renderer sees only what its player is sent, so no renderer can reveal hidden information.
 
 ## Joining with one click
 
 Playing needs only a link; agents are for making things.
 
-1. Open the link; the app loads from the server in the link (or from a copy the player keeps).
+1. Open the link; the app loads from the server in the link.
 2. The app finds the player's character, or makes one in about a second (random name and look, editable later).
 3. If the realm is not announced on that server, the app offers to open it on a server named in the link's hints.
 4. The app fetches the realm's files by hash, checks them, runs the renderer in a sandbox, and asks the referee to let the character in.
@@ -112,7 +111,7 @@ No realm code is ever added to the character, so a hostile realm cannot damage i
 
 - **Realms announce themselves on servers,** signed by the realm's key, with tags ("maze"). Each server keeps what it is sent. Servers do not talk to each other and there is no shared lookup table, so an address alone does not say where a realm is: links carry the servers where it is announced as hints.
 - **The app's "More realms" menu** searches the current server by tag and shows which realms are online.
-- **Anything else is built by others:** doors and portals inside realms, directories, curated lists. None is official.
+- **Anything else is built by others:** directories and lists of links. None is official. A realm cannot send a player on to another realm; only the app's menu and links do that.
 
 ## Running in the browser: limits to design around
 
@@ -130,7 +129,7 @@ The browser app is one app among any number. A realm's referee and its visitors 
 - **What a peer must speak:** keys and addresses, canonical JSON, signed envelopes, the relay over WebSocket, the server's HTTP routes, and the enter, act and state messages ([PROTOCOL.md](PROTOCOL.md), [RUNTIME.md](RUNTIME.md)). [test-vectors.json](test-vectors.json) lets an implementation in any language check itself.
 - **It works without a browser:** the host program is a working referee and `tests/host_test.js` a working visitor, neither using a browser. No game engine plugin exists in this repository.
 - **What the manifest offers:** `renderer` is optional, and `app` names the realm's own app (a name and an https address where players get it). Opening a realm with no browser renderer, the browser app says it cannot be played in a browser and shows the app's name and link, warning that an installed program runs outside any sandbox.
-- **A typical engine realm:** a server built with the engine holds the realm's key and referees, its rules private and in the engine's own language, and the engine-built app is the visitor.
+- **How an engine realm would work** (none has been built): a server built with the engine holds the realm's key and referees, its rules private and in the engine's own language, and the engine-built app is the visitor.
 - **Known limit: speed.** Every message passes through a relay and carries its own signature, which is too slow for fast action games. The message format allows an engine realm to use the enter and welcome messages for identity and entry, then carry its own fast traffic itself: the welcome message's body can hold whatever its app needs, such as where to connect.
 
 ## The server: a small program anyone can run
@@ -138,7 +137,7 @@ The browser app is one app among any number. A realm's referee and its visitors 
 Simple enough that anyone can clone this repository and run their own server with one command.
 
 - **What it does:** keeps signed announcements and answers tag searches, says who is online, stores files by hash, relays signed messages between connections that have proved their keys, and serves the app page. One server is all a group of friends needs.
-- **What it cannot do:** forge anything it stores or relays, since everything is signed by the key that wrote it or named by its hash. It holds no realm state and makes no rules. A bad or dead server is one you stop using.
+- **What it cannot do:** forge anything it stores or relays, since everything is signed by the key that wrote it or named by its hash. It holds no realm state and makes no rules. It can still refuse to serve, hand out an older announcement, or say a realm is offline. A bad or dead server is one you stop using.
 - **What it can do:** read what passes through its relay (messages are signed, not encrypted to the receiver), and, if it serves the app page, take the keys that page holds. The server that serves the app is trusted like any software you run.
 - **Size target:** a few hundred lines. Growing past that is a sign realm rules are leaking in.
 
@@ -158,8 +157,8 @@ Endless Mind is a tool for making original things. The project never suggests, s
 
 ## Current state
 
-Two people on two devices play the [maze chase](examples/maze-chase.md) through one small server. The host program referees realms with no browser, including the [listening well](examples/listening-well.md), whose private rules ask an AI model. Code: `app/` (the browser app), `shared/` (keys, hashes, signed messages, the relay client and the referee loop), `server/` (the helper server), `host/` (the host program), `examples/` (realm files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md); the calls realm code can make are in [RUNTIME.md](RUNTIME.md); the guide agents read is [AGENT-GUIDE.md](AGENT-GUIDE.md).
+Several players play the [maze chase](examples/maze-chase.md) through one small server; the automated test does this with separate browsers (Chrome, Firefox and WebKit) on one computer. The host program referees realms with no browser, including the [listening well](examples/listening-well.md), whose private rules ask an AI model. Code: `app/` (the browser app), `shared/` (keys, hashes, signed messages, the relay client and the referee loop), `server/` (the helper server), `host/` (the host program), `examples/` (realm files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md); the calls realm code can make are in [RUNTIME.md](RUNTIME.md); the guide agents read is [AGENT-GUIDE.md](AGENT-GUIDE.md).
 
-**Needed before a public launch:** locking the key file with a passphrase, publishing new versions of a realm under the same key from the browser app (the host program does this), server limits and takedown support (a contact field and takedown lists), a test of the agent guide by an agent with nothing else to go on, and an always-on server.
+**Needed before a public launch:** locking the key file with a passphrase, publishing new versions of a realm under the same key from the browser app (the host program does this), server limits and takedown support (a contact field and takedown lists), stopping runaway realm code, a test of the agent guide by an agent with nothing else to go on, and an always-on server.
 
 **Success test:** two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.

@@ -3,7 +3,7 @@
 ## On one computer
 
 1. Install Deno: `brew install deno` (macOS, Linux) or `winget install DenoLand.Deno` (Windows).
-2. In this repository, run `deno task start`. Options: `--port 8000`, `--hostname 0.0.0.0`, `--data ./data`, `--cert cert.pem --key key.pem`. The server may read files only inside this folder, so keep certificate files here.
+2. In this repository, run `deno task start`. Options: `--port 8000`, `--hostname 0.0.0.0`, `--cert cert.pem --key key.pem`. The server may read files only inside this folder, so keep certificate files here.
 3. Open `http://localhost:8000/`. To try two players on one computer, use two different browsers (or one normal and one private window), since each browser profile keeps its own character.
 
 The server keeps announcements and uploaded realm files in `./data`. Delete that folder to start fresh.
@@ -35,9 +35,9 @@ To try the [listening well](examples/listening-well.md), with a server running: 
 
 ## Tests
 
-- `deno task test`: unit tests for the shared code, the server, the maze's rules and the host program (with a visitor that uses no browser).
+- `deno task test`: unit tests for the shared code, the server, the maze's rules and the host program (with a visitor that uses no browser). With `OPENROUTER_API_KEY` set it also runs one live test, in which a real AI model answers through the listening well and the test checks that neither the key nor the rules reach the server or a visitor.
 - `deno task check`: type-checks everything (plain JavaScript with type comments).
-- `uv run tests/e2e.py [chromium] [firefox] [webkit]`: opens two real browsers, publishes the maze from one, joins from the other, and checks that each sees the other move, then visits the listening well run by the host program. Needs `uv` (`brew install uv`); the first run for firefox or webkit needs `uv run --with playwright playwright install firefox webkit`.
+- `uv run tests/e2e.py [chromium] [firefox] [webkit]`: opens two real browsers, publishes the maze from one, joins from the other, and checks that each sees the other move. It then checks that sandboxed code cannot reach the network, that a guest carries on after the host reloads, that saved keys let another browser take over hosting, and that a browser can visit the listening well run by the host program. Needs `uv` (`brew install uv`); the first run for firefox or webkit needs `uv run --with playwright playwright install firefox webkit`.
 
 ## If something does not connect
 
