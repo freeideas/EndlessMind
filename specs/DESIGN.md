@@ -15,7 +15,7 @@ A new web: a worldwide network of living, AI-made places and programs, where bot
 - **Actor:** whoever plays: a person, or an AI. An actor is its key: whoever holds the key is the actor, and its address is the same in every realm.
 - **Portal:** the software that gets an actor into a realm, as a browser gets a reader onto the web. It holds the actor's key, opens links and runs renderers. The reference portal runs in the browser; anyone may write another, in any language or engine.
 - **Character:** how an actor presents itself: its key plus a description (name, look). The public half of the key is the one address it is known by everywhere. Its **in-realm form** is what the realm turns it into while inside.
-- **Renderer:** code that draws a realm's views on an actor's device and turns the actor's input into moves. A file, found by its hash.
+- **Renderer:** code that draws a realm's views on an actor's device and turns the actor's input into moves. A file, found by its hash. The portal gets the actor in; the renderer decides how the realm looks and sounds. One program may do both.
 - **Referee:** whoever holds a realm's key and runs its rules, signing its official state.
 - **Agent:** an AI coding agent that writes realms for a person.
 - **Server:** an optional helper program anyone can run (finding realms, relaying messages, serving files and the portal). Never in charge.
@@ -149,7 +149,7 @@ What all of this relies on, and what later changes to the protocol must keep tru
 
 **The portal** holds your keys, runs foreign code in sandboxes, opens links and owns its menu. Use a copy of the portal you trust: its source can take any key it holds. Helper servers are separate connection targets. A link hint selects a server without loading its portal or moving your keys. HTTP API routes allow cross-origin requests for public files and announcements; relay connections prove keys without exporting them.
 
-**State is separate from the picture.** A realm never draws anything itself; its rules produce each actor's view as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and another portal could draw the same data its own way; the realm cannot tell the difference. The reference portal always uses the realm's default renderer. A renderer is also a controller: it turns whatever the actor does into moves ("move left"), which the rules judge like any other move. A renderer sees only what its actor is sent, so no renderer can reveal hidden information.
+**State is separate from the picture.** A realm never draws anything itself; its rules produce each actor's view as plain data ("maze grid, walls here, runner at 4,7, score 120"). It ships a default renderer, and anything else could draw the same data its own way: another renderer (a dashboard, a text-only view, a version for screen readers), or a portal that is its own renderer, as one built with a game engine would be. An AI actor's portal needs no picture at all and reads the data directly. The realm cannot tell the difference. The reference portal always uses the realm's default renderer; choosing another is not built. A renderer is also a controller: it turns whatever the actor does into moves ("move left"), which the rules judge like any other move. A renderer sees only what its actor is sent, so no renderer can reveal hidden information.
 
 ## Joining with one click
 
