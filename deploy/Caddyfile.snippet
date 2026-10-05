@@ -3,3 +3,8 @@
 play.endlessmind.com {
 	reverse_proxy 127.0.0.1:8750
 }
+
+# A second helper server, on emeraldslate (unit `endlessmind-hub2`), reached over Tailscale.
+play2.endlessmind.com {
+	reverse_proxy 100.92.175.56:8751
+}

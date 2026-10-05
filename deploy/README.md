@@ -8,6 +8,10 @@ First setup (already done): copy the unit to `/etc/systemd/system/` and run `sud
 
 The server keeps its data in `data/` inside the checkout. Logs: `journalctl -u endlessmind-hub`.
 
+## A second helper server on emeraldslate
+
+`play2.endlessmind.com` is a separate helper server with its own data, for testing realms and actors spread over two servers. It runs on `emeraldslate` as the systemd user unit `endlessmind-hub2.service` (install steps are in the file), listening only on its Tailscale address. Caddy on ordinarydata passes traffic to it (second block in `Caddyfile.snippet`). Deploy a new version there with `git pull --ff-only && systemctl --user restart endlessmind-hub2`.
+
 ## Example realms hosted from qube
 
 The Mac mini `qube` (behind a home router, needing only outgoing connections) keeps both example realms up with the host program, as the launchd agents `com.endlessmind.host.*.plist`. Each start pulls the checkout at `~/EndlessMind` (not under `~/Desktop`, which macOS hides from background jobs), so restarting one publishes the latest version. The Listening Well's OpenRouter key is read from `~/creds` at start. Realm keys stay in that checkout's `keys/`, and losing them changes the realms' links.

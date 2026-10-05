@@ -1,0 +1,15 @@
+# A second helper server, on emeraldslate, reached as play2.endlessmind.com through ordinarydata's Caddy over Tailscale.
+# Install as a user unit: ~/.config/systemd/user/endlessmind-hub2.service, then systemctl --user enable --now endlessmind-hub2
+[Unit]
+Description=Endless Mind second helper server (play2.endlessmind.com)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/prjx/EveryGame
+ExecStart=/usr/bin/deno task start --hostname 100.92.175.56 --port 8751 --origin https://play2.endlessmind.com
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
