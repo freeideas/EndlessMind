@@ -10,7 +10,7 @@
 //                        [--cert cert.pem --key key.pem]
 //                        [--origin https://example.org[,https://other.example]]
 
-import { ANNOUNCEMENT_LIFETIME_MS, checkAnnouncement, isManifestBody, releaseOfBody } from "../shared/announce.js";
+import { ANNOUNCEMENT_LIFETIME_MS, checkAnnouncement, isManifestBody, pictureType, releaseOfBody } from "../shared/announce.js";
 import { hashOf, isAddress, isHash, verify } from "../shared/crypto.js";
 import { canonicalJson, MAX_MESSAGE_BYTES, parseStrictJson, utf8 } from "../shared/encoding.js";
 import { PROTOCOL_VERSION } from "../shared/envelope.js";
@@ -399,16 +399,30 @@ export async function startServer(options = {}) {
     const tag = url.searchParams.get("tag")?.toLowerCase();
     const list = [...announcements]
       .filter(([, a]) => a.body.expires >= now)
-      .map(([address, a]) => ({ address, name: a.body.name, tags: a.body.tags, online: isOnline(address), time: a.time }))
+      .map(([address, a]) => ({ address, ...shown(a.body.manifest.body), online: isOnline(address), time: a.time }))
       // A key-free release needs no referee, so it always counts as online. It is listed beside any realm
       // that announces the same files: were it hidden then, anyone could hide it by announcing them.
       .concat([...releases].filter(([, r]) => r.expires >= now).map(([hash, r]) => (
-        { address: hash, name: r.body.name, tags: r.body.tags, online: true, alone: true, time: r.expires - ANNOUNCEMENT_LIFETIME_MS }
+        { address: hash, ...shown(r.body), online: true, alone: true, time: r.expires - ANNOUNCEMENT_LIFETIME_MS }
       )))
       .filter((r) => !tag || r.tags.some((/** @type {string} */ t) => t.toLowerCase() === tag))
       .sort((a, b) => Number(b.online) - Number(a.online) || b.time - a.time)
       .slice(0, 200);
     return json({ realms: list });
+  }
+
+  /**
+   * What a list shows of a realm: its name, tags, the start of its description, and its picture.
+   * @param {import("../shared/announce.js").ManifestBody} m
+   */
+  function shown(m) {
+    const picture = m.picture && pictureType(m.picture);
+    return {
+      name: m.name,
+      tags: m.tags,
+      ...(m.description ? { description: m.description.slice(0, 300) } : {}),
+      ...(picture ? { picture: { hash: m.files[/** @type {string} */ (m.picture)], type: picture } } : {}),
+    };
   }
 
   /** @param {Request} request @param {string} hash */

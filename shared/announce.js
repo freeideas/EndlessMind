@@ -9,6 +9,30 @@ import { canonicalJson } from "./encoding.js";
 
 /** Limits on a manifest, so one realm cannot crowd a server's lists (see specs/PROTOCOL.md). */
 export const MAX_NAME = 200, MAX_DESCRIPTION = 2000, MAX_FILES = 256;
+
+/** A realm's picture: the kinds of image a portal shows, by file ending, and the most bytes it may have. */
+export const PICTURE_TYPES = /** @type {Record<string, string>} */ ({
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+});
+export const MAX_PICTURE_BYTES = 256 * 1024;
+
+/** The image type of a picture's file name, or undefined when it is not one a portal shows. @param {unknown} name */
+export function pictureType(name) {
+  if (typeof name !== "string") return undefined;
+  return PICTURE_TYPES[name.slice(name.lastIndexOf(".")).toLowerCase()];
+}
+
+/**
+ * Refuse a picture too large to show in a list of realms. @param {RealmSource} source
+ * @param {Record<string, Uint8Array>} files  public file name to bytes
+ */
+export function checkPictureSize(source, files) {
+  const bytes = source.picture ? files[source.picture] : undefined;
+  if (bytes && bytes.length > MAX_PICTURE_BYTES) {
+    throw new Error(`The picture ${source.picture} is larger than ${MAX_PICTURE_BYTES / 1024} KB.`);
+  }
+}
 import { open, seal } from "./envelope.js";
 
 /**
@@ -17,6 +41,7 @@ import { open, seal } from "./envelope.js";
  * @property {string} [description]
  * @property {string[]} tags
  * @property {Record<string, string>} files  file name to hash
+ * @property {string} [picture]   file name of a small image that shows the realm in lists
  * @property {string} [main]      file name of the realm's rules; left out when the rules are
  *                                private (known only to the referee)
  * @property {string} [renderer]  file name of the default browser renderer; left out when the
@@ -45,6 +70,7 @@ import { open, seal } from "./envelope.js";
  * @property {string} name
  * @property {string} [description]
  * @property {string[]} [tags]
+ * @property {string} [picture]   a small image (png, jpg, webp, gif or svg) shown in lists of realms
  * @property {string} [main]      rules file
  * @property {boolean} [privateRules]  keep the rules file off the network: only a host program can referee
  * @property {string} [renderer]  default browser renderer file
@@ -79,7 +105,10 @@ export function manifestBody(source, hashes) {
   if (source.renderers !== undefined && !isRendererList(source.renderers)) {
     throw new Error("realm.json's renderers may name at most 8 files, each under a label of 1 to 40 characters.");
   }
-  for (const name of [main, source.renderer, ...Object.values(source.renderers ?? {})]) {
+  if (source.picture !== undefined && !pictureType(source.picture)) {
+    throw new Error("realm.json's picture must be a png, jpg, webp, gif or svg file.");
+  }
+  for (const name of [main, source.renderer, source.picture, ...Object.values(source.renderers ?? {})]) {
     if (name && !hashes[name]) throw new Error(`The file ${name} named in realm.json is missing.`);
   }
   return {
@@ -87,6 +116,7 @@ export function manifestBody(source, hashes) {
     description: source.description ?? "",
     tags,
     files: hashes,
+    ...(source.picture ? { picture: source.picture } : {}),
     ...(main ? { main } : {}),
     ...(source.renderer ? { renderer: source.renderer } : {}),
     ...(source.renderers && Object.keys(source.renderers).length ? { renderers: source.renderers } : {}),
@@ -254,7 +284,8 @@ export function isManifestBody(body) {
   if (names.length > MAX_FILES || !names.every((n) => n.length > 0 && n.length <= MAX_NAME)) return false;
   if (!Object.values(m.files).every(isHash)) return false;
   if (m.renderers !== undefined && !isRendererList(m.renderers)) return false;
-  for (const name of [m.main, m.renderer, ...Object.values(m.renderers ?? {})]) {
+  if (m.picture !== undefined && !pictureType(m.picture)) return false;
+  for (const name of [m.main, m.renderer, m.picture, ...Object.values(m.renderers ?? {})]) {
     if (name !== undefined && (typeof name !== "string" || !Object.hasOwn(m.files, name))) return false;
   }
   if (m.asks !== undefined && !(Array.isArray(m.asks) && m.asks.length <= 16 && m.asks.every(isAddress))) return false;

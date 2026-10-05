@@ -223,7 +223,7 @@ Not built yet: a hash for each published version of the project's own software, 
 Endless Mind is a tool for making original things. The project never suggests, shows or encourages copying anyone else's game, characters, names, art, music or other protected work, in its docs, examples, demos, code or promotion.
 
 - **Examples are technical and original.** They use invented names and generic kinds of realm ([a large city](examples/city.md), [a world made of blocks](examples/block-world.md), [a maze chase](examples/maze-chase.md), [a well that answers](examples/listening-well.md)) to explain how the system works, not how to recreate an existing product.
-- **The agent guide steers agents toward original work.** It tells agents to build original designs and to decline to copy another product's names, characters, art, music, logos or level designs, suggesting an original alternative instead.
+- **The agent guide steers agents toward original work.** It tells agents to use their imagination, to build nothing overly similar to a game or product protected by copyright, trademark or patent, and to decline to copy another product's names, characters, art, music, logos or level designs, suggesting an original alternative instead. Every place that tells people how to make a realm (the README, the website's Create page, the portal) says the same.
 - **Each builder is responsible for what they build** and must hold the rights to what they publish.
 - **The project runs no official network.** It provides software; people who run servers are responsible for operating them.
 

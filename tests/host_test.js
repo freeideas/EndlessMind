@@ -58,7 +58,7 @@ Deno.test("a realm with private rules is refereed by the host and answers visito
     const found = await checkAnnouncement((await (await fetch(`${base}/announce/${host.address}`)).json()).announcement);
     assert(found);
     assertEquals(found.manifest.main, undefined);
-    assertEquals(Object.keys(found.manifest.files), ["renderer.js"]);
+    assertEquals(Object.keys(found.manifest.files), ["renderer.js", "picture.svg"]);
     assert(!(await serverHolds(dir, "You are the Listening Well")), "the private rules reached the server");
 
     const visitor = await visit(base, host.address);
@@ -134,7 +134,7 @@ Deno.test("a realm with public rules can be hosted from its folder, or from its 
     // Renaming the realm keeps its address: the key file belongs to the folder, not the name.
     const renamed = `${dir}/renamed`;
     await Deno.mkdir(renamed);
-    for (const name of ["rules.js", "renderer.js", "text.js"]) await Deno.copyFile(`examples/maze-chase/${name}`, `${renamed}/${name}`);
+    for (const name of ["rules.js", "renderer.js", "text.js", "picture.svg"]) await Deno.copyFile(`examples/maze-chase/${name}`, `${renamed}/${name}`);
     const source = JSON.parse(await Deno.readTextFile("examples/maze-chase/realm.json"));
     await Deno.writeTextFile(`${renamed}/realm.json`, JSON.stringify({ ...source, name: "Lantern Maze Two" }));
     const again = await startHost({ server: base, realmDir: renamed, keysFile, log: () => {} });

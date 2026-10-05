@@ -23,7 +23,7 @@
 // program, or by "Save full backup" in the browser portal). The rules run directly,
 // not in a sandbox: host only realms you wrote or trust.
 
-import { checkAnnouncement, checkPass, makeAnnouncement, makeManifest, makePass, manifestBody, releaseOf } from "../shared/announce.js";
+import { checkAnnouncement, checkPass, checkPictureSize, makeAnnouncement, makeManifest, makePass, manifestBody, releaseOf } from "../shared/announce.js";
 import { addressOf, hashOf, keyPairFromSecret, newExchangeKey, newPortableKey } from "../shared/crypto.js";
 import { canonicalJson } from "../shared/encoding.js";
 import { directRules, referee } from "../shared/referee.js";
@@ -64,7 +64,7 @@ async function loadRealm(options) {
     const dir = new URL(options.realmDir.replace(/\/?$/, "/"), `file://${Deno.cwd()}/`);
     /** @type {import("../shared/announce.js").RealmSource} */
     const source = JSON.parse(await Deno.readTextFile(new URL("realm.json", dir)));
-    const names = new Set([source.privateRules ? undefined : source.main, source.renderer, ...Object.values(source.renderers ?? {}), ...(source.files ?? [])]);
+    const names = new Set([source.privateRules ? undefined : source.main, source.renderer, source.picture, ...Object.values(source.renderers ?? {}), ...(source.files ?? [])]);
     /** @type {Record<string, string>} */
     const hashes = {};
     for (const name of names) {
@@ -73,6 +73,7 @@ async function loadRealm(options) {
       hashes[name] = await hashOf(files[name]);
     }
     const body = manifestBody(source, hashes);
+    checkPictureSize(source, files);
     rulesModule = (await import(new URL(/** @type {string} */ (source.main), dir).href)).default;
     // A key file made for one folder holds one realm, whatever the realm is called now: renaming must not
     // change its address. Only a file holding several realms is searched by name.

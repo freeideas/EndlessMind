@@ -58,6 +58,10 @@ button, .button { cursor: pointer; background: var(--accent); color: #fff; borde
 .list li { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .list li a { font-weight: 600; }
 .tags { color: var(--muted); font-size: 14px; }
+.list li.realm { flex-wrap: nowrap; align-items: flex-start; gap: 12px; }
+.picture { width: 72px; height: 72px; object-fit: cover; border-radius: 7px; background: var(--line); flex: none; }
+.picture:not([src]) { visibility: hidden; }
+.description { margin: 4px 0 0; font-size: 14px; overflow-wrap: anywhere; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
 .dot.on { background: #2fb36b; }
 .hint { color: var(--muted); font-size: 14px; margin: 0; }

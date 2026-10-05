@@ -3,6 +3,7 @@ import {
   checkAnnouncement,
   makeAnnouncement,
   makeManifest,
+  checkPictureSize,
   manifestBody,
   releaseOf,
 } from "../shared/announce.js";
@@ -54,6 +55,7 @@ export async function publish(files, server = location.origin) {
     ),
   );
   const body = manifestBody(source, hashes);
+  checkPictureSize(source, publicFiles);
   const { keys, secret } = await newPortableKey();
   const address = await addressOf(keys.publicKey);
   const manifest = await makeManifest(keys, body);
@@ -157,14 +159,25 @@ export async function fetchFile(hash, server = location.origin, signal) {
   return fromUtf8(await fetchBytes(hash, server, signal));
 }
 
-/** @param {string} [tag] @param {string} [server] */
+/**
+ * A realm as a server lists it.
+ * @typedef {object} Listed
+ * @property {string} address
+ * @property {string} name
+ * @property {string} [description]  its first 300 characters
+ * @property {{ hash: string, type: string }} [picture]
+ * @property {string[]} tags
+ * @property {boolean} online
+ * @property {boolean} [alone]
+ */
+
+/** @param {string} [tag] @param {string} [server] @returns {Promise<Listed[]>} */
 export async function search(tag, server = location.origin) {
   const url = new URL("/announce", server);
   if (tag) url.searchParams.set("tag", tag);
   const response = await fetch(url);
   if (!response.ok) return [];
-  return /** @type {{address: string, name: string, tags: string[], online: boolean, alone?: boolean}[]} */ ((await response
-    .json()).realms);
+  return (await response.json()).realms;
 }
 
 /** @param {string} folder */
@@ -173,7 +186,7 @@ export async function exampleFiles(folder) {
   const sourceBytes = new Uint8Array(await (await fetch(base + "realm.json")).arrayBuffer());
   const source = /** @type {RealmSource} */ (JSON.parse(fromUtf8(sourceBytes)));
   const files = new Map([["realm.json", sourceBytes]]);
-  for (const name of new Set([source.main, source.renderer, ...Object.values(source.renderers ?? {}), ...(source.files ?? [])])) {
+  for (const name of new Set([source.main, source.renderer, source.picture, ...Object.values(source.renderers ?? {}), ...(source.files ?? [])])) {
     if (name) files.set(name, new Uint8Array(await (await fetch(base + name)).arrayBuffer()));
   }
   return files;

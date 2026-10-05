@@ -1,6 +1,7 @@
 {
   "name": "The Listening Well",
   "description": "Lower a question into an old well and hear what comes back up. Everyone at the well hears every answer.",
+  "picture": "picture.svg",
   "tags": ["talk", "ai", "example"],
   "main": "rules.js",
   "privateRules": true,

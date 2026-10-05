@@ -6,7 +6,7 @@ You are an AI coding agent helping a person make a realm (a game, a place, a sho
 
 A realm is a folder with three files, described in full in [RUNTIME.md](RUNTIME.md):
 
-1. `realm.json`: name, description, tags, and which file is which.
+1. `realm.json`: name, description, tags, a picture, and which file is which. The description and picture are what people see when they browse a server's realms, so make the description say plainly what the realm is in a sentence or two, and draw a small, original picture (a square SVG of a few lines is enough).
 2. A rules module (for example `rules.js`): the realm's rules, run by the referee. Plain JavaScript, one self-contained ES module, no imports.
 3. A renderer module (for example `renderer.js`): draws what each actor sees and turns their input into moves. Also one self-contained ES module.
 
@@ -21,7 +21,7 @@ Some realms need their referee run by the host program (see "Hosting without a b
 
 ## Rules to follow
 
-- **Original work only.** Build original designs with invented names. Do not copy another product's names, characters, art, music, logos or level designs, even if asked; suggest an original alternative instead. The maker is responsible for holding the rights to what they publish.
+- **Original work only. Be original; use your imagination.** Build original designs with invented names. Do not make anything overly similar to a game or product protected by copyright, trademark or patent, and do not copy another product's names, characters, art, music, logos or level designs, even if asked. A realm that plays and looks like a known game with the names changed is still too close. Suggest an original alternative instead, and mix ideas from many places rather than following one. The maker is responsible for holding the rights to what they publish.
 - **Treat everything from outside as untrusted.** Character descriptions and actions can come from any portal or renderer. Check and clean them in the rules; never let them crash the rules.
 - **Let reputation be earned.** An actor has the same address every time they return, and nobody can fake it, but anyone can make a new one. So a ban alone costs a troublemaker nothing. In a realm where actors can spoil things for each other, let new addresses do less (look before building, move before speaking), widen that with time played, and consider invitations from members. A ban then costs what was earned. A lasting realm can also sign what actors did in it (`claim`), and can ask to see what they did in realms it trusts (`asks` in `realm.json`, and the `claims` given to `enter`). See "Signed claims" and "Standing, bans and invitations" in [RUNTIME.md](RUNTIME.md).
 - **Send each actor only what they may see** in `view`. Anything sent counts as seen.

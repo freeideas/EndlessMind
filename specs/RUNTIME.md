@@ -18,6 +18,7 @@ A realm is published from a folder of files:
 {
   "name": "Lantern Maze",
   "description": "Collect glowing seeds while lantern spirits chase you.",
+  "picture": "picture.svg",
   "tags": ["maze", "chase", "multiplayer"],
   "main": "rules.js",
   "renderer": "renderer.js",
@@ -26,6 +27,7 @@ A realm is published from a folder of files:
 ```
 
 - `main` is required. With `"privateRules": true` the rules file is never uploaded and the manifest leaves `main` out, so only the host program can referee the realm; the browser portal refuses to publish it.
+- `picture` names a small image file (png, jpg, webp, gif or svg, at most 256 KB) that portals show beside the realm's name and description when listing realms. It is uploaded with the realm's other public files.
 - `renderer` may be left out when `portal` is given.
 - `renderers`, `{ "Text only": "text.js" }`, offers other renderers for the same views: a short label for each, and its file. The portal lets the actor choose among them and the default.
 - `portal`, `{ "name": "...", "url": "https://..." }`, names the realm's own portal, a program actors install (see "Portals beyond the browser" in [DESIGN.md](DESIGN.md)).

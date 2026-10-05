@@ -144,7 +144,8 @@ Deno.test("announcements are checked, listed by tag, and show who is online", ()
     const realm = await generateKeyPair();
     const address = await addressOf(realm.publicKey);
     const manifest = await makeManifest(realm, {
-      name: "Maze", tags: ["maze"], files: { "r.js": await hashOf("x") }, main: "r.js", renderer: "r.js", needs: [],
+      name: "Maze", description: "Run.", tags: ["maze"], files: { "r.js": await hashOf("x"), "p.svg": await hashOf("<svg/>") },
+      picture: "p.svg", main: "r.js", renderer: "r.js", needs: [],
     });
     const posted = await fetch(`${base}/announce`, { method: "POST", body: JSON.stringify(await makeAnnouncement(realm, manifest)) });
     assertEquals(posted.status, 200);
@@ -156,6 +157,8 @@ Deno.test("announcements are checked, listed by tag, and show who is online", ()
     let list = await (await fetch(`${base}/announce?tag=maze`)).json();
     assertEquals(list.realms.length, 1);
     assertEquals(list.realms[0].online, false);
+    assertEquals(list.realms[0].description, "Run.");
+    assertEquals(list.realms[0].picture, { hash: await hashOf("<svg/>"), type: "image/svg+xml" });
     const referee = await connect(base, realm);
     list = await (await fetch(`${base}/announce?tag=maze`)).json();
     assertEquals(list.realms[0].online, true);

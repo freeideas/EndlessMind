@@ -4,7 +4,8 @@
 // any realm's control.
 
 import { myCharacter, updateCharacter } from "./character.js";
-import { exampleFiles, ownedRealms, publish, publishOwned, search, serverOrigin } from "./realms.js";
+import { exampleFiles, fetchBytes, ownedRealms, publish, publishOwned, search, serverOrigin } from "./realms.js";
+import { MAX_PICTURE_BYTES } from "../shared/announce.js";
 import { play, startHosting, startRoom } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
 import { askToPersist, get, list, put } from "./store.js";
@@ -86,19 +87,53 @@ function showMe() {
   me.replaceChildren(el("i", { style: `background:${character.info.color}` }), character.info.name);
 }
 
+/** Picture addresses made for the current list of realms, let go when the list is shown again. @type {string[]} */
+let pictureUrls = [];
+
+/**
+ * Show a realm's picture once it scrolls into view, after checking it matches its hash.
+ * @param {HTMLImageElement} img @param {{ hash: string, type: string }} picture @param {string} server
+ */
+function loadPicture(img, picture, server) {
+  const seen = new IntersectionObserver(async (entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    seen.disconnect();
+    try {
+      const bytes = await fetchBytes(picture.hash, server);
+      if (bytes.length > MAX_PICTURE_BYTES) return;
+      const url = URL.createObjectURL(new Blob([bytes], { type: picture.type }));
+      pictureUrls.push(url);
+      img.src = url;
+    } catch { /* a missing picture leaves the empty frame */ }
+  });
+  seen.observe(img);
+}
+
 /** @param {string} [tag] */
 async function showSearch(tag) {
   const list = $("search-results");
+  /** @type {import("./realms.js").Listed[]} */
   let realms;
   try { realms = await search(tag, selectedServer); }
   catch { list.replaceChildren(el("li", {}, ["Cannot reach this helper server. Your keys and realms are still here."])); return; }
-  list.replaceChildren(...(realms.length ? realms : []).map((r) =>
-    el("li", {}, [
-      el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
-      el("a", { href: realmLink(r.address) }, [r.alone ? `${r.name} (play alone)` : r.name]),
-      el("span", { class: "tags" }, [r.tags.join(", ")]),
-    ])
-  ));
+  for (const url of pictureUrls) URL.revokeObjectURL(url);
+  pictureUrls = [];
+  const server = selectedServer;
+  list.replaceChildren(...(realms.length ? realms : []).map((r) => {
+    const img = /** @type {HTMLImageElement} */ (el("img", { class: "picture", alt: "" }));
+    if (r.picture) loadPicture(img, r.picture, server);
+    return el("li", { class: "realm" }, [
+      img,
+      el("div", {}, [
+        el("div", { class: "row" }, [
+          el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
+          el("a", { href: realmLink(r.address) }, [r.alone ? `${r.name} (play alone)` : r.name]),
+          el("span", { class: "tags" }, [r.tags.join(", ")]),
+        ]),
+        ...(r.description ? [el("p", { class: "description" }, [r.description])] : []),
+      ]),
+    ]);
+  }));
   if (!realms.length) list.append(el("li", {}, ["No realms found on this server yet."]));
 }
 

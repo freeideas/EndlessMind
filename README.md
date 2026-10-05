@@ -20,14 +20,14 @@ Open a game's link in a portal you trust. A portal is the program that gets you 
 You do not need to be a programmer. You need an AI coding agent (a program such as Claude Code that writes code for you).
 
 1. Open your agent in an empty folder.
-2. Tell it: "Read the Endless Mind agent guide at https://endlessmind.com/agents/, then make me something." Then describe your game, for example: "A top-down maze where lantern spirits chase runners who collect glowing seeds."
+2. Tell it: "Read the Endless Mind agent guide at https://endlessmind.com/agents/, then make me something." Then describe your game, for example: "A top-down maze where lantern spirits chase runners who collect glowing seeds." Make it your own idea, not a copy of a game you know (see the end of this section).
 3. Your agent writes the game's files. Open a helper server's page (see below), choose **Publish from files**, and pick those files. The portal first saves the key and original files locally, then uploads copies. Under **Your realms**, choose **Start hosting**, then open the realm to visit it and copy its link. Opening alone never starts hosting. Keep the hosting tab open; you can browse other realms within it. Use **Save full backup** to move its files and any data its rules saved to another device. To use another helper server, change **Helper server**, then choose **Publish here** or **Start hosting**.
 
 To see how it works first, choose **Publish the maze chase example**, then **Start hosting** and open its link.
 
 To keep a game up without a browser tab, or to let it do things a browser's sandbox forbids (such as having an AI model answer actors), run it with the host program on a computer you control: `deno task host --server <server address> --realm <the game's folder>`. [specs/RUNNING.md](specs/RUNNING.md) explains it.
 
-What runs on actors' devices is always public, and a game's rules usually are too, so anyone can read a game's files and have their own agent make something new from them. A maker may instead keep a game's rules private on their own computer; the portal tells actors when a game does. Make your own original work; do not copy other people's games, characters, names, art or music.
+What runs on actors' devices is always public, and a game's rules usually are too, so anyone can read a game's files and have their own agent make something new from them. A maker may instead keep a game's rules private on their own computer; the portal tells actors when a game does. Be original and use your imagination. Do not make anything overly similar to a game or product protected by copyright, trademark or patent, and do not copy anyone's names, characters, art, music or logos.
 
 ## Running a helper server
 

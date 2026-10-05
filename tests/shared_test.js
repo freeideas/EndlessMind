@@ -1,5 +1,5 @@
-import { assert, assertEquals } from "jsr:@std/assert@1";
-import { checkAnnouncement, makeAnnouncement, makeManifest, manifestBody } from "../shared/announce.js";
+import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
+import { checkAnnouncement, checkPictureSize, makeAnnouncement, makeManifest, manifestBody } from "../shared/announce.js";
 import { addressOf, generateKeyPair, hashOf, isAddress, isHash, keyPairForRealm, keyPairFromSecret, newPortableKey, sign, verify } from "../shared/crypto.js";
 import { canonicalJson, fromBase32, parseStrictJson, toBase32 } from "../shared/encoding.js";
 import { open, ReplayGuard, seal } from "../shared/envelope.js";
@@ -104,6 +104,22 @@ Deno.test("a manifest may leave out private rules or a browser renderer, and may
     refused = true;
   }
   assert(refused, "a realm needs a renderer or a portal");
+});
+
+Deno.test("a realm's picture must be a small image among its files", async () => {
+  const keys = await generateKeyPair();
+  const hashes = { "view.js": await hashOf("x"), "p.png": await hashOf("p"), "p.html": await hashOf("h") };
+  const source = { name: "Shown", main: "rules.js", privateRules: true, renderer: "view.js", picture: "p.png" };
+  const body = manifestBody(source, hashes);
+  assertEquals(body.picture, "p.png");
+  const check = async (/** @type {any} */ b) => (await checkAnnouncement(await makeAnnouncement(keys, await makeManifest(keys, b))))?.manifest;
+  assert(await check(body));
+  assertEquals(await check({ ...body, picture: "p.html" }), undefined);
+  assertEquals(await check({ ...body, picture: "gone.png" }), undefined);
+  assertThrows(() => manifestBody({ ...source, picture: "p.html" }, hashes));
+  assertThrows(() => manifestBody({ ...source, picture: "gone.png" }, hashes));
+  checkPictureSize(source, { "p.png": new Uint8Array(1000) });
+  assertThrows(() => checkPictureSize(source, { "p.png": new Uint8Array(300_000) }));
 });
 
 Deno.test("an actor has a different, steady address in each realm", async () => {
