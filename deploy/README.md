@@ -14,6 +14,8 @@ First setup (already done): copy the unit to `/etc/systemd/system/` and run `sud
 
 The server keeps its data in `data/` inside the checkout. Logs: `journalctl -u endlessmind-hub`.
 
+Its picks (the realms it shows off, see "A server's picks" in `specs/RUNNING.md`) are `deploy/picks-play.json`, named in the unit with `--picks`. Edit and push the file, then pull in the checkout; no restart is needed. After changing the unit itself: `sudo cp deploy/endlessmind-hub.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart endlessmind-hub`.
+
 ## A second helper server on emeraldslate
 
 `play2.endlessmind.com` is a separate helper server with its own data, for testing realms and actors spread over two servers. It runs on `emeraldslate` as the systemd user unit `endlessmind-hub2.service` (install steps are in the file), listening only on its Tailscale address. Caddy on ordinarydata passes traffic to it (second block in `Caddyfile.snippet`). Deploy a new version there with `git pull --ff-only && systemctl --user restart endlessmind-hub2`.
