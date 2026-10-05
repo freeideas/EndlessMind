@@ -30,6 +30,7 @@ Some realms need their referee run by the host program (see "Hosting without a b
 - **Make sense with one actor.** Public rules can be played alone (each actor runs their own copy from the release link) or in a room one actor hosts for friends, as well as in the maker's lasting realm. Do not assume other actors are present, or that saved data from a room lasts.
 - **Make the rules repeatable when you can.** If the realm hides nothing from its actors, needs nothing from outside and saves nothing, write the rules so the same moves always give the same state (random numbers from the `seed`, kept in the state; no `async`; no clock) and set `repeatable: true`. Every actor's portal can then check the referee, so nobody has to trust whoever hosts. See "Checking the referee" in [RUNTIME.md](RUNTIME.md) and the maze example.
 - **Views are for any renderer.** The rules send plain data and never assume how it is drawn. The actor may choose another look: one you offer under `renderers` in `realm.json` (a text-only one helps screen readers and is quick to write), or one someone else made.
+- **Hold-to-move controls** suit action games: have the renderer send a move such as `{ dx: 1, dy: 0 }` when a key or touch starts and `{ dx: 0, dy: 0 }` when it ends, and have the rules keep that direction in the state and move by it on each `tick`. The maze instead takes one turn per key press.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
 ## A renderer for someone else's realm
@@ -50,6 +51,8 @@ console.log(rules.view(s, "a"));
 ```
 
 To try it in a browser, run a server from the Endless Mind repository (`deno task start`), open the printed address, and choose **Publish from files**, selecting all the realm's files including `realm.json`. The portal saves the key and original files locally, then publishes copies. Choose **Start hosting** under **Your realms**, then open its link to visit. Opening alone never starts hosting. Hosting continues while the owner browses within the tab. See [RUNNING.md](RUNNING.md).
+
+To put it online from a terminal, which works for any realm, clone the Endless Mind repository (`git clone https://github.com/freeideas/EndlessMind.git`) and in it run `deno task host --server <helper server> --realm <the realm's folder>`. Any helper server accepts realms from anyone, within its storage limits; `https://play.endlessmind.com` is a public one, and `http://localhost:8000` is your own after `deno task start`. It prints the realm's link, which works only while the program runs (run it in the background to keep working). Then check it as a new actor with `deno task visit "<link>" --act '<a move as JSON>'`, which prints each new view as JSON. Stop the host program when you are done unless the person wants it kept up. See "Hosting without a browser" in [RUNNING.md](RUNNING.md).
 
 For private rules, `await` the calls in your test instead. To try them, run the server, then from the Endless Mind repository run `deno task host --server http://localhost:8000 --realm <the realm's folder>` and open the link it prints in a browser.
 

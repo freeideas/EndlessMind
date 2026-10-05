@@ -20,7 +20,7 @@ Open a game's link in a portal you trust. A portal is the program that gets you 
 You do not need to be a programmer. You need an AI coding agent (a program such as Claude Code that writes code for you).
 
 1. Open your agent in an empty folder.
-2. Tell it: "Read the Endless Mind agent guide at https://github.com/freeideas/EndlessMind/blob/main/specs/AGENT-GUIDE.md, then make me something." Then describe your game, for example: "A top-down maze where lantern spirits chase runners who collect glowing seeds."
+2. Tell it: "Read the Endless Mind agent guide at https://endlessmind.com/agents/, then make me something." Then describe your game, for example: "A top-down maze where lantern spirits chase runners who collect glowing seeds."
 3. Your agent writes the game's files. Open a helper server's page (see below), choose **Publish from files**, and pick those files. The portal first saves the key and original files locally, then uploads copies. Under **Your realms**, choose **Start hosting**, then open the realm to visit it and copy its link. Opening alone never starts hosting. Keep the hosting tab open; you can browse other realms within it. Use **Save full backup** to move its files and any data its rules saved to another device. To use another helper server, change **Helper server**, then choose **Publish here** or **Start hosting**.
 
 To see how it works first, choose **Publish the maze chase example**, then **Start hosting** and open its link.
