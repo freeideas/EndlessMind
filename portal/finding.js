@@ -6,7 +6,7 @@
 import { keyPairFromSecret, addressOf } from "../shared/crypto.js";
 import { parseLink } from "../shared/link.js";
 import { checkRecommendation, makeRecommendation } from "../shared/recommend.js";
-import { held } from "./claims.js";
+import { held, record } from "./claims.js";
 import { lookUp, postRecommendation } from "./realms.js";
 import * as store from "./store.js";
 
@@ -39,7 +39,9 @@ export async function allMine() {
 /**
  * Recommend a realm or an actor, say it is not for me, or withdraw what was said. It is signed with the
  * character's lasting key and posted to the subject's servers and the chosen one. A recommendation of a
- * realm carries, as proof of playing, the claims that realm signed about this character.
+ * realm carries, as proof of playing, the claims that realm signed about this character, and as standing,
+ * claims from other realms this character publicly recommends: those links are public already, so showing
+ * what those realms said reveals nothing new about where the character has been.
  * @param {import("./character.js").Character} character @param {string} subject
  * @param {{ note?: string, via: string[] } | "not for me" | "withdrawn"} what @param {string[]} servers where to post it
  */
@@ -48,7 +50,16 @@ export async function say(character, subject, what, servers) {
   const via = typeof what === "object" ? what.via : (await mine(subject))?.via ?? [];
   const claim = await makeRecommendation(keys, subject, typeof what === "object" ? { note: what.note, via } : what);
   const proof = typeof what === "object" ? (await held(subject)).filter((c) => c.to === address).slice(0, 4) : [];
-  const record = { claim, ...(proof.length ? { proof } : {}) };
+  /** @type {import("../shared/envelope.js").Envelope[]} */
+  const standing = [];
+  if (typeof what === "object") {
+    for (const m of await allMine()) {
+      if (m.kind !== "recommend" || m.subject === subject || standing.length >= 4) continue;
+      const theirs = (await held(m.subject)).find((c) => c.to === address);
+      if (theirs) standing.push(theirs);
+    }
+  }
+  const record = { claim, ...(proof.length ? { proof } : {}), ...(standing.length ? { standing } : {}) };
   const checked = await checkRecommendation(record);
   if (!checked) throw new Error("This recommendation could not be signed.");
   await store.put("mine:" + subject, { subject, kind: checked.kind, note: checked.note, via, record, time: checked.time });
@@ -128,7 +139,9 @@ async function fetchRecommendations(server, query) {
  * Suggestions for this actor, weighed from people and realms they chose to listen to:
  * - the actors and realms the actor follows count fully;
  * - those the followed ones recommend in turn (an actor or a realm can be recommended too) count half;
- * - anyone else on the servers asked counts a tenth, so a crowd of fresh addresses weighs little;
+ * - anyone else on the servers asked counts a tenth, so a crowd of fresh addresses weighs little, or
+ *   three tenths when their recommendation carries standing from a realm this actor trusts (one they
+ *   follow, recommend, or hold claims from), which takes real time in real realms to earn;
  * - a recommendation that carries proof of playing (claims the realm itself signed about its author)
  *   counts double; "not for me" counts against, but only from those the actor follows and those they
  *   recommend. What the actor said themselves decides: their own "not for me" hides a realm.
@@ -161,6 +174,12 @@ export async function suggestions(character, servers) {
     if (r.author !== me && (!all.has(key) || /** @type {Recommendation} */ (all.get(key)).time < r.time)) all.set(key, r);
   }
   const said = new Map((await allMine()).map((m) => [m.subject, m.kind]));
+  // Realms this actor trusts: followed, recommended, or ones that have signed claims about this character.
+  const trusted = new Set([
+    ...followed.map((f) => f.address),
+    ...[...said].filter(([, kind]) => kind === "recommend").map(([subject]) => subject),
+    ...(await record()).filter((r) => r.list.length).map((r) => r.realm),
+  ]);
   /** @type {Map<string, Suggestion>} */
   const out = new Map();
   for (const r of all.values()) {
@@ -168,7 +187,8 @@ export async function suggestions(character, servers) {
     const voice = voices.get(r.author);
     if (r.kind === "notForMe" && !voice) continue;
     if (r.kind === "withdrawn") continue;
-    const weight = (voice?.weight ?? 0.1) * (r.proof.length ? 2 : 1) * (r.kind === "notForMe" ? -1 : 1);
+    const earned = r.standing.some((c) => trusted.has(c.issuer));
+    const weight = (voice?.weight ?? (earned ? 0.3 : 0.1)) * (r.proof.length ? 2 : 1) * (r.kind === "notForMe" ? -1 : 1);
     const s = out.get(r.subject) ?? { address: r.subject, score: 0, via: [], voices: [] };
     s.score += weight;
     if (r.kind === "recommend") {

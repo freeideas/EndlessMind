@@ -47,6 +47,12 @@ Deno.test("a recommendation proves who said it, and carries only true proof of p
   assert(checked);
   assertEquals([checked.author, checked.subject, checked.kind, checked.note, checked.via], [a, r, "recommend", "Lovely lanterns", ["https://a.example"]]);
   assertEquals(checked.proof.map((p) => p.issuer), [r], "only the realm's own word about the author is proof");
+  // Standing: what other realms said of the author. A claim about someone else is left out.
+  const elsewhere = await makeClaim(other, a, { standing: "good" }, 30 * 24 * 60 * 60 * 1000);
+  const notAboutThem = await makeClaim(other, r, "something");
+  const withStanding = await checkRecommendation({ claim, standing: [elsewhere, notAboutThem] });
+  assertEquals(withStanding?.standing.map((c) => c.issuer), [await addressOf(other.publicKey)]);
+  assertEquals(withStanding?.record.standing?.length, 1);
   assertEquals((await checkRecommendation({ claim: await makeRecommendation(author, r, "not for me") }))?.kind, "notForMe");
   assertEquals(await checkRecommendation({ claim: await makeClaim(author, r, "just a claim") }), null);
   // One that would last far longer than a recommendation may is refused.

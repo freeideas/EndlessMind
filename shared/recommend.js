@@ -49,12 +49,14 @@ export function makeRecommendation(keys, subject, what, pass) {
  * @property {number} time
  * @property {number} expires
  * @property {Claim[]} proof   claims the subject signed about the author: proof that the author played there
- * @property {{ claim: Envelope, proof?: Envelope[] }} record  what is kept and passed on
+ * @property {Claim[]} standing  claims other realms signed about the author: what the author has earned elsewhere,
+ *                               which a reader may count when it trusts those realms
+ * @property {{ claim: Envelope, proof?: Envelope[], standing?: Envelope[] }} record  what is kept and passed on
  */
 
 /**
  * Check a recommendation and any proof that goes with it. Proof that is not what it says is left out.
- * @param {unknown} value  `{ claim, proof? }`
+ * @param {unknown} value  `{ claim, proof?, standing? }`
  * @returns {Promise<Recommendation | null>}
  */
 export async function checkRecommendation(value) {
@@ -79,6 +81,11 @@ export async function checkRecommendation(value) {
     const p = await checkClaim(one);
     if (p && p.issuer === claim.about && p.about === claim.issuer) proof.push(p);
   }
+  const standing = [];
+  for (const one of Array.isArray(v.standing) ? v.standing.slice(0, MAX_PROOF) : []) {
+    const p = await checkClaim(one);
+    if (p && p.about === claim.issuer && p.issuer !== claim.about && p.issuer !== claim.issuer) standing.push(p);
+  }
   return {
     author: claim.issuer,
     subject: claim.about,
@@ -88,6 +95,11 @@ export async function checkRecommendation(value) {
     time: claim.time,
     expires: claim.expires,
     proof,
-    record: { claim: claim.signed, ...(proof.length ? { proof: proof.map((p) => p.signed) } : {}) },
+    standing,
+    record: {
+      claim: claim.signed,
+      ...(proof.length ? { proof: proof.map((p) => p.signed) } : {}),
+      ...(standing.length ? { standing: standing.map((p) => p.signed) } : {}),
+    },
   };
 }
