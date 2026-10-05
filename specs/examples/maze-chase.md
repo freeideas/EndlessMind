@@ -1,6 +1,6 @@
 # Example: a small 2D maze chase
 
-A technical example of how an actor could make their own small game on the Endless Mind model described in [DESIGN.md](../DESIGN.md), and go from an idea to a game others can join. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
+How an actor makes a small game on the model in [DESIGN.md](../DESIGN.md), from an idea to a game others can join. Names are invented, and anything built should be the builder's own original work.
 
 ## Making it
 
@@ -9,7 +9,7 @@ A technical example of how an actor could make their own small game on the Endle
 3. **Forms are lent, not required.** The realm gives each visitor a runner in their character's color on entry and removes it on exit, so anyone can play at once.
 4. **Multiactor comes almost free.** Every visitor is a rival runner after the same seeds. The realm referees who collected what.
 5. **2D is just a viewpoint.** The realm's default renderer draws a flat top-down view of plain data. Anyone could write a 3D renderer for the same views.
-6. **Scores are realm state.** They live in the maze while its referee runs and are not saved or carried anywhere else.
+6. **Scores are realm state.** They live in the maze while its referee runs. Through a door to another maze (the `DOORS` list in its rules), a runner's seeds go along in a travel note.
 
 ## Putting it online
 

@@ -8,7 +8,7 @@ AI coding agents now let anyone make their own software just by describing it. E
 
 ## Playing
 
-Open a game's link in a portal you trust. A portal is the program that gets you into games; the one here runs in your web browser, and you are an actor in whatever you enter. Use **Open here** to paste a link into your usual portal without moving your keys. A link's server hint selects the helper server, while the portal and its keys stay put: it runs in your web browser, with nothing to install and no account to make. (Everything here applies equally to anything else people make, not only games.)
+Open a game's link in a portal you trust. A portal is the program that gets you into games; the one here runs in your web browser, with nothing to install and no account to make, and you are an actor in whatever you enter. Use **Open here** to paste a link into your usual portal: your keys stay put, and the link only says which helper server to use. (Everything here applies equally to anything else people make, not only games.)
 
 - The first time, the portal makes you a **character** (a name and a look you can change). Your character is yours: it is a secret key that lives in your browser, and you take it from game to game. Choose **Save my keys** for an offline key copy, or **Save full backup** to include locally held realm files and saved data; clearing your browser's data for the site deletes it otherwise. Anyone who gets that file can be you, so keep it like a password.
 - The portal's menu always offers a way to find more games, so no game can trap you.
@@ -58,11 +58,10 @@ The technical documents are in [specs/](specs/):
 | -------------------------------------- | ------------------------------------------------------- |
 | [DESIGN.md](specs/DESIGN.md)           | The full design and the reasons behind it               |
 | [PROTOCOL.md](specs/PROTOCOL.md)       | The shared way to connect, and how it grows in versions |
-| [WALKTHROUGH.md](specs/WALKTHROUGH.md) | Step by step, from making a game to a friend playing it |
 | [AGENT-GUIDE.md](specs/AGENT-GUIDE.md) | Instructions for AI agents that build games             |
 | [RUNTIME.md](specs/RUNTIME.md)         | What a game's code looks like and what it may do        |
 | [RUNNING.md](specs/RUNNING.md)         | Running the server, the portal and the host program        |
-| [examples/](specs/examples/)           | Worked examples: a city, blocks, a maze chase, a well   |
+| [examples/](specs/examples/)           | Worked examples: big worlds, a maze chase, a well       |
 
 ## License
 

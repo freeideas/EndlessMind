@@ -72,4 +72,4 @@ Tell the person you are helping:
 
 ## Optional persistence
 
-`init({ seed, storage })` can await `storage.get(key)` to restore JSON data. Rules call `storage.put(key, value)` to save it. Each realm has its own storage area; only its rules receive this interface. Creators choose save timing, schemas, migration and concurrency. A successful individual write commits its value; the platform does not automatically preserve game state or guarantee transactions across several values. Both browser and host rules may await storage, but only host rules have general network access. See [RUNTIME.md](RUNTIME.md).
+`init({ seed, storage })` can await `storage.get(key)` to restore JSON data, and the rules call `storage.put(key, value)` to save it. Nothing is saved automatically: the rules choose what to save and when. See "Saving data" in [RUNTIME.md](RUNTIME.md).

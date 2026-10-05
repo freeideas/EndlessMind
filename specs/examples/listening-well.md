@@ -1,6 +1,6 @@
 # Example: a well that answers
 
-A technical example of how a realm on the Endless Mind model described in [DESIGN.md](../DESIGN.md) can keep its rules private so they can ask an AI model. All names here are invented for this example. Anything built with Endless Mind should be the builder's own original work (see "Original work only" in the design).
+How a realm on the model in [DESIGN.md](../DESIGN.md) keeps its rules private so they can ask an AI model. Names are invented, and anything built should be the builder's own original work.
 
 ## Making it
 
