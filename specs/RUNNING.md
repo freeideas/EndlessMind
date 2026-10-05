@@ -37,7 +37,7 @@ The host program referees a realm with no browser, so the realm stays up as long
 - Keep key files inside `keys/`: the task may write only there. Whoever has a key file is that realm, so keep it like a password.
 - If another host explicitly starts on the same helper server, the most recent connection wins and the previous host stops. Different servers can host conflicting copies; copying a key copies its authority.
 
-To try the [listening well](examples/listening-well.md), with a server running: `deno task host --server http://localhost:8000 --realm examples/listening-well`. Its rules ask an AI model through OpenRouter (a service offering many models, some free) when `OPENROUTER_API_KEY` is set on that machine, and otherwise echo each question back. `WELL_MODEL` picks the model; the default, `openrouter/free`, uses any model that costs nothing. The key goes only to OpenRouter, never to the helper server or to visitors.
+To try the [listening well](examples/listening-well.md), with a server running: `deno task host --server http://localhost:8000 --realm examples/listening-well`. Its rules ask an AI model through OpenRouter (a service offering many models, some free) when `OPENROUTER_API_KEY` is set on that machine, and otherwise echo each question back. `WELL_MODEL` picks the model; the default, `openrouter/free`, lets OpenRouter pick whichever model costs nothing at the moment, so free models coming and going does not matter. A chosen model that is gone falls back to it, and a failed or empty answer is asked for again, twice at most. The key goes only to OpenRouter, never to the helper server or to visitors.
 
 ## Tests
 
