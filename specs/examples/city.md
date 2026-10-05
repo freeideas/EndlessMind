@@ -12,10 +12,10 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 ## Money and records
 
 - Currency is a balance in the city's state, shown to each visitor in their view.
-- A visitor's standing in the city (good standing, bans) is also city state. Neither can be carried to another realm: nothing crosses realms.
+- A visitor's standing in the city (good standing, bans) is also city state. Balances and standing stay in the city; another realm learns of them only from claims the city signs (see "Signed claims" in the design).
 
 ## What limits it today
 
-- **One referee carries everything.** A home connection can serve tens of visitors, not a whole city's worth. Splitting a city across several referees would need realms inside realms, which the reference portal does not have.
+- **One referee carries everything.** A home connection can serve tens of visitors, not a whole city's worth. A city could instead be split into districts, each its own realm with its own referee, joined by doors that carry a travel note (see "Doors between realms" in the design). Doors are not built yet.
 - **Fast movement waits on the referee.** Every move goes to the referee and back through a relay, so steering feels as fast as that round trip.
 - **The referee must stay up.** A busy city needs an always-on machine running the host program with its key, not a browser tab.

@@ -110,7 +110,7 @@ Anyone can make a new key in a moment, so a punishment that follows a key can be
 
 - **A claim proves who said it, never that it happened.** "Pulled the sword from the stone" signed by a realm shows only that the realm says so. That is why it is called a claim, and why its worth is the worth of whoever signed it.
 - **Two signatures show an agreement of sorts.** When the one a claim is about signs it too, both parties demonstrably hold the same claim. It still does not make the claim true. An actor's portal signs in return each claim it keeps, so the realm ends up holding claims signed by both; a claim nobody would put their name beside, such as a removal, stays one-sided, and that says something too.
-- **Any two parties.** Realm about actor is what the reference software issues today. The same signed claim serves a realm speaking of another realm ("I trust this realm"), an actor of a realm ("I play here"), or one actor of another inside a realm. Those need only a way to issue them, which is not built.
+- **Any two parties.** Realm about actor is what the reference software issues today. The same signed claim serves a realm speaking of another realm ("I trust this realm"), an actor of a realm ("I play here"), or one actor of another inside a realm. Those need only a way to issue them, which is not built; recommendations and travel notes between realms would use them (see "Finding realms").
 
 - **What one says is its issuer's business.** Something that happened ("pulled the sword from the stone", "entered", "won the spring award") lasts. How things stand ("in good standing") is given an end date and renewed while it holds, so it fades if the realm stops vouching.
 - **The actor keeps a record and shows what they choose.** The portal keeps the claims a realm signs for its actor, with the keys, like a list of past work. A realm can say in its manifest whose claims it would like to see; the portal asks the actor once, and then shows the ones held from those realms.
@@ -166,10 +166,48 @@ No realm code is ever added to the character, so a hostile realm cannot damage i
 
 ## Finding realms
 
-- **Realms announce themselves on servers,** signed by the realm's key, with tags ("maze"). Each server keeps what it is sent. Servers do not talk to each other and there is no shared lookup table, so an address alone does not say where a realm is: links carry the servers where it is announced as hints.
-- **The portal's "More realms" menu** searches the current server by tag and shows which realms are online. Releases with no key are listed too and always count as online.
+Where people go, what they do there and what they make next should be guided by reputation: which realms and actors are known to be good, in the eyes of whoever is asking. Nothing in the design can stop a realm from existing, and nothing should, because any power to remove a realm from the network would be abused. An offensive realm can exist; it simply goes unrecommended, so people who do not look for it rarely meet it. Only some of this is built (see "What is built today" below).
+
+**Principles**
+
+- **No gatekeeper.** No server, list or project decides which realms may exist. A server operator may refuse to store or relay a realm, which affects that server only; the realm carries on elsewhere.
+- **Recommend, never ban.** The useful thing to share is which realms are known to be good (see "Reputation is earned"). A list of bad realms is worth little, since whatever is on it can come back under a new key, and a shared one would become a tool for silencing.
+- **Each reader decides whose word counts.** There is no global score. Two actors can see quite different recommendations, and that is the point.
+- **The server makes no judgments.** It stores signed notes and answers plain questions about them. Weighing recommendations happens in each actor's portal, or in a directory the actor chose.
+
+**Recommendations are signed claims**
+
+- **Anyone can recommend.** An actor signs "I recommend this realm", with a short note and the servers where the realm can be found. A realm can sign the same about another realm, and so can anything inside a realm through that realm's key (a guide character, a notice board, a shop). These are the "realm about realm" and "actor about realm" claims described under "Signed claims", which need only a way to issue them.
+- **Proof of playing.** A recommendation can carry the claims the recommended realm signed for its author ("entered", "finished the third level"), so a reader can tell a player's word from a stranger's.
+- **Recommendations fade.** Like an announcement, a recommendation has an end date and is renewed while its author still means it, so the picture follows what people like now.
+- **Servers keep them as they keep announcements:** signed, limited in number for each address, and gone when they expire. A server can list recommendations for a realm, or by a given author, without judging any of them.
+- **Disliking stays personal.** "Not for me" hides a realm from that actor, and only a little from those who choose to follow them. Nobody can make a realm disappear for everyone.
+
+**Whose word counts**
+
+- **Start from people you chose.** An actor's portal begins with the actor's own visits and recommendations, adds the actors and realms the actor follows, then the ones they follow, giving each step less weight.
+- **Claims make fake crowds expensive.** Anyone can make a thousand new addresses, but those addresses hold no claims. A portal gives more weight to recommenders who hold lasting claims from realms the reader already trusts, which takes real time in real realms to earn.
+- **Directories are ordinary.** A directory, a server's front page or a hub realm is just one way of showing recommendations, made by whoever runs it. None is official, and an actor can use several or none.
+- **Server picks.** A server operator can list the realms they want to show off (their own or ones they like), and the portal shows those first, marked as picked by that server. Since a realm's links name its servers, every visitor a popular realm brings to a server sees that server's picks, which gives people a reason to run one.
+
+**Doors between realms**
+
+A game can be spread over many realms, each made by its own maker as one level or area of a shared world, with doors between them that actors walk through without leaving the game. A door is also the most natural recommendation there is.
+
+- **Doors are safe without asking.** Opening any realm is harmless by design: keys never leave the portal, and realm code runs in a sandbox. So a door needs no "are you sure?" each time; the portal shows a short note on arrival (the new realm's name) and offers a way back.
+- **The rules open a door.** When an actor walks into a door, the realm's rules tell the actor's portal where to go and where to arrive ("the north gate"). Doors belong to the rules, not the renderer, so they work whatever look the actor uses, and only the realm decides where its doors lead. A renderer may also offer the actor a link, which the portal shows in its own menu with the destination's name and picture and opens only when the actor chooses it.
+- **A travel note goes with the actor.** The realm being left signs a claim for that one trip: where the actor came from, through which door, and what they carry. The portal hands it to the next realm on entry without the usual question, since it says nothing beyond the trip itself. The next realm decides what it is worth: from a realm of its own game it may accept the three keys the actor carries; from a stranger it may only place the actor at the gate. So realms by different makers can share one game without trusting each other blindly.
+- **No loading screen.** A realm can tell the portal that an actor is near a door, and the portal fetches the next realm's files in the background. Realms of one game will often share a renderer, which the portal already has by its hash. The old realm stays on screen until the new one sends its first view.
+- **A shared game is a shared format,** for views and travel notes. Anyone can add a realm that speaks it, and doors are just links between realms, so a world can grow with no owner and no central server.
+
+**What is built today**
+
+- **Announcements on servers,** signed by the realm's key, with name, description, tags and a picture. Each server keeps what it is sent. Servers do not talk to each other and there is no shared lookup table, so an address alone does not say where a realm is: links carry the servers where it is announced as hints.
+- **Searching one server.** The portal's "Find realms" searches the chosen server by tag, or lists everything, online realms first, with each realm's picture and the start of its description. Releases with no key are listed too and always count as online.
 - **No server is worth attacking.** A torrent survives because no tracker matters. The same holds here when a realm is on several servers: the host program referees on all of them at once, the realm's signed announcement lists them, and a visit moves to the next when one goes quiet. A server can then be crude, full, selfish (serving only keys its operator knows), dishonest or gone, and the realm carries on elsewhere: a server that says another holder took the realm over costs the referee that server only. A browser tab that hosts uses one server.
-- **Anything else is built by others:** directories and lists of links. None is official. A realm cannot send an actor on to another realm; only the portal's menu and links do that.
+- **Links,** shared anywhere. A realm can show another realm's link as text, but cannot yet send an actor on: only links and the portal's menu do that. Recommendations, following, server picks, doors and travel notes are not built.
+
+**What it cannot do.** A recommendation does not make anything true, and claims cannot stop a group of real people from promoting something together. The defense is the ordinary one: each actor chooses whose taste to trust.
 
 ## Running in the browser: limits to design around
 
@@ -231,7 +269,7 @@ Endless Mind is a tool for making original things. The project never suggests, s
 
 Several actors play the [maze chase](examples/maze-chase.md) through one small server, as a lasting realm, in a room, or each alone from its release hash; the automated test does this with separate browsers (Chrome, Firefox and WebKit) on one computer. The host program referees realms with no browser, including the [listening well](examples/listening-well.md), whose private rules ask an AI model. Code: `portal/` (the browser portal), `shared/` (keys, hashes, signed messages, the relay client and the referee loop), `server/` (the helper server), `host/` (the host program), `examples/` (realm files) and `tests/`. How to run it is in [RUNNING.md](RUNNING.md); the calls realm code can make are in [RUNTIME.md](RUNTIME.md); the guide agents read is [AGENT-GUIDE.md](AGENT-GUIDE.md).
 
-**Further work:** publishing edited versions under the same key from the browser UI, an independent test of the agent guide, and tests by people on separate devices and networks. Not built yet from the ideas above: a browser tab hosting on several servers or under a referee pass (only the host program does both), a button for copying a realm's public files to another server (the protocol allows anyone to do it), a room carrying on under another actor when its host leaves, and direct connections between actors, which would make servers as light as a torrent tracker. Passphrase-protected backups and stronger execution isolation are possible additions, rather than guarantees about the correctness of realm code.
+**Further work:** publishing edited versions under the same key from the browser UI, an independent test of the agent guide, and tests by people on separate devices and networks. Not built yet from the ideas above: recommendations, server picks and doors between realms (see "Finding realms"), a browser tab hosting on several servers or under a referee pass (only the host program does both), a button for copying a realm's public files to another server (the protocol allows anyone to do it), a room carrying on under another actor when its host leaves, and direct connections between actors, which would make servers as light as a torrent tracker. Passphrase-protected backups and stronger execution isolation are possible additions, rather than guarantees about the correctness of realm code.
 
 **Success test:** two people on two machines, each with their own AI agent, each build something the other did not foresee, and they see each other meet.
 
