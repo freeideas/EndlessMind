@@ -3,17 +3,21 @@
 // It serves the portal's web page, keeps signed announcements and key-free
 // releases, stores the files they list by hash, and relays signed messages
 // between peers. It holds no game state and makes no rules. Everything it
-// keeps is signed or named by hash, so it cannot forge anything. See
+// keeps is signed or named by hash, so it cannot forge anything. It also keeps
+// signed recommendations, without judging them, and the operator's own picks. See
 // specs/DESIGN.md ("The server: a small program anyone can run").
 //
 // Usage: deno task start [--port 8000] [--hostname 0.0.0.0] [--data ./data]
 //                        [--cert cert.pem --key key.pem]
 //                        [--origin https://example.org[,https://other.example]]
+//                        [--picks picks.json]
 
 import { ANNOUNCEMENT_LIFETIME_MS, checkAnnouncement, isManifestBody, pictureType, releaseOfBody } from "../shared/announce.js";
 import { hashOf, isAddress, isHash, verify } from "../shared/crypto.js";
 import { canonicalJson, MAX_MESSAGE_BYTES, parseStrictJson, utf8 } from "../shared/encoding.js";
 import { PROTOCOL_VERSION } from "../shared/envelope.js";
+import { parseLink } from "../shared/link.js";
+import { checkRecommendation } from "../shared/recommend.js";
 
 const MAX_BLOB_BYTES = 2 * 1024 * 1024;
 const ROOT = new URL("..", import.meta.url);
@@ -53,6 +57,8 @@ const CONTENT_TYPES = {
  * @property {number} [maxRealmBytes]
  * @property {number} [sweepMs]  how long after a change unlisted files are deleted
  * @property {string[]} [origins]  the addresses this server goes by, e.g. "https://example.org"
+ * @property {number} [maxRecommendations]
+ * @property {string} [picksFile]  the operator's picks: `{ "note": "...", "picks": [{ "link": "emind:...", "note": "..." }] }`
  */
 
 /** @param {ServerOptions} options */
@@ -69,6 +75,8 @@ export async function startServer(options = {}) {
     messages: options.messagesPerSecond ?? 1000,
     traffic: options.bytesPerSecond ?? 4 * 1024 * 1024,
     realmBytes: options.maxRealmBytes ?? 32 * 1024 * 1024,
+    recommendations: options.maxRecommendations ?? 10_000,
+    perAuthor: 64,
   };
   const sockets = new Set();
   const blobs = new Map();
@@ -90,6 +98,11 @@ export async function startServer(options = {}) {
    * one, and posting it again renews it. @type {Map<string, { body: any, expires: number }>}
    */
   const releases = new Map();
+  /**
+   * Recommendations, one for each author and subject: the newest that author signed about it.
+   * @type {Map<string, import("../shared/recommend.js").Recommendation>}
+   */
+  const recommendations = new Map();
   try {
     const saved = JSON.parse(await Deno.readTextFile(announcementsFile));
     for (const value of Array.isArray(saved) ? saved : saved.announcements ?? []) {
@@ -100,6 +113,10 @@ export async function startServer(options = {}) {
     }
     for (const r of saved.releases ?? []) {
       if (isManifestBody(r?.body) && r.expires > Date.now()) releases.set(await releaseOfBody(r.body), r);
+    }
+    for (const value of saved.recommendations ?? []) {
+      const checked = await checkRecommendation(value);
+      if (checked) recommendations.set(`${checked.author}\n${checked.subject}`, checked);
     }
   } catch { /* first run, or unreadable file: start empty */ }
 
@@ -133,6 +150,7 @@ export async function startServer(options = {}) {
     // What a realm's key last said is remembered past its announcement, so an older pass stays refused.
     for (const [address, a] of announcements) if (a.body.expires < now) announcements.delete(address);
     for (const [hash, r] of releases) if (r.expires < now) releases.delete(hash);
+    for (const [key, r] of recommendations) if (r.expires < now) recommendations.delete(key);
     while (spoken.size > 10_000) spoken.delete(/** @type {string} */ (spoken.keys().next().value));
   }
 
@@ -184,7 +202,11 @@ export async function startServer(options = {}) {
       saving = (async () => {
         while (dirty) {
           dirty = false;
-          await Deno.writeTextFile(announcementsFile + ".tmp", JSON.stringify({ announcements: [...announcements.values()], releases: [...releases.values()] }));
+          await Deno.writeTextFile(announcementsFile + ".tmp", JSON.stringify({
+            announcements: [...announcements.values()],
+            releases: [...releases.values()],
+            recommendations: [...recommendations.values()].map((r) => r.record),
+          }));
           await Deno.rename(announcementsFile + ".tmp", announcementsFile);
         }
       })().finally(() => writing = false);
@@ -397,9 +419,10 @@ export async function startServer(options = {}) {
     }
     // Listing, optionally by tag. Realms with a referee online come first.
     const tag = url.searchParams.get("tag")?.toLowerCase();
+    const picked = new Set((await readPicks()).map((p) => parseLink(p.link).address));
     const list = [...announcements]
       .filter(([, a]) => a.body.expires >= now)
-      .map(([address, a]) => ({ address, ...shown(a.body.manifest.body), online: isOnline(address), time: a.time }))
+      .map(([address, a]) => ({ address, ...shown(a.body.manifest.body), online: isOnline(address), time: a.time, ...(picked.has(address) ? { picked: true } : {}) }))
       // A key-free release needs no referee, so it always counts as online. It is listed beside any realm
       // that announces the same files: were it hidden then, anyone could hide it by announcing them.
       .concat([...releases].filter(([, r]) => r.expires >= now).map(([hash, r]) => (
@@ -423,6 +446,62 @@ export async function startServer(options = {}) {
       ...(m.description ? { description: m.description.slice(0, 300) } : {}),
       ...(picture ? { picture: { hash: m.files[/** @type {string} */ (m.picture)], type: picture } } : {}),
     };
+  }
+
+  /**
+   * Recommendations: anyone may post one signed by its author, and read them by subject or by author. The
+   * server keeps the newest from each author about each subject and judges none of them.
+   * @param {Request} request
+   */
+  async function handleRecommend(request) {
+    const url = new URL(request.url);
+    if (request.method === "POST") {
+      const body = await readLimited(request, MAX_MESSAGE_BYTES);
+      if (!body) return json({ error: "too large" }, 413);
+      const checked = await checkRecommendation(parseStrictJson(new TextDecoder().decode(body)));
+      if (!checked) return json({ error: "invalid recommendation" }, 400);
+      expire();
+      const key = `${checked.author}\n${checked.subject}`, existing = recommendations.get(key);
+      if (existing && existing.time >= checked.time) return json({ error: "older than the one kept" }, 409);
+      if (!existing) {
+        if (recommendations.size >= limits.recommendations) return json({ error: "Recommendation quota reached" }, 507);
+        let count = 0;
+        for (const r of recommendations.values()) if (r.author === checked.author) count++;
+        if (count >= limits.perAuthor) return json({ error: `An author may keep at most ${limits.perAuthor} recommendations here.` }, 507);
+      }
+      recommendations.set(key, checked);
+      await saveAnnouncements();
+      return json({ ok: true });
+    }
+    const subject = url.searchParams.get("subject"), author = url.searchParams.get("author");
+    const now = Date.now();
+    const list = [...recommendations.values()]
+      .filter((r) => r.expires >= now && (!subject || r.subject === subject) && (!author || r.author === author))
+      .sort((a, b) => b.time - a.time)
+      .slice(0, 200)
+      .map((r) => r.record);
+    return json({ recommendations: list });
+  }
+
+  /** The operator's picks, read again on each request so editing the file needs no restart. */
+  async function readPicks() {
+    if (!options.picksFile) return [];
+    try {
+      const saved = JSON.parse(await Deno.readTextFile(options.picksFile));
+      /** @type {{ link: string, note?: string }[]} */
+      const picks = [];
+      for (const p of Array.isArray(saved?.picks) ? saved.picks.slice(0, 50) : []) {
+        try { parseLink(p.link); } catch { continue; }
+        picks.push({ link: p.link, ...(typeof p.note === "string" ? { note: p.note.slice(0, 280) } : {}) });
+      }
+      return picks;
+    } catch { return []; }
+  }
+
+  async function handlePicks() {
+    let note = "";
+    try { note = String(JSON.parse(await Deno.readTextFile(String(options.picksFile))).note ?? "").slice(0, 280); } catch { /* no note */ }
+    return json({ picks: await readPicks(), ...(note ? { note } : {}) });
   }
 
   /** @param {Request} request @param {string} hash */
@@ -492,6 +571,8 @@ export async function startServer(options = {}) {
       return response;
     }
     if (url.pathname === "/announce" || url.pathname.startsWith("/announce/")) return handleAnnounce(request);
+    if (url.pathname === "/recommend") return handleRecommend(request);
+    if (url.pathname === "/picks") return handlePicks();
     if (url.pathname.startsWith("/blob/")) return handleBlob(request, decodeURIComponent(url.pathname.slice(6)));
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
     return handleStatic(url);
@@ -507,7 +588,8 @@ export async function startServer(options = {}) {
   const server = Deno.serve(serveOptions, async (request) => {
     const url = new URL(request.url);
     if (url.pathname === "/ws") return handle(request);
-    const api = url.pathname === "/announce" || url.pathname.startsWith("/announce/") || url.pathname.startsWith("/blob/");
+    const api = url.pathname === "/announce" || url.pathname.startsWith("/announce/") || url.pathname.startsWith("/blob/") ||
+      url.pathname === "/recommend" || url.pathname === "/picks";
     if (!api) return handle(request);
     const cors = {"access-control-allow-origin":"*", "access-control-allow-methods":"GET, HEAD, POST, PUT, OPTIONS", "access-control-allow-headers":"content-type"};
     if (request.method === "OPTIONS") return new Response(null, {status:204, headers:cors});
@@ -593,6 +675,8 @@ if (import.meta.main) {
     bytesPerSecond: args["bytes-per-second"] ? Number(args["bytes-per-second"]) : undefined,
     maxRealmBytes: args["max-realm-mb"] ? Number(args["max-realm-mb"]) * 1024 * 1024 : undefined,
     origins: args.origin ? args.origin.split(",") : undefined,
+    maxRecommendations: args["max-recommendations"] ? Number(args["max-recommendations"]) : undefined,
+    picksFile: args.picks || undefined,
     cert: tls ? await Deno.readTextFile(args.cert) : undefined,
     key: tls ? await Deno.readTextFile(args.key) : undefined,
     onListen() {

@@ -100,6 +100,11 @@ export default {
             ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell);
             ctx.fillStyle = "#2b3d80";
             ctx.fillRect(ox + x * cell + 1, oy + y * cell + 1, cell - 2, cell - 2);
+          } else if (c === "D") {
+            // A door to another maze: a doorway of warm light.
+            const glow = 0.6 + 0.4 * Math.sin(now / 400);
+            ctx.fillStyle = `rgba(255, 210, 120, ${glow})`;
+            ctx.fillRect(ox + x * cell + cell * 0.15, oy + y * cell, cell * 0.7, cell);
           } else if (c === ".") {
             const pulse = 0.75 + 0.25 * Math.sin(now / 300 + x + y);
             ctx.fillStyle = `rgba(190, 255, 140, ${pulse})`;

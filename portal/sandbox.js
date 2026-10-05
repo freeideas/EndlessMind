@@ -48,6 +48,13 @@ function startRules(send, listen) {
           waiting.set(storageId, {resolve, reject});
           send({type:"claim", storageId, actor, says, days});
         }));
+        driver.onGo((actor, link, carry) => send({type:"go", actor, link, carry}));
+        driver.onNear((actor, link) => send({type:"near", actor, link}));
+        driver.onRecommend((link, note) => new Promise((resolve, reject) => {
+          const storageId = ++nextStorageId;
+          waiting.set(storageId, {resolve, reject});
+          send({type:"recommend", storageId, link, note});
+        }));
         value = {rate: driver.ticksPerSecond, repeatable: driver.repeatable};
       } else if (m.type === "enter") value = await driver.enter(m.actor, m.character, m.claims);
       else if (m.type === "replay") value = driver.replay(m.check, m.me, m.adopt);
@@ -79,7 +86,8 @@ addEventListener('message', async e => {
     if (m.type === 'load') {
       const renderer = await loadModule(m.code);
       await renderer.start(document.body, {me:m.me, character:m.character,
-        onView(fn) { viewListener = fn; }, act(action) { send({type:'act',action}); }});
+        onView(fn) { viewListener = fn; }, act(action) { send({type:'act',action}); },
+        offer(link) { send({type:'offer', link: String(link).slice(0, 2048)}); }});
       send({type:'reply', id:m.id});
     } else if (m.type === 'view') viewListener(m.view);
   } catch (e) { m.id ? send({type:'reply',id:m.id,error:String(e)}) : report(e); }
@@ -166,7 +174,21 @@ export async function startRules(container, code, storage, signal) {
   let onRemove = () => {};
   /** @type {(actor: string, says: unknown, days?: number) => Promise<unknown>} */
   let onClaim = () => Promise.resolve(null);
+  /** @type {(actor: string, link: string, carry: unknown) => void} */
+  let onGo = () => {};
+  /** @type {(actor: string, link: string) => void} */
+  let onNear = () => {};
+  /** @type {(link: string, note: unknown) => Promise<unknown>} */
+  let onRecommend = () => Promise.resolve(null);
   f.listen((m) => {
+    if (m.type === "go") onGo(m.actor, m.link, m.carry);
+    if (m.type === "near") onNear(m.actor, m.link);
+    if (m.type === "recommend") {
+      Promise.resolve().then(() => onRecommend(m.link, m.note)).then(
+        (value) => f.post({ type: "stored", storageId: m.storageId, value }),
+        (error) => f.post({ type: "stored", storageId: m.storageId, error: String(error) }),
+      );
+    }
     if (m.type === "views") onViews(m.views, m.checks);
     if (m.type === "remove") onRemove(m.actor, m.reason);
     if (m.type === "claim") {
@@ -209,6 +231,18 @@ export async function startRules(container, code, storage, signal) {
       onClaim(fn) {
         onClaim = fn;
       },
+      /** @param {(actor: string, link: string, carry: unknown) => void} fn */
+      onGo(fn) {
+        onGo = fn;
+      },
+      /** @param {(actor: string, link: string) => void} fn */
+      onNear(fn) {
+        onNear = fn;
+      },
+      /** @param {(link: string, note: unknown) => Promise<unknown>} fn */
+      onRecommend(fn) {
+        onRecommend = fn;
+      },
       /** @param {string} actor @param {unknown} action */
       act(actor, action) {
         f.post({ type: "act", actor, action });
@@ -240,13 +274,17 @@ export async function startRules(container, code, storage, signal) {
   }
 }
 
-/** @param {HTMLElement} container @param {string} code @param {string} me @param {unknown} character @param {(action: unknown) => void} onAction @param {AbortSignal} [signal] */
-export async function startRenderer(container, code, me, character, onAction, signal) {
+/**
+ * @param {HTMLElement} container @param {string} code @param {string} me @param {unknown} character @param {(action: unknown) => void} onAction
+ * @param {AbortSignal} [signal] @param {(link: string) => void} [onOffer]  the renderer offers the actor a link, which the portal shows
+ */
+export async function startRenderer(container, code, me, character, onAction, signal, onOffer) {
   const f = makeFrame(container, RENDERER, true, signal);
   f.frame.className = "renderer";
   f.frame.setAttribute("allow", "fullscreen; gamepad");
   f.listen((m) => {
     if (m.type === "act") onAction(m.action);
+    if (m.type === "offer" && typeof m.link === "string") onOffer?.(m.link);
   });
   try {
     await f.ready;

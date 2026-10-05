@@ -3,6 +3,11 @@ import { ENTERING, lock, newExchangeKey, sessionKey, TO_REALM, TO_VISITOR, unloc
 import { randomId } from "./encoding.js";
 import { checkShown, makeClaim } from "./claim.js";
 import { verify } from "./crypto.js";
+import { parseLink } from "./link.js";
+import { makeRecommendation } from "./recommend.js";
+
+/** A travel note counts for ten minutes: long enough to walk through a door, too short to hoard. */
+export const TICKET_MS = 10 * 60 * 1000;
 
 /** @typedef {import("./relay.js").Relay | import("./relay.js").Relays} Relay */
 /** @typedef {import("./envelope.js").Envelope} Envelope */
@@ -14,6 +19,11 @@ import { verify } from "./crypto.js";
  *   `claims` are the ones the visitor chose to show, already checked
  * @property {(fn: (actor: string, says: unknown, days?: number) => Promise<unknown>) => void} [onClaim]  the
  *   rules want a claim signed about an actor; the function returns the signed claim
+ * @property {(fn: (actor: string, link: string, carry: unknown) => void) => void} [onGo]  the rules opened a door
+ *   for an actor: send them to the realm at `link`, carrying `carry` in their travel note
+ * @property {(fn: (actor: string, link: string) => void) => void} [onNear]  an actor is near a door to `link`
+ * @property {(fn: (link: string, note: unknown) => Promise<unknown>) => void} [onRecommend]  the rules recommend
+ *   the realm or actor at `link`; the function returns the signed recommendation
  * @property {(actor: string, action: unknown) => void} act
  * @property {(actor: string) => void} leave
  * @property {() => void} step
@@ -32,13 +42,15 @@ import { verify } from "./crypto.js";
 /**
  * @param {{address: string, keys: CryptoKeyPair, name: string, release: string, rules: RulesDriver,
  * relay: Relay, announce: () => Promise<void>, status: (text: string) => void, onStop?: () => void,
- * realm?: string, pass?: Envelope, exchange?: { privateKey: CryptoKey, publicText: string } | null}} options
+ * realm?: string, pass?: Envelope, exchange?: { privateKey: CryptoKey, publicText: string } | null,
+ * recommend?: (record: { claim: Envelope }) => Promise<void>}} options
  *   `address` and `keys` are the referee's. `realm` is the address the realm is known by and `pass` its word
  *   that this referee may speak for it, when they differ. `exchange` is the key pair whose public half the
  *   realm's announcement carries, so visitors can lock the private part of their entry requests.
+ *   `recommend` posts a recommendation the rules made to the servers the realm is announced on.
  */
 export async function referee(
-  { address, keys, name, release, rules, relay, announce, status, onStop, realm = address, pass, exchange },
+  { address, keys, name, release, rules, relay, announce, status, onStop, realm = address, pass, exchange, recommend },
 ) {
   // A realm has one referee on a server: holding the address alone replaces any earlier one.
   await relay.addKey(keys, true);
@@ -78,24 +90,54 @@ export async function referee(
     if (!stopped && (p || entering.has(actor)) && list.length < 16) owed.set(actor, [...list, signed]);
     return signed;
   });
+  /**
+   * Doors the rules opened for actors, and doors actors are near, sent with each actor's next message.
+   * @type {Map<string, { go?: { link: string, ticket: Envelope }, near?: string }>}
+   */
+  const travel = new Map();
+  rules.onGo?.((actor, link, carry) => {
+    let to;
+    try { to = parseLink(link); } catch (e) { return console.error("[rules] go:", String(e)); }
+    // The travel note says where the actor came from (this realm signs it), where it is for, and what the
+    // rules chose to carry. The next realm decides what it is worth.
+    Promise.resolve()
+      .then(() => makeClaim(keys, actor, { travel: { to: to.address, ...(carry !== undefined ? { carry } : {}) } }, TICKET_MS, pass))
+      .then((ticket) => { if (!stopped && actors.has(actor)) travel.set(actor, { ...travel.get(actor), go: { link, ticket } }); })
+      .catch((e) => console.error("[rules] go:", String(e)));
+  });
+  rules.onNear?.((actor, link) => {
+    try { parseLink(link); } catch { return; }
+    if (!stopped && actors.has(actor)) travel.set(actor, { ...travel.get(actor), near: link });
+  });
+  rules.onRecommend?.(async (link, note) => {
+    const to = parseLink(link);
+    const claim = await makeRecommendation(keys, to.address, { note, via: to.servers }, pass);
+    await recommend?.({ claim });
+    return claim;
+  });
   rules.onViews((views, checks) => {
     if (stopped) return;
     // With repeatable rules every actor hears every tick, view or not, so their copy never misses a move.
     for (const actor of owed.keys()) if (!actors.has(actor) && !entering.has(actor)) owed.delete(actor);
+    for (const actor of travel.keys()) if (!actors.has(actor)) travel.delete(actor);
     /** @param {string} actor */
     const unsent = (actor) => {
       const p = actors.get(actor);
       return p ? (owed.get(actor) ?? []).filter((signed) => !p.handed.has(signed.sig)) : [];
     };
     const waiting = [...owed.keys()].filter((actor) => unsent(actor).length);
-    for (const actor of new Set([...Object.keys(checks ?? views), ...waiting])) {
+    for (const actor of new Set([...Object.keys(checks ?? views), ...waiting, ...travel.keys()])) {
       const p = actors.get(actor);
       // Until the welcome has gone out the session's key may not be ready, and a view must never go unlocked.
       if (!p?.welcomed) continue;
       const seq = ++p.seq, cipher = p.cipher;
       const claims = unsent(actor);
       for (const signed of claims) p.handed.add(signed.sig);
+      const door = travel.get(actor);
+      travel.delete(actor);
       const inner = {
+        ...(door?.go ? { go: door.go } : {}),
+        ...(door?.near ? { near: door.near } : {}),
         ...(Object.hasOwn(views, actor) ? { view: views[actor] } : {}),
         ...(checks && Object.hasOwn(checks, actor) ? { check: checks[actor] } : {}),
         ...(claims.length ? { claims } : {}),
@@ -156,8 +198,9 @@ export async function referee(
           const shown = Array.isArray(b.shown) ? b.shown.slice(0, 16) : [];
           const seen = new Set();
           pending = Promise.all(shown.map((/** @type {unknown} */ one) => checkShown(one, `${realm}\n${env.from}`, env.from).catch(() => null)))
-            // The same claim shown twice counts once.
-            .then((checked) => checked.filter((e) => e && !seen.has(e.signed.sig) && seen.add(e.signed.sig)))
+            // The same claim shown twice counts once, and a travel note counts only in the realm it is for.
+            .then((checked) => checked.filter((e) => e && !seen.has(e.signed.sig) && seen.add(e.signed.sig) &&
+              (/** @type {any} */ (e.says)?.travel === undefined || /** @type {any} */ (e.says).travel?.to === realm)))
             .then((checked) => rules.enter(env.from, b.character ?? {}, checked))
             .catch((error) => ({ ok: false, reason: String(error) }));
           entering.set(env.from, pending);
@@ -299,6 +342,31 @@ export async function directRules(rules, storage, report = (error) => console.er
   let onRemove = () => {};
   /** @type {(actor: string, says: unknown, days?: number) => Promise<unknown>} */
   let onClaim = () => Promise.resolve(null);
+  /** @type {(actor: string, link: string, carry: unknown) => void} */
+  let onGo = () => {};
+  /** @type {(actor: string, link: string) => void} */
+  let onNear = () => {};
+  /** @type {(link: string, note: unknown) => Promise<unknown>} */
+  let onRecommend = () => Promise.resolve(null);
+  /**
+   * The rules open a door: the actor is sent to the realm at `link`, with a travel note this realm signs.
+   * Copies of repeatable rules on actors' devices send nobody anywhere, so the rules must not change the
+   * state on what this does. @param {string} actor @param {string} link @param {unknown} [carry]
+   */
+  const go = (actor, link, carry) => {
+    if (stopped || typeof actor !== "string" || typeof link !== "string" || !actors.has(actor)) return;
+    try { onGo(actor, link, carry === undefined ? undefined : JSON.parse(JSON.stringify(carry))); } catch (e) { report(e); }
+  };
+  /** The rules say an actor is near a door, so their portal can fetch what lies behind it. @param {string} actor @param {string} link */
+  const near = (actor, link) => {
+    if (stopped || typeof actor !== "string" || typeof link !== "string" || !actors.has(actor)) return;
+    try { onNear(actor, link); } catch (e) { report(e); }
+  };
+  /** The realm recommends another realm, or an actor. Resolves to the signed recommendation, or null. @param {string} link @param {unknown} [note] */
+  const recommend = (link, note) => {
+    if (stopped || typeof link !== "string") return Promise.resolve(null);
+    return Promise.resolve().then(() => onRecommend(link, typeof note === "string" ? note : undefined)).catch((error) => (report(error), null));
+  };
   /**
    * The rules ask for a signed claim about an actor. It resolves to the signed claim, which the
    * rules may keep, or to null if it could not be signed.
@@ -344,7 +412,7 @@ export async function directRules(rules, storage, report = (error) => console.er
     onRemove(actor, typeof reason === "string" ? reason : "");
   };
   const seed = Math.floor(Math.random() * 2 ** 31);
-  let state = rules.init ? await rules.init({ seed, storage, remove, claim }) : {};
+  let state = rules.init ? await rules.init({ seed, storage, remove, claim, go, near, recommend }) : {};
   /** Apply one noted move to this copy, exactly as the referee did. @param {unknown[]} input */
   const apply = ([kind, actor, data, more]) => {
     if (kind === "enter") {
@@ -462,6 +530,15 @@ export async function directRules(rules, storage, report = (error) => console.er
     },
     onClaim(fn) {
       onClaim = fn;
+    },
+    onGo(fn) {
+      onGo = fn;
+    },
+    onNear(fn) {
+      onNear = fn;
+    },
+    onRecommend(fn) {
+      onRecommend = fn;
     },
     stop() {
       stopped = true;

@@ -7,7 +7,9 @@
 another opens its link, and both see each other move. Then: sandboxed code
 cannot reach the network, a guest carries on after the host reloads, and a
 realm's saved keys let another browser take over hosting. Last, a browser
-visits a realm with private rules that the host program referees.
+visits a realm with private rules that the host program referees, and an
+actor walks through a door between two realms, recommends the second, and a
+friend who follows them finds it among their suggestions.
 
 Usage: uv run tests/e2e.py [chromium|firefox|webkit ...]
 Starts its own server on a spare port with a temporary data folder. The first
@@ -62,6 +64,7 @@ def run(browser_name: str, base: str, remote: str, well_link: str) -> None:
             alone_and_room(browser, base, link_of(host))
             well(guest, well_link)
             regressions(browser, base, remote)
+            doors_and_recommendations(browser, base)
         except Exception:
             print("errors:", errors)
             print("host status:", host.evaluate("document.getElementById('status')?.textContent"), "| guest:", guest.evaluate("document.getElementById('status')?.textContent"))
@@ -349,6 +352,71 @@ def regressions(browser, base, remote):
     assert rejected, 'broken rules did not reject and clean up'
     page.context.close()
     moved.context.close()
+
+
+DOOR_RULES = """const DOOR = "__DOOR__", AUTO = __AUTO__;
+let go;
+export default {
+  init(o) { go = o.go; return { notes: {} }; },
+  enter(s, who, character, claims) {
+    s.notes[who] = claims.filter((c) => c.says?.travel).map((c) => ({ issuer: c.issuer, to: c.says.travel.to, carry: c.says.travel.carry }));
+  },
+  act(s, who, a) { if (a.go) go(who, DOOR, { seeds: 3 }); },
+  view(s, who) { return { notes: s.notes[who] ?? [], auto: AUTO }; },
+};"""
+# Walks through the door on its own, as soon as a view says there is one.
+DOOR_RENDERER = """export default { start(root, game) {
+  let sent = false;
+  game.onView((v) => { root.textContent = JSON.stringify(v); if (v.auto && !sent) { sent = true; game.act({ go: true }); } });
+} };"""
+
+
+def doors_and_recommendations(browser, base):
+    owner = browser.new_context().new_page()
+    owner.goto(base)
+    owner.wait_for_selector('body[data-ready]')
+    publish = '''async ({name, rules, renderer}) => {
+      const { publish } = await import('/realms.js');
+      const enc = new TextEncoder();
+      return (await publish(new Map([
+        ['realm.json', enc.encode(JSON.stringify({ name, main: 'rules.js', renderer: 'view.js' }))],
+        ['rules.js', enc.encode(rules)], ['view.js', enc.encode(renderer)],
+      ]), location.origin)).address;
+    }'''
+    nowhere = owner.evaluate("import('/shared/crypto.js').then(async m => m.addressOf((await m.generateKeyPair()).publicKey))")
+    link = lambda a: f"emind:{a}?via={base.replace(':', '%3A').replace('/', '%2F')}"
+    hall = owner.evaluate(publish, {'name': 'Lantern Hall', 'rules': DOOR_RULES.replace('__DOOR__', link(nowhere)).replace('__AUTO__', 'false'), 'renderer': DOOR_RENDERER})
+    yard = owner.evaluate(publish, {'name': 'Lantern Yard', 'rules': DOOR_RULES.replace('__DOOR__', link(hall)).replace('__AUTO__', 'true'), 'renderer': DOOR_RENDERER})
+    owner.reload()
+    owner.wait_for_selector('body[data-ready]')
+    for realm in (hall, yard):
+        owner.click(f'#owned li[data-address="{realm}"] .host-toggle')
+        wait_for(lambda: owner.locator(f'#owned li[data-address="{realm}"] .host-toggle').inner_text() == 'Stop hosting', what='hosting')
+
+    walker = browser.new_context().new_page()
+    walker.on('dialog', lambda d: d.accept('A warm hall') if d.type == 'prompt' else d.accept())
+    walker.goto(f"{base}/#{link(yard)}")
+    # The yard's door opens by itself; the portal follows it, and the hall is shown the yard's travel note.
+    wait_for(lambda: hall in walker.evaluate('location.hash'), what='walking through the door')
+    wait_for(lambda: walker.evaluate('globalThis.endlessmindLastView?.notes?.[0]') == {'issuer': yard, 'to': hall, 'carry': {'seeds': 3}}, what='the travel note')
+    assert walker.locator('iframe.renderer').count() == 1, 'the realm left behind was not closed'
+    walker.click('#recommend')
+    wait_for(lambda: walker.locator('#recommend').inner_text() == 'Recommended', what='recommending')
+    me = walker.evaluate("Promise.all([import('/finding.js'), import('/character.js')]).then(async ([f, c]) => (await f.lasting(await c.myCharacter())).address)")
+    found = walker.evaluate("a => fetch('/recommend?subject=' + a).then(r => r.json()).then(j => j.recommendations.length)", hall)
+    assert found == 1, 'the recommendation did not reach the server'
+
+    friend = browser.new_context().new_page()
+    friend.goto(base)
+    friend.wait_for_selector('body[data-ready]')
+    friend.fill('#follow-what', me)
+    friend.fill('#follow-name', 'Walker')
+    friend.click('#follow-form button')
+    # Before following anyone the friend may already see it, as a stranger's word; then it is the walker's.
+    wait_for(lambda: 'Lantern Hall' in friend.locator('#suggestions').inner_text() and 'Walker' in friend.locator('#suggestions').inner_text(),
+             what='a suggestion from someone followed')
+    for page in (owner, walker, friend):
+        page.context.close()
 
 
 def main() -> None:

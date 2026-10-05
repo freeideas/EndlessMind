@@ -7,9 +7,10 @@ import { Relay } from "../shared/relay.js";
 import { referee } from "../shared/referee.js";
 import { relayUrl, visit } from "../shared/visitor.js";
 import { makeChecker } from "../shared/check.js";
-import { showClaim } from "../shared/claim.js";
+import { checkClaim, showClaim } from "../shared/claim.js";
+import { parseLink } from "../shared/link.js";
 import { held, keep } from "./claims.js";
-import { announce, fetchBytes, fetchFile, lookUp, postRelease, publishOwned } from "./realms.js";
+import { announce, fetchBytes, fetchFile, lookUp, postRecommendation, postRelease, publishOwned } from "./realms.js";
 import { startRenderer, startRules } from "./sandbox.js";
 import { put, realmStorage } from "./store.js";
 
@@ -82,15 +83,52 @@ async function firstOf(servers, attempt, signal, nothing) {
   throw servers.length === 1 && last ? last : new Error(nothing);
 }
 
+/**
+ * What lies behind doors the actor is near, fetched ahead so walking through needs no wait. Files are
+ * named by hash and kept by the browser's own cache once fetched; the announcement is kept here a minute.
+ * @type {Map<string, { at: number, server: string, value: Promise<Awaited<ReturnType<typeof lookUp>>> }>}
+ */
+const ahead = new Map();
+
+/** Fetch what a door leads to, in the background. @param {string} link */
+export function prefetch(link) {
+  let to;
+  try { to = parseLink(link); } catch { return; }
+  const known = ahead.get(to.address);
+  if (known && Date.now() - known.at < 60_000) return;
+  const server = to.servers[0];
+  const value = lookUp(to.address, server).catch(() => null);
+  ahead.set(to.address, { at: Date.now(), server, value });
+  while (ahead.size > 16) ahead.delete(/** @type {string} */ (ahead.keys().next().value));
+  value.then((found) => {
+    if (!found) return;
+    const m = found.manifest;
+    // The renderer and public rules: the files a visit needs first.
+    for (const file of [m.renderer, m.main]) if (file && m.files[file]) fetchBytes(m.files[file], server).catch(() => {});
+  });
+}
+
+/** An announcement fetched ahead for this realm on this server, if still fresh. @param {string} address @param {string} server */
+function fetchedAhead(address, server) {
+  const known = ahead.get(address);
+  if (!known || known.server !== server || Date.now() - known.at > 60_000) return null;
+  ahead.delete(address);
+  return known.value;
+}
+
 /** @param {string} address @param {import('./character.js').Character} character @param {HTMLElement} container
  * @param {{servers: string[], status: (text: string, ms?: number) => void, release?: string, signal: AbortSignal,
  *   mayShow?: (name: string, realms: string[]) => Promise<string[]>, renderer?: string,
- *   localLook?: { name: string, code: string }}} ui
+ *   localLook?: { name: string, code: string }, ticket?: import("../shared/envelope.js").Envelope,
+ *   onGo?: (link: string, ticket: import("../shared/envelope.js").Envelope) => void, onOffer?: (link: string) => void,
+ *   onFirstView?: () => void}} ui
  *   `renderer` is the hash of the renderer to use in place of the realm's own, when the actor or a link chose one;
- *   `mayShow` asks the actor which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this portal remembers for the realm */
+ *   `mayShow` asks the actor which of these realms' claims this realm may be shown; `servers` are tried in turn: the link's hints, then any this portal remembers for the realm;
+ *   `ticket` is the travel note from a door that led here, shown to this realm without asking; `onGo` is told when the realm opens a
+ *   door, `onOffer` when its renderer offers a link, and `onFirstView` when the first view arrives */
 export async function play(address, character, container, ui) {
   if (isHash(address)) return playAlone(address, character, container, ui);
-  const { server, value: found } = await firstOf(ui.servers, (s) => lookUp(address, s, ui.signal), ui.signal,
+  const { server, value: found } = await firstOf(ui.servers, async (s) => await fetchedAhead(address, s) ?? lookUp(address, s, ui.signal), ui.signal,
     "No realm with this address is announced on the servers this link names.");
   // The realm's own signed list of where it is: one working hint leads to the rest, now and next time.
   const servers = [...new Set([server, ...found.servers, ...ui.servers])];
@@ -126,6 +164,16 @@ export async function play(address, character, container, ui) {
       shown.push(signed.to === me ? { claim: signed } : await showClaim(by, signed, `${address}\n${me}`));
     }
   }
+  // A door that led here: its travel note is about this one trip, and is for this realm, so it is shown
+  // without asking. It goes first, ahead of anything else shown.
+  const ticket = ui.ticket && await checkClaim(ui.ticket);
+  if (ticket && /** @type {any} */ (ticket.says)?.travel?.to === address) {
+    const by = (await addressesIn(character.secret, ticket.issuer)).get(ticket.about);
+    if (by) {
+      shown.unshift(ticket.about === me ? { claim: ticket.signed } : await showClaim(by, ticket.signed, `${address}\n${me}`));
+      shown.splice(16);
+    }
+  }
   ui.signal.throwIfAborted();
   /** @type {Awaited<ReturnType<typeof visit>> | undefined} */
   let session;
@@ -143,7 +191,9 @@ export async function play(address, character, container, ui) {
       session?.act(action);
     },
     ui.signal,
+    (link) => ui.onOffer?.(link),
   );
+  let viewed = false;
   try {
     if (manifest.main) {
       // Public rules that are repeatable can be checked: this portal runs its own copy and compares.
@@ -171,7 +221,13 @@ export async function play(address, character, container, ui) {
       onView: (view) => {
         /** @type {any} */ (globalThis).endlessmindLastView = view;
         renderer.show(view);
+        if (!viewed) {
+          viewed = true;
+          ui.onFirstView?.();
+        }
       },
+      onGo: ({ link, ticket }) => ui.onGo?.(link, ticket),
+      onNear: prefetch,
       shown,
       enterKey: found.key,
       onClaim: (signed) => keep(address, me, signed),
@@ -317,6 +373,7 @@ async function runReferee(realm, rules, server, renew, status, onStop) {
       rules,
       relay,
       announce: () => renew(exchange?.publicText),
+      recommend: (record) => postRecommendation(record, server),
       status,
       onStop: () => {
         relay.close();

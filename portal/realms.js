@@ -96,6 +96,12 @@ export async function postRelease(body, server = location.origin) {
   if (!response.ok) throw new Error(`Posting the release failed: ${(await response.json()).error}`);
 }
 
+/** Post a signed recommendation to a server. @param {{ claim: unknown, proof?: unknown[] }} record @param {string} [server] */
+export async function postRecommendation(record, server = location.origin) {
+  const response = await fetch(new URL("/recommend", server), { method: "POST", body: JSON.stringify(record) });
+  if (!response.ok) throw new Error(`Recommending failed: ${(await response.json()).error}`);
+}
+
 /** @param {string} name @param {Uint8Array<ArrayBuffer>} bytes @param {string} [server] */
 export async function upload(name, bytes, server = location.origin) {
   const hash = await hashOf(bytes);
@@ -169,6 +175,7 @@ export async function fetchFile(hash, server = location.origin, signal) {
  * @property {string[]} tags
  * @property {boolean} online
  * @property {boolean} [alone]
+ * @property {boolean} [picked]  the server's operator picked it
  */
 
 /** @param {string} [tag] @param {string} [server] @returns {Promise<Listed[]>} */

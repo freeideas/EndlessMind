@@ -1,7 +1,7 @@
 // Lantern Maze: a second renderer for the same views, in plain text. It shows
 // that how a realm looks is separate from the realm: the rules send the same
 // data, and this draws it as letters. A portal lets the actor choose.
-//   #  wall     .  seed     @  you     o  another runner     S  lantern spirit
+//   #  wall     .  seed     @  you     o  another runner     S  lantern spirit     D  door to another maze
 
 export default {
   /**

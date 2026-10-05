@@ -5,7 +5,10 @@
 
 import { myCharacter, updateCharacter } from "./character.js";
 import { exampleFiles, fetchBytes, ownedRealms, publish, publishOwned, search, serverOrigin } from "./realms.js";
-import { MAX_PICTURE_BYTES } from "../shared/announce.js";
+import { MAX_PICTURE_BYTES, pictureType } from "../shared/announce.js";
+import { isAddress } from "../shared/crypto.js";
+import { makeLink, parseLink } from "../shared/link.js";
+import { allMine, describe, follow, following, lasting, mine, picks, readAddress, renewMine, say, suggestions, unfollow } from "./finding.js";
 import { play, startHosting, startRoom } from "./session.js";
 import { loadKeys, saveKeys } from "./keyfile.js";
 import { askToPersist, get, list, put } from "./store.js";
@@ -109,6 +112,135 @@ function loadPicture(img, picture, server) {
   seen.observe(img);
 }
 
+/**
+ * One realm in a list: its picture, name, tags and the start of its description, and anything more.
+ * @param {{ address: string, name: string, tags?: string[], description?: string, picture?: { hash: string, type: string },
+ *   online?: boolean, alone?: boolean }} r @param {string[]} servers where it is found
+ * @param {(Node | string)[]} [more]
+ */
+function realmItem(r, servers, more = []) {
+  const img = /** @type {HTMLImageElement} */ (el("img", { class: "picture", alt: "" }));
+  if (r.picture) loadPicture(img, r.picture, servers[0]);
+  return el("li", { class: "realm" }, [
+    img,
+    el("div", {}, [
+      el("div", { class: "row" }, [
+        el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
+        el("a", { href: realmLink(r.address, undefined, servers) }, [r.alone ? `${r.name} (play alone)` : r.name]),
+        el("span", { class: "tags" }, [(r.tags ?? []).join(", ")]),
+      ]),
+      ...(r.description ? [el("p", { class: "description" }, [r.description.slice(0, 300)])] : []),
+      ...more,
+    ]),
+  ]);
+}
+
+/** A realm's listing from its checked announcement. @param {string} address @param {Awaited<ReturnType<typeof describe>>} d */
+function listed(address, d) {
+  const m = /** @type {NonNullable<typeof d>} */ (d).found.manifest;
+  const type = m.picture ? pictureType(m.picture) : undefined;
+  return {
+    address, name: m.name, tags: m.tags, description: m.description, online: d?.found.online,
+    ...(m.picture && type ? { picture: { hash: m.files[m.picture], type } } : {}),
+  };
+}
+
+/** Servers this portal has visited realms on, most recent first. @returns {Promise<string[]>} */
+async function usedServers() {
+  return (await get("used-servers").catch(() => [])) ?? [];
+}
+
+/** @param {string} server */
+async function noteServer(server) {
+  await put("used-servers", [server, ...(await usedServers()).filter((s) => s !== server)].slice(0, 8)).catch(() => {});
+}
+
+/** The picks of the chosen server and of the servers most recently used. */
+async function showPicks() {
+  const list = $("picks");
+  const servers = [...new Set([selectedServer, ...(await usedServers())])].slice(0, 4);
+  const items = [];
+  for (const server of servers) {
+    const { note, picks: chosen } = await picks(server);
+    const host = new URL(server).host;
+    for (const p of chosen) {
+      const d = await describe(p.address, p.servers);
+      if (!d) continue;
+      items.push(realmItem(listed(p.address, d), [d.server, ...p.servers], [
+        el("p", { class: "voices" }, [`Picked by ${host}${p.note ? `: "${p.note}"` : note ? ` (${note})` : ""}`]),
+      ]));
+    }
+  }
+  list.replaceChildren(...items);
+  if (!items.length) list.append(el("li", {}, ["None of the servers you use has picked any realms."]));
+}
+
+/** Suggestions weighed from the actors and realms this actor follows. */
+async function showSuggestions() {
+  const list = $("suggestions");
+  const followedNow = new Set((await following()).map((f) => f.address));
+  const found = await suggestions(character, [...new Set([selectedServer, ...(await usedServers())])].slice(0, 4));
+  const items = [];
+  for (const s of found.slice(0, 15)) {
+    const d = await describe(s.address, s.via);
+    if (!d) continue;
+    const voices = el("p", { class: "voices" }, ["Recommended by "]);
+    s.voices.slice(0, 4).forEach((v, i) => {
+      if (i) voices.append(", ");
+      voices.append(v.name + (v.played ? " (has played it)" : "") + (v.note ? `: "${v.note}"` : ""));
+      if (!followedNow.has(v.author) && isAddress(v.author)) {
+        const b = el("button", { type: "button", title: "Count their recommendations for you" }, ["Follow"]);
+        b.onclick = async () => { await follow(v.author, "", []); status("Following. Their recommendations now count for you."); showHome(); };
+        voices.append(" ", b);
+      }
+    });
+    if (s.voices.length > 4) voices.append(` and ${s.voices.length - 4} more`);
+    items.push(realmItem(listed(s.address, d), [d.server, ...s.via], [voices]));
+  }
+  list.replaceChildren(...items);
+  if (!items.length) list.append(el("li", {}, ["Nothing yet. Follow actors or realms whose taste you trust, or recommend realms you like."]));
+}
+
+/** Who this actor follows, and what this actor has said. */
+async function showFollowing() {
+  const list = $("following");
+  list.replaceChildren(...(await following()).map((f) => {
+    const b = el("button", { class: "small" }, ["Unfollow"]);
+    b.onclick = async () => { await unfollow(f.address); showHome(); };
+    return el("li", {}, [el("span", {}, [f.name]), el("code", { class: "tags" }, [f.address.slice(0, 24) + "..."]), b]);
+  }));
+  if (!list.children.length) list.append(el("li", {}, ["Nobody yet."]));
+  const said = $("mine");
+  said.replaceChildren(...(await allMine()).filter((m) => m.kind !== "withdrawn").map((m) => {
+    const b = el("button", { class: "small" }, ["Withdraw"]);
+    b.onclick = async () => {
+      try { await say(character, m.subject, "withdrawn", [selectedServer]); status("Withdrawn."); }
+      catch (e) { status(String(e)); }
+      showHome();
+    };
+    const what = m.kind === "notForMe" ? "Not for me" : "Recommended";
+    const target = m.via.length ? el("a", { href: realmLink(m.subject, undefined, m.via) }, [m.subject.slice(0, 24) + "..."]) : el("code", {}, [m.subject.slice(0, 24) + "..."]);
+    return el("li", {}, [el("span", {}, [what]), target, ...(m.note ? [el("span", { class: "tags" }, [`"${m.note}"`])] : []), b]);
+  }));
+  if (!said.children.length) said.append(el("li", {}, ["Nothing yet. Open a realm and choose Recommend."]));
+}
+
+$("follow-form").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const { address, servers } = readAddress(/** @type {HTMLInputElement} */ ($("follow-what")).value);
+    let name = /** @type {HTMLInputElement} */ ($("follow-name")).value.trim();
+    if (!name && servers.length) name = (await describe(address, servers))?.found.manifest.name ?? "";
+    await follow(address, name, servers);
+    /** @type {HTMLInputElement} */ ($("follow-what")).value = "";
+    /** @type {HTMLInputElement} */ ($("follow-name")).value = "";
+    status("Following.");
+    showHome();
+  } catch (error) { status("Paste an actor's lasting address (ed25519-...) or a realm link."); }
+};
+
+$("copy-address").onclick = async () => copy((await lasting(character)).address);
+
 /** @param {string} [tag] */
 async function showSearch(tag) {
   const list = $("search-results");
@@ -119,21 +251,9 @@ async function showSearch(tag) {
   for (const url of pictureUrls) URL.revokeObjectURL(url);
   pictureUrls = [];
   const server = selectedServer;
-  list.replaceChildren(...(realms.length ? realms : []).map((r) => {
-    const img = /** @type {HTMLImageElement} */ (el("img", { class: "picture", alt: "" }));
-    if (r.picture) loadPicture(img, r.picture, server);
-    return el("li", { class: "realm" }, [
-      img,
-      el("div", {}, [
-        el("div", { class: "row" }, [
-          el("span", { class: r.online ? "dot on" : "dot", title: r.online ? "Referee online" : "Referee offline" }),
-          el("a", { href: realmLink(r.address) }, [r.alone ? `${r.name} (play alone)` : r.name]),
-          el("span", { class: "tags" }, [r.tags.join(", ")]),
-        ]),
-        ...(r.description ? [el("p", { class: "description" }, [r.description])] : []),
-      ]),
-    ]);
-  }));
+  list.replaceChildren(...realms.map((r) =>
+    realmItem(r, [server], r.picked ? [el("p", { class: "voices" }, [`Picked by ${new URL(server).host}`])] : [])
+  ));
   if (!realms.length) list.append(el("li", {}, ["No realms found on this server yet."]));
 }
 
@@ -202,13 +322,19 @@ async function showHome() {
   $("start-room").hidden = true;
   $("look").hidden = true;
   $("more-realms").hidden = true;
+  for (const id of ["offer", "recommend", "not-for-me", "follow-realm"]) $(id).hidden = true;
   $("realm-name").textContent = "";
   /** @type {HTMLInputElement} */ ($("server-address")).value = selectedServer;
+  $("my-address").textContent = (await lasting(character)).address;
   /** @type {HTMLInputElement} */ ($("char-name")).value = character.info.name;
   /** @type {HTMLInputElement} */ ($("char-desc")).value = character.info.description;
   /** @type {HTMLInputElement} */ ($("char-color")).value = toHexColor(character.info.color);
   /** @type {HTMLInputElement} */ ($("char-private")).checked = Boolean(await get("private"));
-  await Promise.all([showSearch(), showOwned(), showRecord()]);
+  await Promise.all([showSearch(), showOwned(), showRecord(), showFollowing()]);
+  // These ask several servers, so they fill in when ready. Recommendations are renewed while the portal is used.
+  showSuggestions().catch(() => {});
+  showPicks().catch(() => {});
+  renewMine(character, [selectedServer]).catch(() => {});
 }
 
 /** @type {Awaited<ReturnType<typeof play>> | null} */
@@ -223,8 +349,81 @@ function noteEntering(address) {
 }
 addEventListener("pagehide", () => noteEntering());
 
-/** @param {string} address @param {string} [release] @param {string[]} [via] servers the link hints at */
-async function showRealm(address, release, via = [], renderer = "") {
+/**
+ * A door the current realm opened: where it leads, and the travel note to show there.
+ * @type {{ to: string, ticket: import("../shared/envelope.js").Envelope, from: string } | null}
+ */
+let walking = null;
+/** The realm being left through a door, kept on screen until the next shows its first view. @type {{ controller?: AbortController, current: { stop: () => void } | null } | null} */
+let leaving = null;
+/** When doors were last walked through, so a realm cannot bounce an actor around endlessly. @type {number[]} */
+let hops = [];
+function letGo() {
+  leaving?.controller?.abort();
+  leaving?.current?.stop();
+  leaving = null;
+}
+
+/**
+ * A link the realm's renderer offers: shown in the portal's own menu, opened only if the actor chooses it.
+ * @param {string} link @param {AbortController} controller
+ */
+async function offerLink(link, controller) {
+  let to;
+  try { to = parseLink(link); } catch { return; }
+  const button = $("offer");
+  button.textContent = "Go to another realm";
+  button.title = `This realm offers a link to ${to.address}. It opens only if you choose it.`;
+  button.hidden = false;
+  button.onclick = () => { location.hash = makeLink(to.address, to.servers); };
+  const d = await describe(to.address, to.servers);
+  if (d && !controller.signal.aborted) button.textContent = `Go to ${d.found.manifest.name}`;
+}
+
+/** The realm menu's Recommend, Not for me and Follow. @param {string} address @param {string} name @param {string[]} servers */
+async function setUpRecommend(address, name, servers) {
+  const rec = $("recommend"), nope = $("not-for-me"), fol = $("follow-realm");
+  const recommended = (await mine(address))?.kind === "recommend";
+  const followed = (await following()).some((f) => f.address === address);
+  const again = () => setUpRecommend(address, name, servers);
+  rec.textContent = recommended ? "Recommended" : "Recommend";
+  rec.title = recommended ? "You recommend this realm. Choose this to withdraw it." : "Sign a recommendation of this realm that others can find";
+  fol.textContent = followed ? "Following" : "Follow";
+  rec.hidden = nope.hidden = fol.hidden = false;
+  rec.onclick = async () => {
+    try {
+      if (recommended) {
+        if (!confirm(`Withdraw your recommendation of ${name}?`)) return;
+        await say(character, address, "withdrawn", [selectedServer]);
+        status("Withdrawn.");
+      } else {
+        const note = prompt(`Recommend ${name}. Add a short note if you like (at most 280 characters):`, "");
+        if (note === null) return;
+        await say(character, address, { note: note.trim(), via: servers }, [selectedServer]);
+        status(`You recommend ${name}. People who follow you will see it.`, 8000);
+      }
+    } catch (e) { status(String(e), 8000); }
+    again();
+  };
+  nope.onclick = async () => {
+    if (!confirm(`Hide ${name} from your suggestions? For people who follow you, it counts a little against it.`)) return;
+    try { await say(character, address, "not for me", [selectedServer]); status("Hidden from your suggestions."); }
+    catch (e) { status(String(e), 8000); }
+    again();
+  };
+  fol.onclick = async () => {
+    if (followed) await unfollow(address);
+    else await follow(address, name, servers);
+    status(followed ? `No longer following ${name}.` : `Following ${name}: what it recommends now counts for you.`);
+    again();
+  };
+}
+
+/**
+ * @param {string} address @param {string} [release] @param {string[]} [via] servers the link hints at
+ * @param {string} [renderer=""] @param {{ ticket: import("../shared/envelope.js").Envelope, from: string }} [door] when arriving through a door
+ */
+async function showRealm(address, release, via = [], renderer = "", door) {
   const controller = new AbortController();
   visiting = controller;
   // A renderer stuck in an endless loop can freeze the page, and reloading
@@ -235,6 +434,7 @@ async function showRealm(address, release, via = [], renderer = "") {
     $("home").hidden = true;
     $("realm").hidden = false;
     $("more-realms").hidden = false;
+    letGo();
     const again = el("button", { id: "open-anyway" }, ["Open it anyway"]);
     again.onclick = route;
     $("stage").replaceChildren(el("p", { style: "padding:16px" }, [
@@ -266,14 +466,45 @@ async function showRealm(address, release, via = [], renderer = "") {
   if (!renderer) renderer = await get("chosen:" + address) ?? "";
   if (controller.signal.aborted) return;
   // A link copied while another look is chosen keeps that look, if others could fetch it.
-  const shared = renderer.startsWith("sha256-") ? renderer : "";
+  const shared = renderer?.startsWith("sha256-") ? renderer : "";
   $("copy-link").onclick = () => copy(realmLink(address, undefined, servers, shared));
   $("copy-version-link").onclick = () => current && copy(realmLink(address, current.release, servers, shared));
   $("look").hidden = true;
+  for (const id of ["offer", "recommend", "not-for-me", "follow-realm"]) $(id).hidden = true;
   const stage = $("stage");
-  stage.replaceChildren();
+  // Through a door, the realm left stays on screen until this one shows its first view.
+  const layer = el("div", { class: door ? "layer arriving" : "layer" });
+  if (door) stage.append(layer);
+  else stage.replaceChildren(layer);
+  let arrived = !door;
+  const arrive = () => {
+    clearTimeout(waiting);
+    if (arrived) return;
+    arrived = true;
+    letGo();
+    for (const other of [...stage.children]) if (other !== layer) other.remove();
+    layer.classList.remove("arriving");
+  };
+  const waiting = door ? setTimeout(arrive, 10_000) : undefined;
   try {
-    const opened = current = await play(address, character, stage, { status, servers, release, signal:controller.signal, renderer, localLook,
+    const opened = current = await play(address, character, layer, { status, servers, release, signal:controller.signal, renderer, localLook,
+      ticket: door?.ticket,
+      onFirstView: () => {
+        if (door && !arrived) status(`You came through a door from ${door.from}. Your browser's Back button goes back.`, 6000);
+        arrive();
+      },
+      onGo: (link, ticket) => {
+        if (controller.signal.aborted || visiting !== controller) return;
+        let to;
+        try { to = parseLink(link); } catch { return; }
+        const now = Date.now();
+        hops = hops.filter((t) => now - t < 30_000);
+        if (hops.length >= 5) return status("This realm is sending you through doors too quickly, so the portal stopped following them.", 8000);
+        hops.push(now);
+        walking = { to: to.address, ticket, from: $("realm-name").textContent || "the last realm" };
+        location.hash = makeLink(to.address, to.servers);
+      },
+      onOffer: (link) => offerLink(link, controller),
       // The actor answers once for each realm whose claims are asked for, and is asked again
       // whenever this realm starts asking for another.
       mayShow: async (name, realms) => {
@@ -289,6 +520,8 @@ async function showRealm(address, release, via = [], renderer = "") {
       } });
     $("realm-name").textContent = opened.name;
     ({ server, servers } = opened);
+    noteServer(server);
+    if (isAddress(address)) setUpRecommend(address, opened.name, servers).catch(() => {});
     // The actor chooses how the realm looks, when there is more than one way.
     const look = /** @type {HTMLSelectElement} */ ($("look"));
     look.replaceChildren(...opened.looks.map((l) => {
@@ -337,6 +570,7 @@ async function showRealm(address, release, via = [], renderer = "") {
     };
   } catch (error) {
     if (controller.signal.aborted) return;
+    arrive();
     const message = el("p", { style: "padding:16px" }, [String(/** @type {Error} */ (error).message ?? error)]);
     if (/** @type {any} */ (error).code === "release-changed") {
       message.append(" ", el("a", { href: realmLink(address, undefined, server) }, ["Open the current version"]));
@@ -347,15 +581,22 @@ async function showRealm(address, release, via = [], renderer = "") {
       message.append(` It is played in its own portal, ${portal.name}: `, el("a", { href: portal.url, rel: "noopener" }, [portal.url]),
         ". A program you install runs outside any sandbox and can do anything on your computer, so get it only if you trust this realm's maker.");
     }
-    stage.replaceChildren(message);
+    layer.replaceChildren(message);
   }
 }
 
 async function route() {
   // Leaving a realm the ordinary way clears the note; a fresh page load keeps it.
   if (visiting) noteEntering();
-  visiting?.abort();
-  current?.stop();
+  const door = walking;
+  walking = null;
+  letGo();
+  // Walking through a door keeps the realm left running until the next one shows itself.
+  if (door) leaving = { controller: visiting, current };
+  else {
+    visiting?.abort();
+    current?.stop();
+  }
   current = null;
   let hash = location.hash.slice(1);
   if (!hash.startsWith("emind:") && !hash.startsWith("web+emind:")) {
@@ -363,7 +604,9 @@ async function route() {
   }
   const match = hash.match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?(.*))?$/);
   const query = new URLSearchParams(match?.[2] ?? "");
-  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? [], query.get("renderer") ?? "").catch(e => status(String(e)));
+  const arriving = door && match?.[1] === door.to ? door : undefined;
+  if (!arriving) letGo();
+  if (match) await showRealm(match[1], query.get("release") ?? undefined, query.get("via")?.split(",") ?? [], query.get("renderer") ?? "", arriving).catch(e => status(String(e)));
   else await showHome();
 }
 

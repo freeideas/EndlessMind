@@ -163,7 +163,12 @@ export async function startHost(options) {
   try {
     await relay.connect();
     ref = await referee({ address: await addressOf(keys.publicKey), keys, name: body.name, release:await releaseOf(manifest), rules, relay, realm: address, pass, exchange,
-      announce: () => everywhere(true), status: log, onStop:() => relay.close() });
+      announce: () => everywhere(true), status: log, onStop:() => relay.close(),
+      // A recommendation the rules make goes to every server the realm is on.
+      recommend: async (record) => {
+        const posted = await Promise.allSettled(servers.map((server) => put(server, "/recommend", "POST", JSON.stringify(record), "Recommending")));
+        for (const p of posted) if (p.status === "rejected") log(String(p.reason));
+      } });
   } catch (e) { rules.stop(); relay.close(); throw e; }
   const link = `${origins[0]}/#emind:${address}?via=${origins.map(encodeURIComponent).join(",")}`;
   const until = pass ? `, under a pass that runs out on ${new Date(/** @type {any} */ (pass.body).expires).toDateString()}` : "";

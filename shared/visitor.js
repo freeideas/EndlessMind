@@ -18,16 +18,18 @@ export function relayUrl(server) {
  * @param {{server?: string, servers?: string[], address: string, keys: CryptoKeyPair, release: string,
  * character: unknown, onView: (view: any) => void, status: (text: string) => void, signal?: AbortSignal,
  * patienceMs?: number, onCheck?: (check: unknown, view: unknown, hasView: boolean, first: boolean) => void,
- * shown?: unknown[], onClaim?: (signed: unknown) => unknown, enterKey?: string}} options
+ * shown?: unknown[], onClaim?: (signed: unknown) => unknown, enterKey?: string,
+ * onGo?: (door: { link: string, ticket: import("./envelope.js").Envelope }) => void, onNear?: (link: string) => void}} options
  *   `address` is whoever referees; `patienceMs` is how long silence is borne; `onCheck` receives what a
  *   referee of repeatable rules sends with each view (see shared/check.js); `shown` are claims the
  *   actor chose to show this realm, and `onClaim` receives ones the realm signs for the actor, returning (or resolving to) true for each
  *   it keeps; those are signed in return, so the realm holds a claim signed by both
  *   (see shared/claim.js); `enterKey` is the referee's exchange key from the realm's announcement, with
- *   which the character and anything shown are locked on the way in
+ *   which the character and anything shown are locked on the way in; `onGo` is told when the realm opens a
+ *   door for the actor (a realm link, and the travel note to show there), and `onNear` when a door is near
  */
 export async function visit(
-  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onClaim, enterKey },
+  { server, servers = server ? [server] : [], address, keys, release, character, onView, status, signal, patienceMs = 15_000, onCheck, shown, onClaim, enterKey, onGo, onNear },
 ) {
   const me = await addressOf(keys.publicKey);
   // Offered to the referee so the session can be private (see "Private sessions" in shared/crypto.js).
@@ -147,6 +149,10 @@ export async function visit(
         if (await onClaim?.(signed) === true) seen.push({ sig: signed.sig, seen: await countersign(keys, signed) });
       }
       onCheck?.(inner.check, inner.view, hasView, first);
+      if (typeof inner.near === "string") onNear?.(inner.near);
+      // A door: the realm signed a travel note for this actor, to be shown where the link leads.
+      const go = inner.go;
+      if (typeof go?.link === "string" && go.ticket?.to === me && go.ticket.from === address) onGo?.({ link: go.link, ticket: go.ticket });
     }
   }
   const replaced = (/** @type {Event} */ event) => {

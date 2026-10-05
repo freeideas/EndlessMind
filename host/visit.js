@@ -9,22 +9,9 @@
 import { checkAnnouncement, releaseOf } from "../shared/announce.js";
 import { generateKeyPair } from "../shared/crypto.js";
 import { visit } from "../shared/visitor.js";
+import { parseLink } from "../shared/link.js";
 
-/**
- * Read a realm link such as `https://example.org/#emind:<address>?via=<server>`.
- * @param {string} link
- * @returns {{address: string, servers: string[]}}
- */
-export function parseLink(link) {
-  let text = link.includes("#") ? link.slice(link.indexOf("#") + 1) : link;
-  if (!/^(?:web\+)?emind:/.test(text)) text = decodeURIComponent(text);
-  const match = text.match(/^(?:web\+)?emind:([a-z0-9-]+)(?:\?(.*))?$/);
-  if (!match) throw new Error(`not a realm link: ${link}`);
-  const via = new URLSearchParams(match[2] ?? "").get("via")?.split(",").filter(Boolean) ?? [];
-  const servers = via.length ? via : link.startsWith("http") ? [new URL(link).origin] : [];
-  if (!servers.length) throw new Error("the link names no helper server; add ?via=<server address>");
-  return { address: match[1], servers };
-}
+export { parseLink };
 
 if (import.meta.main) {
   const link = Deno.args.find((a, i) => !a.startsWith("--") && !Deno.args[i - 1]?.startsWith("--"));
@@ -57,6 +44,7 @@ if (import.meta.main) {
     enterKey: announcement.body.key,
     character: { name, color: "teal" },
     status: (text) => console.error(text),
+    onGo: ({ link }) => console.error(`The realm opened a door to ${link}`),
     onView: (view) => {
       const line = JSON.stringify(view);
       if (line !== last) console.log((last = line));
