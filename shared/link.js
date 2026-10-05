@@ -39,7 +39,7 @@ export function makeLink(address, servers) {
 
 /** An http or https server's origin. @param {string} value */
 function origin(value) {
-  const url = new URL(value.includes("://") ? value : `http://${value}`);
+  const url = new URL(value);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("not a server address: " + value);
   return url.origin;
 }

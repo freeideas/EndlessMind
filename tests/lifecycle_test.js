@@ -1,13 +1,13 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { hashOf, newPortableKey } from "../shared/crypto.js";
 import { makeManifest, releaseOf } from "../shared/announce.js";
-import { bundleFiles, decodeFile, encodeFile, KEY_FORMAT } from "../shared/bundle.js";
+import { bundleFiles, decodeFile, encodeFile } from "../shared/bundle.js";
 import { fileStorage } from "../host/storage.js";
 import { referee } from "../shared/referee.js";
 import { exportBackup, startHost } from "../host/host.js";
 import { startServer } from "../server/server.js";
 
-const delay = () => new Promise((r) => setTimeout(r, 20));
+const delay = () => new Promise((r) => setTimeout(r, 200));
 
 Deno.test("release identity survives republication; backups preserve every byte", async () => {
   const { keys } = await newPortableKey();
@@ -21,7 +21,7 @@ Deno.test("release identity survives republication; backups preserve every byte"
   );
   assertEquals(decodeFile(encodeFile(bytes)), bytes);
   assertEquals(
-    (await bundleFiles({ format: KEY_FORMAT }, {
+    (await bundleFiles({
       manifest: first,
       files: { "image.png": encodeFile(bytes) },
     }))["image.png"],

@@ -105,7 +105,7 @@ export async function startServer(options = {}) {
   const recommendations = new Map();
   try {
     const saved = JSON.parse(await Deno.readTextFile(announcementsFile));
-    for (const value of Array.isArray(saved) ? saved : saved.announcements ?? []) {
+    for (const value of saved.announcements ?? []) {
       const checked = await checkAnnouncement(value);
       if (!checked) continue;
       announcements.set(checked.realm, checked.announcement);

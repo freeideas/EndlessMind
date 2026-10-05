@@ -107,7 +107,7 @@ async function loadRealm(options) {
     manifest = saved.entry.manifest;
     pass = saved.entry.pass;
     secret = pass ? "" : saved.secret;
-    Object.assign(files, await bundleFiles(keyFile.raw, saved.entry));
+    Object.assign(files, await bundleFiles(saved.entry));
     rulesModule = (await import("data:text/javascript;base64," + encodeFile(files[main]))).default;
   }
   return { manifest, keys, pass, rulesModule, files, secret, keyFile };
@@ -201,7 +201,7 @@ async function readKeyFile(path) {
     const keys = await keyPairFromSecret(entry.secret);
     if (entry.pass && !await checkPass(entry.pass)) throw new Error("A referee pass in this file has run out. Make a new one where the realm's key is kept.");
     if (!await checkAnnouncement(await makeAnnouncement(keys, entry.manifest, { pass: entry.pass }))) throw new Error("A realm does not match its key.");
-    const files = await bundleFiles(raw, entry);
+    const files = await bundleFiles(entry);
     entry.files = Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, encodeFile(bytes)]));
     realms.push({ address: entry.manifest.from, name: String(entry.manifest?.body?.name), secret: entry.secret, entry });
   }

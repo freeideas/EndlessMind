@@ -57,7 +57,7 @@ export async function loadKeys(text) {
     const checked = await checkAnnouncement(await makeAnnouncement(keys, saved.manifest));
     if (!checked) throw new Error("A realm in this file does not match its key.");
     const old = await ownedRealm(address);
-    const files = { ...old?.files, ...await bundleFiles(file, saved) };
+    const files = { ...old?.files, ...await bundleFiles(saved) };
     // Keep only files matching this version, including when importing keys alone.
     for (const name of Object.keys(files)) {
       if (

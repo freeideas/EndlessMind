@@ -19,7 +19,7 @@ import * as store from "./store.js";
  * @property {CryptoKeyPair} keys
  * @property {string} secret
  * @property {import("../shared/envelope.js").Envelope} manifest
- * @property {Record<string, Uint8Array<ArrayBuffer>>} [files] absent in older browser records
+ * @property {Record<string, Uint8Array<ArrayBuffer>>} [files] absent after loading keys without files
  */
 
 /**
@@ -68,7 +68,7 @@ export async function publish(files, server = location.origin) {
 /** @param {OwnedRealm} realm @param {string} [server] */
 export async function publishOwned(realm, server = location.origin) {
   const body = /** @type {import("../shared/announce.js").ManifestBody} */ (realm.manifest.body);
-  // Older records may still need one retrieval. Persist each recovered file.
+  // Keys loaded without files fetch them once from the server. Keep each one fetched.
   for (const [name, hash] of Object.entries(body.files)) {
     if (!realm.files?.[name]) {
       realm.files = { ...realm.files, [name]: await fetchBytes(hash, server) };

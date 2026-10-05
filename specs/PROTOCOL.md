@@ -71,13 +71,10 @@ These are not rules. They are optional extensions, and they matter only as long 
 
 ## Versions
 
-HTTP has gone through versions (1.0, 1.1, 2, 3) as technology matured: each sent the same requests and pages in a better way, and old and new software kept working together. The Endless Mind protocol is expected to grow the same way.
-
 - **Meaning is separate from encoding.** The meaning of the core (keys, addresses, signed statements, files named by hash) changes rarely. How messages are encoded and carried can change much more freely, as HTTP/2 and HTTP/3 changed how requests travel without changing what a request is.
-- **Every envelope names its version** (`v`), and a server's first message on a relay connection lists the versions it speaks. Only version 0 exists, so nothing is negotiated yet; these two places are where agreeing on a version will happen.
-- **Old versions fade, they are not shut off.** An old version stays usable as long as people run software that speaks it. No one can switch it off for everyone, only stop using it.
+- **Every envelope names its version** (`v`), and a server's first message on a relay connection lists the versions it speaks. Only version 0 exists.
 - **Algorithms carry labels.** Every key, hash and signature says which method made it (for example `ed25519-` or `sha256-`), so a stronger method can be added later, such as one that resists future quantum computers, without changing the meaning of anything else.
-- **Addresses and signatures survive every version.** A key made under an early version is still the same address later, a file's hash still names the same file, and an old signature still checks. How an address moves to a new algorithm is not defined yet.
+- **Addresses and signatures survive every version.** A key is the same address in any version, and a file's hash names the same file.
 - **Extensions have versions of their own,** chosen and changed by their authors, independent of the core.
 
 ## How the protocol changes
