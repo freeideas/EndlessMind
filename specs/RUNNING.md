@@ -56,6 +56,16 @@ To try the [listening well](examples/listening-well.md), with a server running: 
 
 The host saves realm data beside its key file as `<key-file>.<realm-address>.state.json`. Rules choose what to save and when; the platform does not automatically save live game state. To export keys, public files and committed data together, run `deno task host --keys keys/my-realm.json --backup keys/my-realm-backup.json`. Stop the realm first if you need a fixed point across several storage values. Private rules still need their original folder. An existing local state file takes precedence over imported initial data.
 
+## A server's picks
+
+A server's operator can show off realms they like, their own or anyone's. Write a file such as `data/picks.json`:
+
+```json
+{ "note": "What we play here", "picks": [{ "link": "emind:ed25519-...?via=https%3A%2F%2Fplay.example", "note": "Try the caves" }] }
+```
+
+and start the server with `--picks data/picks.json`. The server reads the file again on each request, so editing it needs no restart. Portals show these under **Picked by servers**, for the chosen server and the servers an actor has recently used, and mark picked realms in search results. A realm's links name its servers, so everyone a popular realm brings to a server sees its picks.
+
 ## Helper server budgets
 
-Defaults are 256 MB across at most 10,000 stored files, 32 MB of files per realm, 1,000 announcements and as many key-free releases, 256 WebSocket connections, and per connection 1,000 incoming messages and 4 MB per second. Set `--max-storage-mb`, `--max-files`, `--max-realm-mb`, `--max-announcements`, `--max-connections`, `--messages-per-second` or `--bytes-per-second` when starting the server. At most 16 HTTP writes are processed concurrently, and a connection can hold at most 64 addresses plus outstanding challenges. A sender over its traffic limit has its messages dropped and is told; a receiver with over 4 MB queued misses messages but is never disconnected, so flooding a realm cannot knock it off the server. A file is stored only while a live announcement or release lists it, and is deleted about a minute after none does. Duplicate files do not consume the disk quota twice. Existing disk usage is counted on startup. These are per-server resource budgets, not restrictions on realm behavior, and do not replace an operator's network-level traffic controls.
+Defaults are 256 MB across at most 10,000 stored files, 32 MB of files per realm, 1,000 announcements and as many key-free releases, 256 WebSocket connections, and per connection 1,000 incoming messages and 4 MB per second. Set `--max-storage-mb`, `--max-files`, `--max-realm-mb`, `--max-announcements`, `--max-recommendations` (default 10,000; each author may keep 64), `--max-connections`, `--messages-per-second` or `--bytes-per-second` when starting the server. At most 16 HTTP writes are processed concurrently, and a connection can hold at most 64 addresses plus outstanding challenges. A sender over its traffic limit has its messages dropped and is told; a receiver with over 4 MB queued misses messages but is never disconnected, so flooding a realm cannot knock it off the server. A file is stored only while a live announcement or release lists it, and is deleted about a minute after none does. Duplicate files do not consume the disk quota twice. Existing disk usage is counted on startup. These are per-server resource budgets, not restrictions on realm behavior, and do not replace an operator's network-level traffic controls.

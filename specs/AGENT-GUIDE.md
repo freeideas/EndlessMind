@@ -33,6 +33,12 @@ Some realms need their referee run by the host program (see "Hosting without a b
 - **Hold-to-move controls** suit action games: have the renderer send a move such as `{ dx: 1, dy: 0 }` when a key or touch starts and `{ dx: 0, dy: 0 }` when it ends, and have the rules keep that direction in the state and move by it on each `tick`. The maze instead takes one turn per key press.
 - **Work on phones too.** Support touch (swipes or on-screen buttons) as well as keyboard, and scale drawing to any screen size.
 
+## Doors, shared games and recommendations
+
+- **A game can span many realms.** If the person wants a world bigger than one realm, or one others can add levels to, make each area its own realm and join them with doors: the rules call `go(actor, link, carry)` when an actor steps on a door, and `near(actor, link)` as they approach. Carry only what the next area needs (a score, an inventory), and in `enter` accept a travel note's `carry` only from realms you list as trusted. Use one renderer file for every area, so moving between them is instant. See "Doors between realms" in [RUNTIME.md](RUNTIME.md) and the `DOORS` list in the maze example.
+- **A realm can recommend others** with `recommend(link, note)`, for example a guide character who suggests a friend's realm. It is signed with the realm's key, so recommend only what the maker actually vouches for.
+- **A renderer can offer a link** with `game.offer(link)`, which the portal shows in its menu and opens only if the actor chooses.
+
 ## A renderer for someone else's realm
 
 A person may ask only for a different look at a realm they play: "show me every runner's score", "make it text only". That needs one file, a renderer module as described in [RUNTIME.md](RUNTIME.md), and nothing from the realm's maker. Have them open the realm, choose **The data itself** in the portal's **Look** menu, and tell you what the views contain (or read the realm's public rules). Write the renderer for exactly that data, and have them choose **A file on this device** in the same menu. The portal keeps it for that realm. A renderer can show anything the realm sends and send any move the rules accept; it cannot see what the realm does not send.

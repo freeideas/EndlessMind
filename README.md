@@ -12,6 +12,8 @@ Open a game's link in a portal you trust. A portal is the program that gets you 
 
 - The first time, the portal makes you a **character** (a name and a look you can change). Your character is yours: it is a secret key that lives in your browser, and you take it from game to game. Choose **Save my keys** for an offline key copy, or **Save full backup** to include locally held realm files and saved data; clearing your browser's data for the site deletes it otherwise. Anyone who gets that file can be you, so keep it like a password.
 - The portal's menu always offers a way to find more games, so no game can trap you.
+- **Finding games through people you trust.** In a game, **Recommend** signs your recommendation (with a short note if you like) so others can find it, **Not for me** hides it from you, and **Follow** counts that game's own recommendations for you. On the home page, **Recommended for you** is worked out from the people and games you follow and what they recommend in turn; strangers count only a little. Share your lasting address (shown under **Your character**) so friends can follow you. Nobody can remove a game from the network; games nobody you trust recommends simply stay out of your way.
+- **Doors.** A game can send you on to another game through a door, carrying what you hold. Your portal follows it and shows the new place as soon as it is ready; your browser's Back button goes back.
 - How a game looks is up to you. The **Look** menu offers the game's own look, any others its maker supplies, the plain data the game sends you, and **A file on this device**, which runs a look of your own that your AI agent can write for you.
 - When a game's rules are public, **Play alone** runs your own copy on your device, with nobody hosting, and **Play with others** makes your tab the host of a room you can invite friends to with a link. The room lasts while your tab stays open.
 
@@ -37,7 +39,7 @@ Helper servers let actors find each other, pass messages along, and keep copies 
 2. Get this repository: `git clone https://github.com/freeideas/EndlessMind.git`, then `cd EndlessMind`.
 3. Start it: `deno task start`. It prints the address to open in your browser.
 
-To play from phones and other devices, browsers need a secure (https) address. [specs/RUNNING.md](specs/RUNNING.md) explains the easy ways to get one.
+To play from phones and other devices, browsers need a secure (https) address. [specs/RUNNING.md](specs/RUNNING.md) explains the easy ways to get one. A server's operator can also list the games they want to show off (`--picks`), and portals show those picks to everyone who uses the server, which is a good way to bring people to your own games.
 
 ## How it works, in short
 

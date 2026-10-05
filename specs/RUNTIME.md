@@ -47,7 +47,7 @@ export default {
   ticksPerSecond: 10,                 // how often tick() runs, 1 to 60
   repeatable: false,                  // true lets every actor's portal check the referee (see below)
 
-  init({ seed, storage, remove, claim }) { return state; }, // make the starting state; seed is a random integer
+  init({ seed, storage, remove, claim, go, near, recommend }) { return state; }, // make the starting state; seed is a random integer
   enter(state, actor, character, claims) { // an actor asks to come in
     return true;                      // true lets them in; a string refuses, giving the reason
   },
@@ -64,6 +64,9 @@ export default {
 - **`view`** decides what each actor can see. Anything you put in an actor's view counts as seen by that actor, whatever renderer they use, so leave out what they must not know (cards in other hands, enemies behind walls). Keep views small: they are signed and sent to every actor on every tick. A view is copied as plain JSON at the moment `view` returns it, so later changes to the state never leak into a view already made. A message over 256 KB cannot be carried: it is not sent, and the referee logs an error naming its size.
 - **`remove(actor, reason)`**, given to `init`, ends an actor's visit: the actor is told the reason, gets no more views, and their moves are ignored. `leave` is not called for an actor the rules removed. They may ask to enter again, and `enter` decides. Use it for an idle limit, a full realm, or someone the rules no longer want inside.
 - **`claim(actor, says, days)`**, given to `init`, has the referee sign a claim about an actor: `says` is any short JSON (at most 1,024 characters), and `days` is how long it counts, left out for something that simply happened. The actor's portal receives it if the actor is inside or on the way in. The call returns a promise of the signed claim, which the rules may keep (but not in the state of repeatable rules, whose copies on actors' devices get nothing back and would then differ). See "Signed claims" below.
+- **`go(actor, link, carry)`**, given to `init`, opens a door: the actor's portal is sent to the realm at `link` (a realm link, `emind:<address>?via=<server>`), carrying a travel note this realm signs. `carry` is any short JSON the rules choose to send along, such as what the actor holds. See "Doors between realms" below.
+- **`near(actor, link)`**, given to `init`, says the actor is near a door to `link`, so their portal can fetch that realm's files in the background and the walk through has no wait. Call it as the actor approaches; it does nothing else.
+- **`recommend(link, note)`**, given to `init`, has the referee sign a recommendation of the realm (or actor) a link names, with an optional note of at most 280 characters, and post it to the servers the realm is on. It returns a promise of the signed recommendation. A guide character, a notice board or a shop can recommend other realms this way, and the recommendation is the realm's own word (see "Finding realms" in [DESIGN.md](DESIGN.md)).
 - **`seen(state, actor, both)`**, an optional function beside `enter` and `act`, is called when an actor's portal signs a claim in return: `both` is `{ claim, seen }`, a claim signed by both parties, which the rules may keep. (Repeatable rules should not change their state here, for the same reason.)
 - **`claims`**, the fourth argument of `enter`, lists the claims the visitor chose to show, already checked by the referee: each is `{ issuer, about, says, time, expires, signed }`, where `issuer` is the address of the realm that signed it and `signed` the signed original (left out for repeatable rules). It is an empty list when nothing was shown. Decide for yourself which issuers you trust.
 - **State** lives in the referee process. Rules choose what to preserve using `storage.get(key)` and `storage.put(key, value)`, both asynchronous. Keys are strings, values are JSON data, and a missing key reads as `undefined`. Only this realm's rules receive its storage; renderers do not. A completed write replaces one value atomically. Browser storage uses IndexedDB transactions; host storage replaces a JSON file beside its key file. This is not a multi-key transaction or an automatic snapshot of the running state. Rules own save timing, schema changes, and correctness. Full backups include committed storage; clearing site data can still erase browser storage.
@@ -105,6 +108,7 @@ export default {
     // game.character:  this actor's character description
     // game.onView(fn): fn(view) is called with each new view from the realm
     // game.act(action): send a move to the realm; any JSON value
+    // game.offer(link): offer the actor a realm link, which the portal shows in its own menu
   },
 };
 ```
@@ -112,6 +116,20 @@ export default {
 **More than one look.** Views are plain data, so any renderer that understands them will do, and the rules cannot tell which is in use. A realm can offer several (`renderers` in `realm.json`); the maze example has its drawn maze and a text-only one, [examples/maze-chase/text.js](../examples/maze-chase/text.js). Anyone else can write one too, and the realm has no say in it. In the portal's **Look** menu, **The data itself** shows each view exactly as it arrives and sends any move typed in as JSON, which is the place to start; **A file on this device** runs a renderer file of the actor's own and keeps it for that realm; and a link ending in `&renderer=<file hash>` shows the realm with that renderer to whoever opens it, as long as a server the link names holds the file. So keep the shape of your views steady between versions, and describe it in a comment, as the maze's rules do.
 
 Input (keyboard, mouse, touch, gamepad) arrives inside the sandbox as usual once the actor clicks or taps it. Views arrive about `ticksPerSecond` times a second; smooth movement between them in the renderer if you like.
+
+`game.offer(link)` puts a button in the portal's menu, with the name of the realm the link names. It opens only if the actor chooses it, so a renderer can point anywhere without being able to send anyone there. Doors the actor walks through belong to the rules (`go`), not the renderer.
+
+## Doors between realms
+
+A game can be spread over many realms, each its own level or area, made by different people, with doors between them. A door is a call to `go(actor, link, carry)` in the rules, usually when an actor steps onto it.
+
+- **The portal follows the door without asking,** since opening any realm is safe by design. It keeps the realm being left on screen until the next one sends its first view, then shows it and tells the actor where they came from; the browser's Back button goes back. A portal ignores doors opened faster than five in 30 seconds.
+- **The travel note** is a claim this realm signs about the actor: `{ travel: { to, carry } }`, where `to` is the address the door leads to. It counts for ten minutes. The portal shows it to that realm on the way in, without the question it asks before showing other claims, because it says nothing beyond the trip itself.
+- **The next realm decides what it is worth.** Its rules find it among the `claims` given to `enter`, with `issuer` the realm the actor came from. Accept `carry` only from realms you trust (another maze of your own game, say), and remember notes already used (by `issuer` and `time`), since one can be shown again within its ten minutes. A note for another realm is never passed to your rules.
+- **No loading screen.** Call `near(actor, link)` as the actor approaches a door. Realms of one game that share a renderer file share it by hash, and the portal already has it.
+- **Copies of repeatable rules** on actors' devices open no doors, so the rules must not change the state on what `go`, `near` or `recommend` do.
+
+The maze example shows this: list links in `DOORS` and trusted addresses in `FRIENDS` at the top of [examples/maze-chase/rules.js](../examples/maze-chase/rules.js), and doors open in its walls. A runner who walks through takes their seeds along. Since a door names the other realm's address, publish both realms first (the host program keeps each address in its key file), then fill in each one's `DOORS` and publish again.
 
 ## What sandboxed code cannot do
 
