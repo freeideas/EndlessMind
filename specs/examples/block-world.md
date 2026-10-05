@@ -15,7 +15,7 @@ A technical example of how the Endless Mind model described in [DESIGN.md](../DE
 
 ## Gathering and value
 
-- Anyone can make anything, so a rare material is worth something only because a world says so. The world's rules record what each visitor gathered. They cannot be carried to another world: nothing crosses realms.
+- Anyone can make anything, so a rare material is worth something only because a world says so. The world's rules record what each visitor gathered. They stay in that world; another world learns of them only from claims it signs, and decides for itself what they are worth there.
 - Materials found in untouched terrain are checked against the seed by the rules on the referee, so an actor cannot invent them.
 
 ## What limits it today
