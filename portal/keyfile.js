@@ -6,6 +6,7 @@ import { myCharacter } from "./character.js";
 import { ownedRealm, ownedRealms } from "./realms.js";
 import * as store from "./store.js";
 import { record, restore } from "./claims.js";
+import { allMine, following, restoreFinding } from "./finding.js";
 
 /** @param {{files?: boolean, storage?: boolean}} [options] */
 export async function saveKeys(options = {}) {
@@ -38,7 +39,10 @@ export async function saveKeys(options = {}) {
   }
   // The character's record of signed claims goes with its secret: they are useless to anyone else.
   const claims = (await record()).flatMap((r) => r.list);
-  return JSON.stringify({ format: KEY_FORMAT, character, claims, realms }, null, 1);
+  // So do whom the character follows and what it has recommended: its taste, built up over time.
+  const follows = (await following()).map(({ address, name, servers }) => ({ address, name, servers }));
+  const said = (await allMine()).map((m) => m.record);
+  return JSON.stringify({ format: KEY_FORMAT, character, claims, follows, said, realms }, null, 1);
 }
 
 /** Loading is local; publishing and hosting remain explicit actions. @param {string} text */
@@ -95,6 +99,9 @@ export async function loadKeys(text) {
       },
     });
   }
-  if (file.character) await restore(file.claims, file.character.secret);
+  if (file.character) {
+    await restore(file.claims, file.character.secret);
+    await restoreFinding(file.follows, file.said, file.character.secret);
+  }
   return { character: Boolean(file.character), realms: prepared.length };
 }

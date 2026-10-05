@@ -415,7 +415,18 @@ def doors_and_recommendations(browser, base):
     # Before following anyone the friend may already see it, as a stranger's word; then it is the walker's.
     wait_for(lambda: 'Lantern Hall' in friend.locator('#suggestions').inner_text() and 'Walker' in friend.locator('#suggestions').inner_text(),
              what='a suggestion from someone followed')
-    for page in (owner, walker, friend):
+    # Whom the friend follows, and what the walker recommended, travel with their keys.
+    walker_keys = walker.evaluate("import('/keyfile.js').then(m => m.saveKeys())")
+    friend_keys = friend.evaluate("import('/keyfile.js').then(m => m.saveKeys())")
+    assert len(json.loads(walker_keys)['said']) == 1 and len(json.loads(friend_keys)['follows']) == 1
+    moved = browser.new_context().new_page()
+    moved.goto(base)
+    moved.wait_for_selector('body[data-ready]')
+    moved.evaluate("text => import('/keyfile.js').then(m => m.loadKeys(text))", walker_keys)
+    assert moved.evaluate("a => import('/finding.js').then(m => m.mine(a)).then(m => m?.kind)", hall) == 'recommend', 'the recommendation was not restored'
+    moved.evaluate("text => import('/keyfile.js').then(m => m.loadKeys(text))", friend_keys)
+    assert moved.evaluate("import('/finding.js').then(m => m.following()).then(l => l.map(f => f.name))") == ['Walker'], 'follows were not restored'
+    for page in (owner, walker, friend, moved):
         page.context.close()
 
 

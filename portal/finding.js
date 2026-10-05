@@ -3,7 +3,8 @@
 // There is no global score: each portal works out its own, starting from the
 // actor's choices. See "Finding realms" in specs/DESIGN.md.
 
-import { keyPairFromSecret, addressOf } from "../shared/crypto.js";
+import { addressOf, isAddress, keyPairFromSecret } from "../shared/crypto.js";
+import { open } from "../shared/envelope.js";
 import { parseLink } from "../shared/link.js";
 import { checkRecommendation, makeRecommendation } from "../shared/recommend.js";
 import { held, record } from "./claims.js";
@@ -84,6 +85,44 @@ export async function renewMine(character, servers) {
     const what = m.kind === "recommend" ? { note: m.note, via: m.via } : m.kind === "notForMe" ? "not for me" : "withdrawn";
     await say(character, m.subject, /** @type {any} */ (what), servers).catch(() => {});
   }
+}
+
+/**
+ * Add what a backup holds to what is here: whom the character follows, and what it has said. Nothing here
+ * is thrown away, and of two things said about one subject the newer stays. Only what the backup's own
+ * character signed is taken.
+ * @param {unknown} follows @param {unknown} said @param {string} secret  the character's secret from the same backup
+ */
+export async function restoreFinding(follows, said, secret) {
+  const known = new Set((await following()).map((f) => f.address));
+  for (const f of Array.isArray(follows) ? follows.slice(0, 1000) : []) {
+    if (!isAddress(f?.address) || known.has(f.address)) continue;
+    const servers = Array.isArray(f.servers) ? f.servers.filter((/** @type {unknown} */ s) => typeof s === "string") : [];
+    await follow(f.address, typeof f.name === "string" ? f.name : "", servers);
+  }
+  const me = await addressOf((await keyPairFromSecret(secret)).publicKey);
+  for (const record of Array.isArray(said) ? said.slice(0, 1000) : []) {
+    const r = await checkRecommendation(record) ?? await lapsed(record);
+    if (!r || r.author !== me || ((await mine(r.subject))?.time ?? 0) >= r.time) continue;
+    await store.put("mine:" + r.subject, { subject: r.subject, kind: r.kind, note: r.note, via: r.via, record: r.record, time: r.time });
+  }
+}
+
+/**
+ * A recommendation that lapsed after the backup was made still says what its author meant. Its signature
+ * must hold; it is kept as if signed long ago, so the next renewal signs it again at once.
+ * @param {unknown} record
+ */
+async function lapsed(record) {
+  const signed = await open(/** @type {any} */ (record)?.claim);
+  if (!signed || signed.kind !== "emind.claim" || !signed.to) return null;
+  // Read what it says as if it were still in date; nothing of it is passed on unless signed again.
+  const says = /** @type {any} */ (signed.body)?.says;
+  const kind = says?.notForMe === true ? "notForMe" : says?.withdrawn === true ? "withdrawn" : says?.recommend ? "recommend" : null;
+  if (!kind) return null;
+  const via = Array.isArray(says.recommend?.via) ? says.recommend.via.filter((/** @type {unknown} */ v) => typeof v === "string").slice(0, 8) : [];
+  const note = typeof says.recommend?.note === "string" ? says.recommend.note.slice(0, 280) : undefined;
+  return { author: signed.from, subject: signed.to, kind: /** @type {Mine["kind"]} */ (kind), note, via, record: { claim: signed }, time: 0 };
 }
 
 /** @returns {Promise<Followed[]>} */
