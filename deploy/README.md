@@ -1,4 +1,10 @@
-# Deploying play.endlessmind.com
+# Deploying endlessmind.com
+
+## The website
+
+`site/` is published to `~/domains/endlessmind.com/` on ordinarydata, which Caddy already serves (with PHP) for that name: in the checkout there, `git pull --ff-only && uv run deploy/site.py`. See `site/README.md`.
+
+## The helper server at play.endlessmind.com
 
 The public helper server runs on `ordinarydata.com` from the checkout at `~/Desktop/prjx/EveryGame`, as the systemd unit in `endlessmind-hub.service`, behind the Caddy site block in `Caddyfile.snippet`. It is one helper server among any number; nothing depends on it.
 

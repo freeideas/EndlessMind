@@ -14,7 +14,8 @@ Instructions for AI agents (and people) changing Endless Mind itself. Agents bui
 | `portal/`   | The reference browser portal, served as plain files                                          |
 | `examples/` | Realm source folders (`realm.json`, rules, renderer)                                         |
 | `tests/`    | Deno unit tests and the browser end-to-end test                                              |
-| `deploy/`   | How play.endlessmind.com runs: systemd unit and Caddy block                                  |
+| `site/`     | The endlessmind.com website: one subfolder per page, each with its own README.md             |
+| `deploy/`   | How endlessmind.com and its helper servers run, and the site's deploy script                 |
 
 ## Conventions
 
