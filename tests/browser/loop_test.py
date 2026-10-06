@@ -58,9 +58,9 @@ def start_garden(data: str) -> subprocess.Popen:
     raise RuntimeError("the garden did not start")
 
 
-def read_qr(page) -> str:
+def read_qr(page, selector: str = ".em-qr") -> str:
     """Read the QR code on the screen the way a phone's camera would."""
-    image = cv2.imdecode(np.frombuffer(page.locator(".em-qr").screenshot(), np.uint8), cv2.IMREAD_COLOR)
+    image = cv2.imdecode(np.frombuffer(page.locator(selector).screenshot(), np.uint8), cv2.IMREAD_COLOR)
     # OpenCV's reader sometimes misses a code at one size and reads it at another, as a camera would
     # after moving a little.
     text = ""
@@ -75,22 +75,26 @@ def read_qr(page) -> str:
     if not text:
         cv2.imwrite("unreadable-qr.png", image)
     assert text, "the QR code could not be read; see unreadable-qr.png"
-    assert text == page.locator(".em-qr").get_attribute("data-link")
+    assert text == page.locator(selector).get_attribute("data-link")
     return text
 
 
-def set_up_new_phrase(phone) -> tuple[str, str]:
+def set_up_new_phrase(phone) -> tuple[str, str, str, str]:
+    """Returns the words, the player ID, the starting name, and the link in the setup code."""
     phone.goto(PORTAL)
     phone.get_by_role("button", name="Make a new secret phrase").click()
     words = phone.locator("#new-words li").all_text_contents()
     assert len(words) == 24
-    phone.get_by_role("button", name="I have written them down").click()
+    name = phone.locator("#new-name").text_content()
+    setup_link = read_qr(phone, "#new-qr")
+    assert setup_link.startswith(PORTAL + "#words=")
+    phone.get_by_role("button", name="I have kept them").click()
     for label in phone.locator("#check-fields label").all():
         n = int(label.text_content().split()[1])
         label.locator("input").fill(words[n - 1])
     phone.get_by_role("button", name="Check").click()
-    expect(phone.locator("#s-home")).to_be_visible()
-    return " ".join(words), phone.locator("#home-id").text_content()
+    expect(phone.locator("#home-name")).to_have_text(name)
+    return " ".join(words), phone.locator("#home-id").text_content(), name, setup_link
 
 
 def plant(page, *plots: int) -> None:
@@ -126,8 +130,14 @@ def main() -> None:
             pc = watch(browser.new_context(viewport={"width": 1280, "height": 900}, device_scale_factor=2).new_page())
 
             print("phone: set up an EntryPortal with a new secret phrase")
-            words, player = set_up_new_phrase(phone)
+            words, player, start_name, setup_link = set_up_new_phrase(phone)
             assert len(player) == 52
+            phone.get_by_role("button", name="Change name").click()
+            phone.locator("#name-input").fill("Moon Pie")
+            phone.get_by_role("button", name="Save", exact=True).click()
+            expect(phone.locator("#home-name")).to_have_text("Moon Pie")
+            phone.goto(setup_link)
+            expect(phone.locator("#message-title")).to_have_text("Already set up")
 
             print("pc: play as a guest, then sign in by scanning the QR code with the phone")
             pc.goto(GARDEN)
@@ -143,7 +153,8 @@ def main() -> None:
             shot(phone, "2-phone-confirm-sign-in")
             phone.locator("#enter-ok").click()
             expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
-            expect(pc.locator(".em-id")).to_have_text(player)
+            expect(pc.locator(".em-name")).to_have_text("Moon Pie")
+            assert player in pc.locator(".em-name").get_attribute("title")
             expect(pc.locator("#count")).to_have_text("3 of 10 seeds toward a record.")
 
             print("pc: plant ten seeds and claim the record with the phone")
@@ -159,7 +170,7 @@ def main() -> None:
             shot(phone, "4-phone-sign-record")
             phone.locator("#sign-ok").click()
             expect(phone.locator("#message-title")).to_have_text("Records kept")
-            expect(pc.get_by_text("Signed in as player")).to_be_visible()
+            expect(pc.get_by_text("Signed in as")).to_be_visible()
             expect(pc.get_by_role("button", name="Claim")).to_have_count(0)
             phone.locator("#message-home").click()
             expect(phone.locator("#home-records")).to_contain_text("complete")
@@ -173,20 +184,25 @@ def main() -> None:
             [record] = listing["records"]
             assert record["public"] is True and set(record["sigs"]) == {player, listing["realm"]}
 
-            print("pc2: sign in on this computer, with the same phrase typed into its own EntryPortal")
+            print("pc2: set up its own EntryPortal from the setup code, then sign in on this computer")
             pc2 = watch(browser.new_context(viewport={"width": 1280, "height": 900}).new_page())
+            restore = watch(pc2.context.new_page())
+            restore.goto(setup_link)
+            expect(restore.locator("#restore-name")).to_have_text(start_name)
+            restore.get_by_role("button", name="Yes, this is me").click()
+            expect(restore.locator("#home-name")).to_have_text(start_name)
+            assert restore.locator("#home-id").text_content() == player
+            restore.close()
             pc2.goto(GARDEN)
             pc2.get_by_role("button", name="Sign in").click()
+            pc2.get_by_text("No phone, or the code won't scan?").click()
             with pc2.expect_popup() as popup:
                 pc2.get_by_role("link", name="Sign in on this computer").click()
             portal2 = popup.value
-            portal2.get_by_role("button", name="I already have a secret phrase").click()
-            portal2.locator("#have-words").fill(words)
-            portal2.get_by_role("button", name="Use this phrase").click()
             expect(portal2.locator("#enter-site")).to_have_text(f"localhost:{GARDEN_PORT}")
             portal2.locator("#enter-ok").click()
             expect(portal2.get_by_role("heading", name="You're in")).to_be_visible()
-            expect(pc2.locator(".em-id")).to_have_text(player)
+            expect(pc2.locator(".em-name")).to_have_text(start_name)
             expect(pc2.locator("#count")).to_contain_text("10 lanterns glowing")
 
             print("pc2: sign out, then sign in by typing the short address into the EntryPortal")
@@ -197,7 +213,7 @@ def main() -> None:
             portal2.locator("#typed-address").fill(typed)
             portal2.get_by_role("button", name="Sign in").click()
             expect(portal2.get_by_role("heading", name="You're in")).to_be_visible()
-            expect(pc2.locator(".em-id")).to_have_text(player)
+            expect(pc2.locator(".em-name")).to_have_text(start_name)
 
             print("phone: burn the identity and tell the realm; the ID is refused from then on")
             phone.goto(PORTAL)

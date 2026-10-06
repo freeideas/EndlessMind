@@ -12,9 +12,9 @@ const BASE = new URL("../", import.meta.url).href;
 const STYLE = `
 .em-box { font: inherit; }
 .em-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
-.em-id { font-family: ui-monospace, Menlo, monospace; font-size: .85em; word-break: break-all; }
 .em-panel { margin-top: .8rem; padding: 1rem; border: 1px solid currentColor; border-radius: 12px; max-width: 22rem; }
 .em-panel h3 { margin: 0 0 .6rem; font-size: 1.1em; }
+.em-panel summary { cursor: pointer; }
 .em-qr { width: 220px; max-width: 100%; aspect-ratio: 1; }
 .em-qr svg { width: 100%; height: 100%; display: block; border-radius: 6px; }
 .em-typed { font-family: ui-monospace, Menlo, monospace; font-size: .9em; word-break: break-all; user-select: all; }
@@ -70,7 +70,7 @@ export function mountSignIn(box, options = {}) {
     });
     const rows = [
       el("div", { className: "em-row" }, [
-        el("span", {}, ["Signed in as player ", el("span", { className: "em-id", textContent: me.player })]),
+        el("span", {}, ["Signed in as ", el("strong", { className: "em-name", textContent: me.playerName, title: "Player ID " + me.player })]),
         out,
       ]),
     ];
@@ -90,21 +90,29 @@ export function mountSignIn(box, options = {}) {
     const code = await response.json();
     if (!response.ok) return draw();
     const join = kind === "join";
-    const qr = el("div", { className: "em-qr", title: "Scan with your phone's camera" });
+    const qr = el("div", { className: "em-qr", title: "Point your phone's camera at this code" });
     qr.innerHTML = code.qr; // an SVG drawn by this realm's own server
     qr.dataset.link = code.link;
     const status = el("p", { className: "em-small" });
     const panel = el("div", { className: "em-panel" }, [
-      el("h3", { textContent: join ? "Scan to sign in" : "Scan to claim your records" }),
+      el("h3", { textContent: join ? "Sign in with your phone" : "Claim with your phone" }),
+      el("p", {
+        textContent: join
+          ? "Point your phone's camera at this code and tap the link it shows. Nothing to install."
+          : "Point your phone's camera at this code to keep your records on your phone.",
+      }),
       qr,
-      el("p", {}, [
-        el("a", { href: code.link, target: "_blank", textContent: join ? "Sign in on this computer" : "Claim on this computer" }),
-      ]),
-      el("p", { className: "em-small" }, [
-        join ? "Or type this into your EntryPortal: " : "Or open this address on your phone: ",
-        el("span", { className: "em-typed", textContent: code.typed }),
-      ]),
       el("p", { className: "em-small", textContent: "Only scan sign-in codes shown on your own screen." }),
+      el("details", { className: "em-small" }, [
+        el("summary", { textContent: "No phone, or the code won't scan?" }),
+        el("p", {}, [
+          el("a", { href: code.link, target: "_blank", textContent: join ? "Sign in on this computer" : "Claim on this computer" }),
+        ]),
+        el("p", {}, [
+          join ? "Or type this address into your EntryPortal: " : "Or open this address on your phone: ",
+          el("span", { className: "em-typed", textContent: code.typed }),
+        ]),
+      ]),
       status,
       el("button", { textContent: "Cancel", onclick: draw }),
     ]);

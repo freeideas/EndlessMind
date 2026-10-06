@@ -21,6 +21,7 @@ Deno.serve(async (request) => (await realm.handle(request)) ?? myGame(request));
 
 // In the game:
 const player = await realm.player(request); // the player ID, or null for a guest
+realm.playerName(player); // the name to show for them, such as "Witty Clover"
 await realm.offer(player, [{ text: "Finished the Glass Maze." }]); // a record for the player to claim
 ```
 

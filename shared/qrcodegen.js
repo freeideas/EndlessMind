@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Project Nayuki QR Code generator v1.8.0, https://github.com/nayuki/QR-Code-generator
-// typescript-javascript/qrcodegen.ts with its types removed (deno bundle --format esm); otherwise unchanged.
+// typescript-javascript/qrcodegen.ts with its types removed (deno bundle --format esm) and a named
+// export at the end; otherwise unchanged.
 //
 // 
 // QR Code generator library (TypeScript)
@@ -1067,8 +1068,6 @@
     QrSegment.Mode = Mode;
   })(qrcodegen2.QrSegment || (qrcodegen2.QrSegment = {}));
 })(qrcodegen || (qrcodegen = {}));
-var qrcodegen_default = qrcodegen;
+/** @type {any} */
 var qrcodegen;
-export {
-  qrcodegen_default as default
-};
+export { qrcodegen };

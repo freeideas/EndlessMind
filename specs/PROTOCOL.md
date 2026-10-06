@@ -65,6 +65,7 @@ A realm usually names an address that forwards to the newest version of an Entry
 | `time`    | When the note was made                                                      |
 | `nonce`   | 16 to 64 random characters                                                  |
 | `portal`  | Optional: the EntryPortal's address, so the realm can send records there    |
+| `name`    | Optional: the name the player chose, at most 40 characters; not unique      |
 
 **4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. Go back to your screen." A realm may also answer a plain visit to a join address by sending the browser on to its EntryPortal link, so the short address works when opened in a phone's browser too.
 
@@ -185,7 +186,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 
 1. **One self-contained file.** Readable code, no scripts or styles loaded from anywhere else, no minified code.
 2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to a join address or a `return` address, as described above.
-3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words. The page asks the browser to keep its storage permanently.
+3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words. The page asks the browser to keep its storage permanently. The new phrase may also be shown as a QR code holding a link to the EntryPortal's own site, `#words=<the phrase>&name=<the player's name>`, so the player can keep a screenshot and set up another device by scanning it. An EntryPortal accepts such a link only while it holds no identity, and only after the player confirms the name it holds; otherwise it ignores it.
 4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name.
 5. **Show before signing.** The page shows the full text of every record, with its public switch, and asks before signing it.
 6. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.

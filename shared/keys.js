@@ -83,9 +83,13 @@ export async function wordsFromEntropy(entropy) {
   return words.join(" ");
 }
 
-/** Tidy typed words, or throw if they are not 24 valid words with a matching checksum. @param {string} text */
+/**
+ * Tidy typed or pasted words, or throw if they are not 24 valid words with a matching checksum. Anything
+ * but letters is ignored, so a numbered list copied from a screenshot ("1. abandon 2. ability ...") works.
+ * @param {string} text
+ */
 export async function checkWords(text) {
-  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = text.toLowerCase().split(/[^a-z]+/).filter(Boolean);
   if (words.length !== 24) throw new Error(`expected 24 words, got ${words.length}`);
   const bad = words.filter((w) => !WORDS.includes(w));
   if (bad.length) throw new Error(`not in the word list: ${bad.join(", ")}`);

@@ -10,10 +10,8 @@
 
 import { checkWords, fromBase64url, hex, isId, newWords, signerFromPrivateKey, signerFromWords } from "../shared/keys.js";
 import { addSignature, canonical, isComplete, signedBytes, validSigners } from "../shared/signed.js";
-import qrcodegenModule from "./vendor/qrcodegen.js";
-
-/** @type {any} */
-const qrcodegen = qrcodegenModule;
+import { qrSvg } from "../shared/qr.js";
+import { defaultName, tidyName } from "../shared/names.js";
 
 const JOIN_MS = 2 * 60 * 1000; // a join code works once, for two minutes
 const CLOCK_MS = 2 * 60 * 1000; // how far a sign-in note's time may be from this realm's clock
@@ -83,7 +81,7 @@ export class Realm {
     this.id = signer.id;
     this.store = store;
     this.now = options.now ?? Date.now;
-    /** @type {{ sessions: Record<string, { player: string, created: number }>, offers: Record<string, any[]>, public: any[], burned: Record<string, any>, players: Record<string, { portal?: string, seen: number }> }} */
+    /** @type {{ sessions: Record<string, { player: string, created: number }>, offers: Record<string, any[]>, public: any[], burned: Record<string, any>, players: Record<string, { portal?: string, name?: string, seen: number }> }} */
     this.data = { sessions: {}, offers: {}, public: [], burned: {}, players: {}, ...data };
   }
 
@@ -176,6 +174,15 @@ export class Realm {
     return this.data.public.filter((r) => r.signers.includes(player));
   }
 
+  /**
+   * The name the player chose in their EntryPortal, as of their latest sign-in here, or their starting
+   * name. Names are not unique and prove nothing; show them, but key everything by the ID.
+   * @param {string} id
+   */
+  playerName(id) {
+    return this.data.players[id]?.name ?? defaultName(id);
+  }
+
   /** @param {string} id */
   async isBurned(id) {
     return id in this.data.burned || Boolean(await this.options.isBurned?.(id));
@@ -247,7 +254,8 @@ export class Realm {
     this.#nonces.set(note.nonce, now + 2 * CLOCK_MS);
     join.player = note.player;
     const portal = typeof note.portal === "string" && /^https?:\/\//.test(note.portal) ? note.portal : undefined;
-    this.data.players[note.player] = { ...(portal ? { portal } : {}), seen: now };
+    const name = tidyName(note.name);
+    this.data.players[note.player] = { ...(portal ? { portal } : {}), ...(name ? { name } : {}), seen: now };
     await this.#save();
     return "";
   }
@@ -277,7 +285,13 @@ export class Realm {
   /** @param {Request} request */
   async #me(request) {
     const player = await this.player(request);
-    return { realm: this.id, name: this.card.name, player, claims: player ? (this.data.offers[player] ?? []).length : 0 };
+    return {
+      realm: this.id,
+      name: this.card.name,
+      player,
+      playerName: player ? this.playerName(player) : null,
+      claims: player ? (this.data.offers[player] ?? []).length : 0,
+    };
   }
 
   /** @param {Request} request */
@@ -445,18 +459,6 @@ export class Realm {
     this.#saving = this.#saving.then(() => this.store.save(snapshot));
     return this.#saving;
   }
-}
-
-/** A QR code as an SVG image. @param {string} text */
-export function qrSvg(text) {
-  const qr = qrcodegen.QrCode.encodeText(text, qrcodegen.QrCode.Ecc.MEDIUM);
-  const border = 4;
-  const size = qr.size + border * 2;
-  let path = "";
-  for (let y = 0; y < qr.size; y++) {
-    for (let x = 0; x < qr.size; x++) if (qr.getModule(x, y)) path += `M${x + border},${y + border}h1v1h-1z`;
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
 }
 
 /** Keep the realm's data in a JSON file. @param {string} path @returns {Store} */

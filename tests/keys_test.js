@@ -15,6 +15,7 @@ import {
   wordsFromEntropy,
 } from "../shared/keys.js";
 import { addSignature, canonical, isComplete, validSigners } from "../shared/signed.js";
+import { defaultName, tidyName } from "../shared/names.js";
 
 const fromHex = (/** @type {string} */ s) => Uint8Array.from(s.match(/../g) ?? [], (b) => parseInt(b, 16));
 const ZERO_WORDS = Array(23).fill("abandon").concat("art").join(" ");
@@ -82,4 +83,17 @@ Deno.test("the signed examples in PROTOCOL.md check out", async () => {
     const example = JSON.parse(text);
     assert.deepEqual((await validSigners(example)).sort(), Object.keys(example.sigs).sort(), text);
   }
+});
+
+Deno.test("a numbered list pasted from a screenshot is read as the phrase", async () => {
+  const numbered = ZERO_WORDS.split(" ").map((w, i) => `${i + 1}. ${w}`).join("\n");
+  assert.deepEqual(await checkWords(numbered), ZERO_WORDS);
+});
+
+Deno.test("names: a starting name from the ID, and tidy chosen names", async () => {
+  const id = (await signerFromWords(ZERO_WORDS)).id;
+  assert.match(defaultName(id), /^[A-Z][a-z]+ [A-Z][a-z]+$/);
+  assert.equal(tidyName("  Moon \u0000 Pie\n "), "Moon Pie");
+  assert.equal(tidyName("x".repeat(60)).length, 40);
+  assert.equal(tidyName(7), "");
 });

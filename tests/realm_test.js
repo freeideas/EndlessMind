@@ -32,7 +32,7 @@ const form = (fields) => ({ method: "POST", body: new URLSearchParams(fields) })
 /** @param {string} address @param {number} time @param {Partial<Record<string, unknown>>} [extra] */
 async function note(address, time, extra = {}) {
   const nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
-  return addSignature({ v: 1, type: "enter", player: player.id, address, time, nonce, portal: PORTAL, ...extra }, player);
+  return addSignature({ v: 1, type: "enter", player: player.id, name: " Moon  Pie", address, time, nonce, portal: PORTAL, ...extra }, player);
 }
 
 /** Start a join, send a note for it, and return the code and the response. @param {any} realm @param {number} time */
@@ -59,6 +59,7 @@ Deno.test("a sign-in note lets in the screen waiting on its code, once", async (
   const cookie = /** @type {string} */ (wait.headers.get("set-cookie")).split(";")[0];
   const me = await (await call(realm, "endlessmind/me", { headers: { cookie } })).json();
   assert.equal(me.player, player.id);
+  assert.equal(me.playerName, "Moon Pie", "the name from the sign-in note");
 
   const again = await call(realm, `join/${code.code}`, form({ enter: JSON.stringify(await note(code.address, clock.now)) }));
   assert.equal(again.status, 400, "a code works once");

@@ -15,10 +15,10 @@
 // of it stays true. To change the EntryPortal after VERSION is published, copy its folder to the next
 // version (v0.1, v0.2, ... v1.0), set VERSION to it, and edit the copy.
 
-export const VERSION = "v0.2";
+export const VERSION = "v0.3";
 export const PORTAL_SITE = "https://portal.endlessmind.com/";
 const ROOT = new URL("../", import.meta.url);
-const SHARED = ["words-en.js", "keys.js", "signed.js"];
+const SHARED = ["words-en.js", "keys.js", "signed.js", "names.js", "qrcodegen.js", "qr.js"];
 
 export const pagePath = () => new URL(`portal/${VERSION}/index.html`, ROOT);
 export const sumsPath = () => new URL(`portal/${VERSION}/SHA256SUMS`, ROOT);
@@ -38,7 +38,7 @@ export async function build(page) {
   for (const name of SHARED) {
     const code = (await Deno.readTextFile(new URL(`shared/${name}`, ROOT)))
       .split("\n")
-      .filter((line) => !line.startsWith("import "))
+      .filter((line) => !line.startsWith("import ") && !/^export \{.*\};$/.test(line))
       .map((line) => line.replace(/^export /, ""))
       .join("\n")
       .trim();
