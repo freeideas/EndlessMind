@@ -20,7 +20,7 @@ You are your **secret phrase**: 24 ordinary words. They are your one identity in
 ## Playing
 
 1. Open a realm's link, on a computer or anywhere else. Many realms let you play right away as a guest.
-2. To play as yourself, choose to sign in. The realm shows a QR code. Scan it with your phone, check that the site name and the two matching words are right, and tap once. Your EntryPortal proves who you are to that realm, without showing your phrase to anyone, and your screen starts the game.
+2. To play as yourself, choose to sign in. The realm shows a QR code. Scan it with your phone, check that the site name is right, and tap once. Your EntryPortal proves who you are to that realm, without showing your phrase to anyone, and your screen starts the game.
 3. The first time, your phone has no EntryPortal yet. It offers to make your secret phrase, or to take the one you already have.
 4. No phone, or the code will not scan? Use the "sign in on this computer" link, or type the short address shown under the code into your EntryPortal.
 

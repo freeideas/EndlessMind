@@ -31,17 +31,15 @@ Sign-in notes and records are JSON objects with a `sigs` field: an object mappin
 - a "sign in on this computer" link: the same EntryPortal link;
 - the join address as short text to type, for when scanning fails.
 
-Next to them it shows two matching words, such as "green otter", and the line "Only scan sign-in codes shown on your own screen."
+Next to them it shows the line "Only scan sign-in codes shown on your own screen."
 
-**2. The EntryPortal link** is the EntryPortal's address with the details after `#`, so they never reach the EntryPortal's server:
+**2. The EntryPortal link** is the EntryPortal's address with the join address after `#url=`, URL-encoded, so it never reaches the EntryPortal's server:
 
 ```
-https://endlessmind.com/EntryPortal#url=<join address>&match=<matching words>
+https://endlessmind.com/EntryPortal#url=<join address>
 ```
 
-Both values are URL-encoded, and `match` is optional.
-
-**3. The EntryPortal asks once and signs.** For an address from a link, it shows "Play at **game-server.com**?" and, when `match` is given, "Is '**green otter**' on the screen in front of you?" One tap confirms both. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
+**3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
 
 ```json
 {
@@ -125,7 +123,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 1. **One self-contained file.** Readable code, no scripts or styles loaded from anywhere else, no minified code.
 2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to a join address or a `return` address, as described above.
 3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words. The page asks the browser to keep its storage permanently.
-4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name and, if given, the matching words.
+4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name.
 5. **Show before signing.** The page shows the full text of every record and asks before signing it.
 6. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.
 7. **Fixed versions.** Each version is published with its SHA-256 fingerprint and never changed afterwards; a new version gets a new address.
