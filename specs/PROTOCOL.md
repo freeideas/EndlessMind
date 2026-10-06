@@ -1,6 +1,6 @@
 # Endless Mind protocol
 
-The exact formats: keys, signed JSON, signing in, records, finding realms, and burning a key. Why things are this way is in [DESIGN.md](DESIGN.md). Hosting and making realms are not decided yet.
+The exact formats: keys, signed JSON, signing in, records, finding realms, and ending an identity. Why things are this way is in [DESIGN.md](DESIGN.md). Hosting and making realms are not decided yet.
 
 ## Keys and IDs
 
@@ -160,18 +160,20 @@ It holds the realm's complete records marked `public`, signed by the realm and b
 
 **Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
 
-## Burning a key
+## Ending an identity
 
-Whoever holds a key can make its ID worthless by publishing a burn notice:
+Whoever holds a key can end its identity by publishing an end notice, holding either the secret phrase or the private key:
 
 ```json
-{ "v": 1, "type": "burn", "key": "<the 32-byte Ed25519 private key, base64url without padding>" }
+{ "v": 1, "type": "end", "words": "<the 24 words>" }
+{ "v": 1, "type": "end", "key": "<the 32-byte Ed25519 private key, base64url without padding>" }
 ```
 
-- **It needs no signature:** anyone can turn `key` into its ID, which proves the publisher had it.
-- **It is never the secret phrase,** which some people may reuse elsewhere and which a key cannot be turned back into.
-- **A burned ID is gone.** Everyone should ignore everything signed by it, whenever dated, including records it shares with others.
-- **Spreading it:** a burned realm serves the notice in place of its card. Boards keep burn notices they see and pass them on, for example in a list of burned IDs.
+- **It needs no signature:** anyone can turn `words` or `key` into the ID, which proves the publisher had it. Publishing the key keeps the phrase private, which matters only if the phrase is used for anything else.
+- **An ended ID is gone.** Everyone should ignore everything signed by it, whenever dated, including records it shares with others.
+- **Spreading it:** an ended realm serves the notice in place of its card. Boards keep end notices they see, offer a searchable list of ended IDs, and pass notices on.
+- **Realms refuse ended IDs** by checking such a list at sign-in, since a ghost's sign-in note still has a valid signature.
+- **EntryPortals** offer ending an identity only behind a clear explanation and a typed confirmation, such as "end this identity".
 
 ## Rules for EntryPortals
 
