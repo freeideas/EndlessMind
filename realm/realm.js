@@ -232,9 +232,9 @@ export class Realm {
     const session = await this.#newSession(/** @type {string} */ (this.#joins.get(code)?.player));
     return this.#page(
       "You're in",
-      "You're in. You can close this page and go back to the game on your screen.",
+      "You're in. If the game is open on another screen, it is signed in there too, and you can close this page.",
       200,
-      { href: this.base, text: `Or play ${this.card.name} on this device` },
+      { href: this.base, text: `Play ${this.card.name} here` },
       { "set-cookie": this.#cookie(session, SESSION_MS) },
     );
   }
@@ -371,7 +371,8 @@ export class Realm {
     for (const record of completed) this.options.onRecord?.(record);
     if (!completed.length) return this.#page("Nothing signed", "No records were signed. Go back to your screen.");
     const portal = this.data.players[claim.player]?.portal ?? this.portal;
-    return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: completed })));
+    // `back` lets the EntryPortal offer a way back to the game, for a player who claimed on this device.
+    return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: completed, back: this.base })));
   }
 
   /**

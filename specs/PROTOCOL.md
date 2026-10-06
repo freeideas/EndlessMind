@@ -122,7 +122,7 @@ The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
 
 Because `public` is set by the player and is part of the signed text, the realm proposes records without its own signature and signs them after they come back, once it has checked that only `public` and `sigs` changed.
 
-**Handing back complete records.** Once it has signed, the realm answers the POST by sending the browser back to the EntryPortal with `#sign=` holding the complete records and no `return`. Without `return`, the EntryPortal signs nothing and sends nothing: records that already carry the player's own proof are kept without asking (completing the copy it kept at step 4), and the player may choose to keep any others.
+**Handing back complete records.** Once it has signed, the realm answers the POST by sending the browser back to the EntryPortal with `#sign=` holding the complete records and no `return`. It may add `back`, the address of the game, and the EntryPortal then offers a link there, but only if `back` has the origin of a site the player signed in to through it. Without `return`, the EntryPortal signs nothing and sends nothing: records that already carry the player's own proof are kept without asking (completing the copy it kept at step 4), and the player may choose to keep any others.
 
 **Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out.
 

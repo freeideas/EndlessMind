@@ -9,6 +9,10 @@
 
 const BASE = new URL("../", import.meta.url).href;
 
+// On a phone or tablet a code would be shown on the very device meant to scan it, so there the buttons
+// go straight to the EntryPortal in this tab, and showing a code is offered for a different phone.
+const ON_PHONE = matchMedia("(pointer: coarse) and (hover: none)").matches;
+
 const STYLE = `
 .em-box { font: inherit; }
 .em-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
@@ -20,6 +24,7 @@ const STYLE = `
 .em-typed { font-family: ui-monospace, Menlo, monospace; font-size: .9em; word-break: break-all; user-select: all; }
 .em-small { font-size: .85em; opacity: .8; }
 .em-box button { font: inherit; cursor: pointer; padding: .35rem .9rem; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; }
+.em-box button.em-quiet { border: 0; text-decoration: underline; padding: .35rem .3rem; opacity: .8; }
 `;
 
 /**
@@ -58,7 +63,8 @@ export function mountSignIn(box, options = {}) {
     panelOpen = false;
     if (!me?.player) {
       const button = el("button", { textContent: "Sign in", onclick: () => openPanel("join") });
-      box.replaceChildren(el("div", { className: "em-row" }, [el("span", { textContent: "Playing as a guest." }), button]));
+      const other = ON_PHONE ? [el("button", { className: "em-quiet", textContent: "Use a different phone", onclick: () => openPanel("join", false) })] : [];
+      box.replaceChildren(el("div", { className: "em-row" }, [el("span", { textContent: "Playing as a guest." }), button, ...other]));
       return;
     }
     const out = el("button", {
@@ -84,19 +90,27 @@ export function mountSignIn(box, options = {}) {
     box.replaceChildren(...rows);
   }
 
-  /** @param {"join" | "rename" | "claim"} kind */
-  async function openPanel(kind) {
+  /**
+   * @param {"join" | "rename" | "claim"} kind
+   * @param {boolean} [here] go to the EntryPortal in this tab instead of showing a code
+   */
+  async function openPanel(kind, here = ON_PHONE) {
     clearInterval(timer);
     panelOpen = true;
     const path = { join: "endlessmind/start", rename: "endlessmind/start?rename", claim: "endlessmind/claim" }[kind];
     const response = await fetch(BASE + path, { method: "POST" });
     const code = await response.json();
     if (!response.ok) return draw();
+    if (here) {
+      location.href = code.link;
+      return;
+    }
     const join = kind !== "claim";
+    const device = ON_PHONE ? "this phone" : "this computer";
     const words = {
-      join: ["Sign in with your phone", "Point your phone's camera at this code and tap the link it shows. Nothing to install.", "Sign in on this computer"],
-      rename: ["Change your name", "Scan this code with the phone you signed in with, change your name there, and this screen shows it.", "Change it on this computer"],
-      claim: ["Claim with your phone", "Point your phone's camera at this code to keep your records on your phone.", "Claim on this computer"],
+      join: ["Sign in with your phone", "Point your phone's camera at this code and tap the link it shows. Nothing to install.", `Sign in on ${device}`],
+      rename: ["Change your name", "Scan this code with the phone you signed in with, change your name there, and this screen shows it.", `Change it on ${device}`],
+      claim: ["Claim with your phone", "Point your phone's camera at this code to keep your records on your phone.", `Claim on ${device}`],
     }[kind];
     const qr = el("div", { className: "em-qr", title: "Point your phone's camera at this code" });
     qr.innerHTML = code.qr; // an SVG drawn by this realm's own server
