@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Endless Maze</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; color: #e9f1ff; background: #0d1420; font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 40rem; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
+h1 { margin: 0; font-size: 1.9rem; }
+.lead { color: #9fb2cc; margin: .2rem 0 .8rem; }
+#signin { margin: .8rem 0 1rem; padding: .8rem 1rem; border-radius: 12px; background: #ffffff0d; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: .6rem 0; }
+#level { font-size: 1.2rem; font-weight: 700; }
+#clock { font-variant-numeric: tabular-nums; color: #9fb2cc; }
+#board { display: block; width: 100%; max-width: 560px; aspect-ratio: 1; margin: .4rem auto; touch-action: none; border-radius: 8px; background: #111b2b; }
+#note { min-height: 1.6em; text-align: center; color: #ffd76a; font-weight: 600; }
+.pad { display: grid; grid-template-columns: repeat(3, 4rem); grid-template-rows: repeat(2, 3.4rem); gap: .4rem; justify-content: center; margin: .6rem 0; }
+.pad button { font-size: 1.6rem; border-radius: 12px; border: 1px solid #ffffff30; background: #ffffff12; color: inherit; cursor: pointer; }
+.pad button:active { background: #ffffff30; }
+.pad .up { grid-column: 2; grid-row: 1; }
+.pad .left { grid-column: 1; grid-row: 2; }
+.pad .down { grid-column: 2; grid-row: 2; }
+.pad .right { grid-column: 3; grid-row: 2; }
+button.text { font: inherit; border-radius: 8px; border: 1px solid #ffffff40; background: transparent; color: inherit; padding: .3rem .8rem; cursor: pointer; }
+button.text:disabled { opacity: .35; cursor: default; }
+a { color: #8fc3ff; }
+footer { margin-top: 1.5rem; color: #7d8ea8; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Endless Maze</h1>
+  <p class="lead">Run from the top left to the glowing square. Each level is bigger.</p>
+  <div id="signin"></div>
+  <div class="bar">
+    <button class="text" id="prev" aria-label="Previous level">&lsaquo;</button>
+    <span id="level"></span>
+    <button class="text" id="next" aria-label="Next level">&rsaquo;</button>
+    <span id="clock"></span>
+  </div>
+  <canvas id="board" width="560" height="560" aria-label="The maze"></canvas>
+  <p id="note"></p>
+  <div class="pad" aria-label="Arrow buttons">
+    <button class="up" data-move="U" aria-label="Up">&uarr;</button>
+    <button class="left" data-move="L" aria-label="Left">&larr;</button>
+    <button class="down" data-move="D" aria-label="Down">&darr;</button>
+    <button class="right" data-move="R" aria-label="Right">&rarr;</button>
+  </div>
+  <footer>
+    Arrow keys or W, A, S, D work too, and you can swipe on the maze. An example realm for
+    <a href="https://endlessmind.com/">Endless Mind</a>; a guest's progress belongs to this browser, so sign in to keep yours on any device.
+  </footer>
+</main>
+<script type="module">
+import { mountSignIn } from "./endlessmind/signin.js";
+import { DOWN, LEFT, makeMaze, RIGHT, step, UP } from "./maze.js";
+
+const board = document.getElementById("board");
+const ctx = board.getContext("2d");
+const $ = (id) => document.getElementById(id);
+
+let state = { reached: 1, best: {}, player: null };
+let level = 1;
+let maze = makeMaze(1);
+let cell = 0;
+let moves = "";
+let run = null;
+let started = 0;
+let finished = false;
+
+function draw() {
+  const px = board.width;
+  const unit = px / maze.size;
+  ctx.fillStyle = "#111b2b";
+  ctx.fillRect(0, 0, px, px);
+  // The exit glows; the player is a bright dot.
+  const ex = (maze.exit % maze.size) * unit, ey = Math.floor(maze.exit / maze.size) * unit;
+  ctx.fillStyle = "#ffd76a";
+  ctx.shadowColor = "#ffd76a";
+  ctx.shadowBlur = unit;
+  ctx.fillRect(ex + unit * .2, ey + unit * .2, unit * .6, unit * .6);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#c9d8ee";
+  ctx.lineWidth = Math.max(2, unit / 8);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let c = 0; c < maze.size * maze.size; c++) {
+    const x = (c % maze.size) * unit, y = Math.floor(c / maze.size) * unit;
+    const open = maze.open[c];
+    if (!(open & UP)) { ctx.moveTo(x, y); ctx.lineTo(x + unit, y); }
+    if (!(open & LEFT)) { ctx.moveTo(x, y); ctx.lineTo(x, y + unit); }
+    if (!(open & DOWN) && Math.floor(c / maze.size) === maze.size - 1) { ctx.moveTo(x, y + unit); ctx.lineTo(x + unit, y + unit); }
+    if (!(open & RIGHT) && c % maze.size === maze.size - 1) { ctx.moveTo(x + unit, y); ctx.lineTo(x + unit, y + unit); }
+  }
+  ctx.stroke();
+  const x = (cell % maze.size + .5) * unit, y = (Math.floor(cell / maze.size) + .5) * unit;
+  ctx.fillStyle = "#6ee7ff";
+  ctx.beginPath();
+  ctx.arc(x, y, unit * .3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBar() {
+  $("level").textContent = `Level ${level}`;
+  $("prev").disabled = level <= 1;
+  $("next").disabled = level >= state.reached;
+  const best = state.best[level];
+  $("clock").textContent = (started && !finished ? seconds(performance.now() - started) : "") + (best ? `  best ${seconds(best)}` : "");
+}
+
+const seconds = (ms) => (ms / 1000).toFixed(1) + " s";
+
+async function api(path, body) {
+  const response = await fetch(path, body ? { method: "POST", body: JSON.stringify(body) } : { cache: "no-store" });
+  return response.json();
+}
+
+async function play(n) {
+  level = Math.max(1, Math.min(n, state.reached));
+  maze = makeMaze(level);
+  cell = maze.start;
+  moves = "";
+  finished = false;
+  started = 0;
+  run = null;
+  $("note").textContent = "";
+  draw();
+  drawBar();
+  const answer = await api("api/start", { level });
+  if (answer.run) run = answer.run;
+  else $("note").textContent = answer.error ?? "";
+}
+
+async function move(letter) {
+  if (finished || !run) return;
+  const to = step(maze, cell, letter);
+  if (to === cell) return;
+  if (!started) started = performance.now();
+  cell = to;
+  moves += letter;
+  draw();
+  if (cell !== maze.exit) return;
+  finished = true;
+  const answer = await api("api/finish", { run, moves });
+  if (answer.error) {
+    $("note").textContent = answer.error;
+    return;
+  }
+  state = answer;
+  $("note").textContent = `Level ${answer.level} done in ${seconds(answer.ms)}. Next one coming up...`;
+  drawBar();
+  signIn.refresh();
+  setTimeout(() => level === answer.level && play(answer.level + 1), 1500);
+}
+
+const KEYS = { ArrowUp: "U", ArrowRight: "R", ArrowDown: "D", ArrowLeft: "L", w: "U", d: "R", s: "D", a: "L", W: "U", D: "R", S: "D", A: "L" };
+addEventListener("keydown", (event) => {
+  if (event.target instanceof HTMLInputElement) return;
+  const letter = KEYS[event.key];
+  if (!letter) return;
+  event.preventDefault();
+  move(letter);
+});
+for (const button of document.querySelectorAll(".pad button")) {
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    move(button.dataset.move);
+  });
+}
+
+// Swiping on the maze moves one step in the swipe's direction.
+let touchStart = null;
+board.addEventListener("pointerdown", (event) => (touchStart = { x: event.clientX, y: event.clientY }));
+board.addEventListener("pointerup", (event) => {
+  if (!touchStart) return;
+  const dx = event.clientX - touchStart.x, dy = event.clientY - touchStart.y;
+  touchStart = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+  move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "R" : "L") : (dy > 0 ? "D" : "U"));
+});
+
+$("prev").onclick = () => play(level - 1);
+$("next").onclick = () => play(level + 1);
+setInterval(drawBar, 100);
+
+let shownFor;
+async function load() {
+  state = await api("api/state");
+  // On first load, and whenever someone signs in or out, start at the first unfinished level.
+  if (shownFor !== state.player) {
+    shownFor = state.player;
+    play(state.reached);
+  } else drawBar();
+}
+
+const signIn = mountSignIn($("signin"), { onChange: load });
+</script>
+</body>
+</html>

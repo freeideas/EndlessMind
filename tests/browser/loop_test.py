@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["playwright", "opencv-python-headless", "numpy"]
 # ///
-"""The whole loop in real browsers: a PC playing Lantern Garden and a phone holding the EntryPortal.
+"""The whole loop in real browsers: a PC playing Endless Maze and a phone holding the EntryPortal.
 
 Guest play, sign-in by QR code (read from the screen), claiming a record, the public list, "sign in on
 this computer", a typed address, and burning an identity. The EntryPortal and the realm run on
@@ -26,8 +26,8 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-GARDEN_PORT, PORTAL_PORT = free_port(), free_port()
-GARDEN = f"http://localhost:{GARDEN_PORT}/"
+MAZE_PORT, PORTAL_PORT = free_port(), free_port()
+MAZE = f"http://localhost:{MAZE_PORT}/"
 # The EntryPortal has a site of its own; realms name its root, which forwards to the newest version.
 PORTAL = f"http://127.0.0.1:{PORTAL_PORT}/"
 
@@ -43,19 +43,19 @@ def serve_portal() -> None:
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
-def start_garden(data: str) -> subprocess.Popen:
-    env = {**os.environ, "GARDEN_PORT": str(GARDEN_PORT), "GARDEN_BASE": GARDEN, "GARDEN_PORTAL": PORTAL, "GARDEN_DATA": data}
-    garden = subprocess.Popen(
-        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-env", "examples/lantern-garden/server.js"],
+def start_maze(data: str) -> subprocess.Popen:
+    env = {**os.environ, "MAZE_PORT": str(MAZE_PORT), "MAZE_BASE": MAZE, "MAZE_PORTAL": PORTAL, "MAZE_DATA": data}
+    game = subprocess.Popen(
+        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-env", "examples/maze/server.js"],
         cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     for _ in range(100):
         try:
-            socket.create_connection(("localhost", GARDEN_PORT), timeout=0.2).close()
-            return garden
+            socket.create_connection(("localhost", MAZE_PORT), timeout=0.2).close()
+            return game
         except OSError:
             time.sleep(0.1)
-    raise RuntimeError("the garden did not start")
+    raise RuntimeError("the maze did not start")
 
 
 def read_qr(page, selector: str = ".em-qr") -> str:
@@ -130,10 +130,15 @@ def paste_picture(page, png: bytes) -> None:
     )
 
 
-def plant(page, *plots: int) -> None:
-    for plot in plots:
-        page.locator(f'.plot[data-plot="{plot}"]').click()
-        expect(page.locator(f'.plot.lit[data-plot="{plot}"]')).to_be_visible()
+def run_level(page, level: int) -> None:
+    """Run one maze level with the arrow keys, along the shortest path, then wait for the next level."""
+    expect(page.locator("#level")).to_have_text(f"Level {level}")
+    moves = page.evaluate(f"import('./maze.js').then(m => m.solution(m.makeMaze({level})))")
+    keys = {"U": "ArrowUp", "R": "ArrowRight", "D": "ArrowDown", "L": "ArrowLeft"}
+    for letter in moves:
+        page.keyboard.press(keys[letter], delay=15)
+    expect(page.locator("#note")).to_contain_text(f"Level {level} done")
+    expect(page.locator("#level")).to_have_text(f"Level {level + 1}")
 
 
 def main() -> None:
@@ -147,7 +152,7 @@ def main() -> None:
 
     serve_portal()
     with tempfile.TemporaryDirectory() as data, sync_playwright() as pw:
-        garden = start_garden(data)
+        game = start_maze(data)
         try:
             browser = pw.chromium.launch(headless=not headed)
             errors: list[str] = []
@@ -174,22 +179,21 @@ def main() -> None:
             expect(phone.locator("#message-title")).to_have_text("Already set up")
 
             print("pc: play as a guest, then sign in by scanning the QR code with the phone")
-            pc.goto(GARDEN)
+            pc.goto(MAZE)
             expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
-            plant(pc, 0, 1, 2)
-            expect(pc.locator("#count")).to_have_text("3 of 10 seeds toward a record.")
+            run_level(pc, 1)
             pc.get_by_role("button", name="Sign in").click()
             link = read_qr(pc)
             shot(pc, "1-pc-sign-in-code")
             assert link.startswith(PORTAL + "#url=")
             phone.goto(link)
-            expect(phone.locator("#enter-site")).to_have_text(f"localhost:{GARDEN_PORT}")
+            expect(phone.locator("#enter-site")).to_have_text(f"localhost:{MAZE_PORT}")
             shot(phone, "2-phone-confirm-sign-in")
             phone.locator("#enter-ok").click()
             expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
             expect(pc.locator(".em-name")).to_have_text("Moon Pie")
             assert player in pc.locator(".em-name").get_attribute("title")
-            expect(pc.locator("#count")).to_have_text("3 of 10 seeds toward a record.")
+            expect(pc.locator("#level")).to_have_text("Level 2")
 
             print("pc: change the name from the game; the phone saves it and signs in again")
             pc.get_by_role("button", name="Change name").click()
@@ -202,15 +206,16 @@ def main() -> None:
             expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
             expect(pc.locator(".em-name")).to_have_text("Star Fish")
 
-            print("pc: plant ten seeds and claim the record with the phone")
-            plant(pc, *range(3, 10))
+            print("pc: run levels 2 and 3 and claim the record with the phone")
+            run_level(pc, 2)
+            run_level(pc, 3)
             expect(pc.get_by_text("1 record is waiting for you to claim.")).to_be_visible()
-            shot(pc, "3-pc-garden")
+            shot(pc, "3-pc-maze")
             pc.get_by_role("button", name="Claim").click()
             claim = read_qr(pc)
-            assert claim.startswith(GARDEN + "claim/")
+            assert claim.startswith(MAZE + "claim/")
             phone.goto(claim)
-            expect(phone.locator("#sign-records")).to_contain_text("Planted 10 lantern seeds in Lantern Garden.")
+            expect(phone.locator("#sign-records")).to_contain_text("Finished the first 3 mazes in Endless Maze.")
             expect(phone.get_by_label("Public: anyone may see this record")).to_be_checked()
             shot(phone, "4-phone-sign-record")
             phone.locator("#sign-ok").click()
@@ -219,7 +224,7 @@ def main() -> None:
             expect(pc.get_by_role("button", name="Claim")).to_have_count(0)
             phone.locator("#message-home").click()
             expect(phone.locator("#home-records")).to_contain_text("complete")
-            expect(phone.locator("#home-records")).to_contain_text(f"Signed by you and localhost:{GARDEN_PORT}")
+            expect(phone.locator("#home-records")).to_contain_text(f"Signed by you and localhost:{MAZE_PORT}")
             shot(phone, "5-phone-home")
 
             print("pc3: set up an EntryPortal from a camera photo of the setup screen")
@@ -244,9 +249,9 @@ def main() -> None:
             pc4.context.close()
 
             print("anyone: the public list holds the complete record")
-            listing = pc.request.get(GARDEN + "endlessmind-list.json").json()
-            card = pc.request.get(GARDEN + "endlessmind-card.json").json()
-            assert card["name"] == "Lantern Garden" and listing["realm"] == card["signers"][0]
+            listing = pc.request.get(MAZE + "endlessmind-list.json").json()
+            card = pc.request.get(MAZE + "endlessmind-card.json").json()
+            assert card["name"] == "Endless Maze" and listing["realm"] == card["signers"][0]
             [record] = listing["records"]
             assert record["public"] is True and set(record["sigs"]) == {player, listing["realm"]}
 
@@ -259,17 +264,17 @@ def main() -> None:
             expect(restore.locator("#home-name")).to_have_text(start_name)
             assert restore.locator("#home-id").text_content() == player
             restore.close()
-            pc2.goto(GARDEN)
+            pc2.goto(MAZE)
             pc2.get_by_role("button", name="Sign in").click()
             pc2.get_by_text("No phone, or the code won't scan?").click()
             with pc2.expect_popup() as popup:
                 pc2.get_by_role("link", name="Sign in on this computer").click()
             portal2 = popup.value
-            expect(portal2.locator("#enter-site")).to_have_text(f"localhost:{GARDEN_PORT}")
+            expect(portal2.locator("#enter-site")).to_have_text(f"localhost:{MAZE_PORT}")
             portal2.locator("#enter-ok").click()
             expect(portal2.get_by_role("heading", name="You're in")).to_be_visible()
             expect(pc2.locator(".em-name")).to_have_text(start_name)
-            expect(pc2.locator("#count")).to_contain_text("10 lanterns glowing")
+            expect(pc2.locator("#level")).to_have_text("Level 4")
 
             print("pc2: sign out, then sign in by typing the short address into the EntryPortal")
             pc2.get_by_role("button", name="Sign out").click()
@@ -292,11 +297,11 @@ def main() -> None:
             notice = json.loads(phone.locator("#burned-notice").input_value())
             assert notice["type"] == "burn" and len(notice["key"]) == 43
             with phone.expect_popup() as told:
-                phone.get_by_role("button", name=f"Tell localhost:{GARDEN_PORT}").click()
+                phone.get_by_role("button", name=f"Tell localhost:{MAZE_PORT}").click()
             expect(told.value.get_by_text("that player ID is burned here")).to_be_visible()
             pc2.reload()
             expect(pc2.get_by_text("Playing as a guest.")).to_be_visible()
-            assert pc.request.get(GARDEN + "endlessmind-list.json").json()["records"] == []
+            assert pc.request.get(MAZE + "endlessmind-list.json").json()["records"] == []
             pc2.get_by_role("button", name="Sign in").click()
             portal2.goto(PORTAL)
             portal2.locator("#typed-address").fill(pc2.locator(".em-typed").text_content())
@@ -307,8 +312,8 @@ def main() -> None:
             assert not errors, "errors in the browsers:\n" + "\n".join(errors)
             print("ok: the whole loop works")
         finally:
-            garden.terminate()
-            out, _ = garden.communicate(timeout=5)
+            game.terminate()
+            out, _ = game.communicate(timeout=5)
             if headed or "--verbose" in sys.argv:
                 print(out)
 

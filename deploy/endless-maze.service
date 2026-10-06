@@ -1,0 +1,25 @@
+# systemd unit for the Endless Maze example realm at https://maze.endlessmind.com/ on ordinarydata.
+# Install: sudo cp deploy/endless-maze.service /etc/systemd/system/ && sudo systemctl enable --now endless-maze
+# Caddy relays maze.endlessmind.com to 127.0.0.1:8760. The realm must have its own host, never a path
+# under the EntryPortal's site: a page on the EntryPortal's site could use the player's stored key.
+# Its secret phrase and data are in examples/maze/data/ in the checkout (ignored by Git).
+
+[Unit]
+Description=Endless Maze, the example Endless Mind realm
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ace
+Group=ace
+WorkingDirectory=/home/ace/Desktop/prjx/EveryGame
+Environment=HOME=/home/ace
+Environment=MAZE_PORT=8760
+Environment=MAZE_BASE=https://maze.endlessmind.com/
+ExecStart=/home/ace/.local/bin/deno run --allow-read --allow-write --allow-net --allow-env examples/maze/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

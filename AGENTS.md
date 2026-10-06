@@ -11,7 +11,7 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 | `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |
 | `realm/`    | The realm library: sign-in, claims, realm card and public list for realms on Deno   |
-| `examples/` | Example realms built on the library; `lantern-garden/` is the first                 |
+| `examples/` | Example realms built on the library; `maze/` is Endless Maze                        |
 | `tests/`    | Deno unit tests, and `browser/`: the whole loop in two browsers (Playwright, `uv`)  |
 | `site/`     | The endlessmind.com website, one subfolder per page                                 |
 | `deploy/`   | How both sites are published; `entryportal.js` assembles the EntryPortal            |
