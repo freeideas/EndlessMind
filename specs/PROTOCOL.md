@@ -1,85 +1,136 @@
-# The Endless Mind protocol
+# Endless Mind protocol
 
-**Status: draft, version 0.** The core parts and the version 0 formats below are implemented by the reference code in this repository. Links start with `emind:`. The design behind the protocol is in [DESIGN.md](DESIGN.md), and the words used here are defined there under "Words used here".
+The exact formats: keys, signed JSON, signing in, and records. Why things are this way is in [DESIGN.md](DESIGN.md). This document covers identity only; finding realms and hosting are not decided yet.
 
-## What it is for
+## Keys and IDs
 
-Endless Mind is meant to be a worldwide network, like the World Wide Web. The web works because a few small rules let anything connect: addresses (URLs), a way to ask for things (HTTP), and a page format (HTML). None of them says what a website may be. The Endless Mind protocol aims for the same: a shared way to connect, so that any realm, object or portal made by anyone, in any language or engine, can meet any other.
+A key pair is an Ed25519 key pair (Ed25519 is a widely used signature method, built into browsers). Players and realms use the same kind.
 
-## Rules for the rules
+- **ID:** the 32-byte public key in base32 (RFC 4648 alphabet, lowercase, no padding): 52 characters of `a-z` and `2-7`. Short enough to be one label of a web address.
+- **Secret phrase:** 24 words from the BIP39 English word list, encoding 256 random bits plus an 8-bit checksum, as BIP39 says.
+- **From phrase to key:** the BIP39 seed with an empty passphrase (PBKDF2 with HMAC-SHA512, 2048 rounds, salt `mnemonic`), then the SLIP-0010 Ed25519 master key: HMAC-SHA512 with key `ed25519 seed` over the seed, keeping the first 32 bytes as the Ed25519 private key.
+- **Example:** the phrase of 23 times `abandon` then `art` (all-zero entropy; never use it) gives the ID `pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a`.
 
-1. **Rules describe how to connect, never what may be built.** A rule that limits what someone can create does not belong in the protocol.
-2. **The core stays tiny.** It holds only what two strangers' software must share to talk at all.
-3. **Everything else is an optional extension.** Anyone can write one without asking permission or registering it anywhere. Extensions are named so names cannot collide: a dotted name starting with something the author controls, such as a domain name they own written in reverse (`com.example.chess`) or their key. Names without a dot belong to the core.
-4. **Ignore what you do not understand; never reject it.** Unknown fields, message kinds and extensions are skipped, so new ideas never break old software.
-5. **Versions are added, never forced.** A new version may change how things are encoded or sent, but an older version keeps working as long as people still run it (see "Versions").
-6. **Nothing needs a central authority.** No registry, no gatekeeper, no official server. If this project disappeared, the protocol would still work.
+Programs that follow this recipe make the same ID from the same phrase, so a player can move between them freely. [tests/keys_test.js](../tests/keys_test.js) checks the recipe against the published BIP39 and SLIP-0010 test vectors.
 
-## The core
+## Signed JSON
 
-| Part               | What it defines                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| Identity           | Key pairs; an address is a public key; the neutral link format                     |
-| Content            | Files named by their hash; a signed manifest listing a realm's files               |
-| Messages           | One signed envelope (from, to, kind, body, time) that works over any connection    |
-| Announcements      | Signed "here I am" notes kept by servers: key, name, tags, manifest, expiry        |
-| Referee passes     | A realm key's signed word that another key may referee it for a while             |
+Sign-in notes and records are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
 
-- **Identity.** Every object is a key pair, and its address is its public key. A realm's link is that key plus hints saying which servers it is announced on, so no website or company owns it, and any portal can open it.
-- **Content.** Every file is named by its hash, so anyone holding a copy can serve it and anyone receiving it can check it. A manifest lists a realm's public files by hash and is signed by the realm's key.
-- **Messages.** One envelope for everything: who sent it, to whom, what kind of message, the body, the time, and the sender's signature. It does not care how it travels (today, a server's relay over WebSocket).
-- **Announcements.** How a realm that wants to be found says so: its key, name, tags, manifest, and when the note expires. A server keeps the announcements sent to it and answers searches by tag. Where a realm is announced is carried in its links, as hints.
-- **Reference runtime.** The JavaScript callbacks, storage interface, hosting controls and backup format are reference-software conventions. They are not requirements for another engine. The optional session extension lets different runtimes exchange actions and views; see [RUNTIME.md](RUNTIME.md).
+- **What is signed:** the object without `sigs`, written as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
+- **A signature:** the 64-byte Ed25519 signature of those bytes, in base64url without padding.
+- **Every signer signs the same bytes,** so signatures can be added in any order without disturbing each other.
+- **Every object carries `v` (the version, `1`) and `type`.** Unknown fields are allowed and are signed like any other.
+- **Times** are whole milliseconds since 1970-01-01 UTC.
+- **Size:** at most 16 KB of canonical JSON.
 
-## Version 0 formats
+## Signing in
 
-The exact shapes used by the reference code ([shared/](../shared/)). These are the hardest things to change once in use.
+**The sign-in note**
 
-- **Addresses:** `ed25519-` followed by the 32-byte public key in lowercase base32 (RFC 4648 alphabet, no padding): 60 characters, only lowercase letters, digits and one hyphen. Lowercase base32 survives case-insensitive systems, fits in one host-name label (so it can be part of a web address such as `<address>.example.org`), and selects with a double-click.
-- **Hashes:** `sha256-` followed by the 32-byte SHA-256 digest in lowercase base32. A file's hash covers its raw bytes exactly as stored, with no other processing.
-- **Allowed methods:** version 0 accepts only `ed25519` keys and signatures and `sha256` hashes. Anything else is rejected, never guessed at; later versions add methods explicitly, so no one can force a weaker one.
-- **Text rules:** base32 uses the RFC 4648 alphabet in lowercase with no padding; uppercase or padded forms are rejected, not converted, so each value has exactly one written form.
-- **Signatures:** `ed25519-` followed by the 64-byte signature in lowercase base32.
-- **Links:** the canonical form is `emind:<address>?via=<encoded-origin>[,<encoded-origin>...]`, optionally followed by `&release=<release hash>` and `&renderer=<file hash>`. The address names the realm; a realm with no key is named by its release hash in the same place (`emind:sha256-...`), and a portal opening such a link runs the realm itself. `via` lists URL-encoded http or https server origins where the realm is announced and refereed. An address alone says nothing about where to find the realm, since servers do not talk to each other and there is no shared lookup table, so a link works on the servers it names. The trusted portal contacts the hinted servers directly, in turn, without navigating to their portals or copying any private key, and uses the first that knows the realm. An announcement may carry `key`, the referee's exchange key, with which visitors lock the private part of an entry request (see "Private sessions" in [RUNTIME.md](RUNTIME.md)). An announcement may carry `servers`, the realm's own signed list of every server it is refereed on (at most 8 web addresses), so one working hint leads to the rest; a portal may remember that list for next time and move a visit to another server on it when the referee goes quiet. Because the key names the realm, a realm can move to other servers and old links stay valid; only the hints go stale, and a portal that has visited before knows the newer list. Without `release`, a link means the realm as it is now. `release` pins one exact version: a portal opening it must refuse to run any other version and say the version changed, so an actor can look at an update before trusting it. A release hash is SHA-256 of the canonical JSON of the manifest body. Signing or announcing unchanged content does not change its release. `renderer` names, by its hash, a renderer to show the realm with in place of the realm's own; the file is fetched from the hinted server like any other. Portals ignore query parameters they do not know. Links work like `mailto:` or `magnet:` (no `//`, since an address is a key, not a host computer). The `emind:` form is the real link: it depends on no web address. Because chat portals and web pages make only `https` links clickable, the form people usually share wraps it in the address of a portal, which is a convenience and can be any copy of the portal: `https://<trusted-portal>/#emind:<address>?via=<encoded-origin>`; the part after `#` is never sent to the server. Browser portals may register as handlers for `web+emind:` links (browsers only let web pages handle link types starting with `web+`); installed portals may handle `emind:` directly.
-- **Envelope:** a JSON object with `v` (protocol version, `"emind/0"`), `id` (random, at least 16 characters), `from`, `to` (an address, or `null` for a public statement), `kind`, `body`, `time` (milliseconds since 1970) and `sig`. Senders may add more fields. A receiver reads only envelopes whose `v` it speaks and ignores the rest.
-- **What is signed:** every field of the envelope except `sig`, including fields the receiver does not know, so later additions stay signed and are passed on intact. The fields are written as canonical JSON as defined by RFC 8785 (JSON Canonicalization Scheme), so any language can reproduce the exact text.
-- **Purpose labels:** every signature covers the text `emind-<purpose>`, a line break, then the signed content: `emind-envelope` for envelopes, `emind-hold` for proving a key to a server, `emind-show` for showing a claim, `emind-seen` for signing one in return. The proof signs the server's name as the client reached it (for example `example.org:8000`), a line break, then the server's random challenge, so a dishonest server cannot pass the signature on to pose as the actor elsewhere. For that to hold, a server must know its own names and refuse a proof made under any other; it cannot take its name from the request. A signature made for one purpose can never be passed off as another.
-- **Relay:** a WebSocket connection to a server proves which addresses it holds before messages for them are delivered to it. The server's first message is `{type:"welcome", versions, time}`, where `time` is its clock, so a client can tell when its own clock is off. The client sends `{type:"hold", address}`, adding `only: true` to hold the address alone; the server answers `{type:"challenge", address, nonce}`; the client sends `{type:"prove", address, sig}`, signing under purpose `emind-hold`; the server answers `{type:"held", address}`. Then `{type:"send", envelope}` relays an envelope from an address the connection holds, delivered as `{type:"deliver", envelope}`. If the receiver is absent or cannot keep up, the message is dropped and the sender gets `{type:"undeliverable", to}`; a sender over the server's traffic limit gets `{type:"error", error}` and its message is dropped. A server never disconnects a receiver for being flooded. Several connections may hold one address, as a character does when it is in several realms at once; a message for that address goes to the holders that have written to its sender, or to all of them if none has. A connection that holds an address with `only` replaces every other holder of it: the server sends each of them `{type:"replaced", address}`, stops delivering to them and no longer lets them send, so the most recent referee wins on that server. Different servers make independent choices; no global hosting election is implied. `{type:"release", address}` gives an address up (a referee leaving its realm), so the realm shows as offline. Envelopes are signed but not locked, so the server can read whatever a body holds in the clear; the session extension locks moves and views between visitor and referee (see "Private sessions" in [RUNTIME.md](RUNTIME.md)).
-- **Replays:** a receiver ignores an envelope whose `from` and `id` it has already seen, or whose `time` is more than 10 minutes from its own clock, so a recorded message cannot be sent again later.
-- **Limits:** a received message may be at most 256 KB of text and nested at most 32 levels deep, and an object may not repeat a field name (different languages' parsers disagree about repeats, which would let one message mean two things). Messages breaking these limits are dropped.
-- **Manifests** are envelopes of kind `manifest`, addressed to `null` and signed by the realm's key. The body has `name` (at most 200 characters), `description` (at most 2,000), `tags`, `files` (file name to hash, at most 256 files) and `needs`, plus these optional fields: `picture` (a png, jpg, webp, gif or svg file among `files`, at most 256 KB, that shows the realm in lists), `main` (the rules file, left out when the rules are private, known only to the referee), `renderer` (the default browser renderer, left out when the realm cannot be played in a browser), `renderers` (other renderers the realm offers: at most 8, each a short label and a file name) and `portal` (`{ name, url }`, the realm's own portal and the https address where actors get it). `needs` names the permissions the realm asks the actor's portal for (storage, network, camera, and so on). Version 0 defines none, so the list is empty; a portal must refuse to run a realm that needs something it does not know.
-- **Server:** a helper server answers these HTTP routes. `POST /announce` keeps a signed announcement, replacing an older one from the same address; an announcement may expire at most a week (plus a day) ahead. `POST /announce` with a bare manifest body that names public rules keeps a release with no key (see "Releases without a key"), answering `{ ok, release }`. `PUT /blob/<hash>` stores a file of at most 2 MB if its bytes match the hash and a live announcement or release lists it, so a realm is announced first and its files uploaded after; `GET /blob/<hash>` returns it. A file is deleted once nothing live lists it. `GET /announce/<address>` returns `{ announcement, online }`, where `online` says whether a connection has proved that address on the relay. `GET /announce?tag=<tag>` lists unexpired realms, online ones first, as `{ realms: [{ address, name, tags, description, picture, online, time }] }`, where `description` is the first 300 characters of the manifest's and `picture` is `{ hash, type }` (left out when the manifest has none); a portal fetches the picture as a file and shows it only as an image (all realms without `tag`). A release with no key is listed with its hash as `address` and `alone: true`, and counts as online. A realm the server's operator picked is listed with `picked: true`. `POST /recommend` keeps a recommendation and `GET /recommend?subject=<address>`, `?author=<address>` or neither lists unexpired ones, newest first, as `{ recommendations: [{ claim, proof? }] }` (see "Recommendations"). `GET /picks` returns the operator's picks as `{ note?, picks: [{ link, note? }] }`: realm links and short notes, read from a file the operator keeps; picks are the operator's own choice and carry no signature. The relay is a WebSocket at `/ws` (see "Relay"). HTTP API routes allow cross-origin access without credentials so a trusted portal can use a separate helper server. Operators set local resource quotas; these do not interpret realm rules.
-- **Referee passes:** a realm's key can let another key referee for a while. A pass is an envelope of kind `referee`, addressed to `null` and signed by the realm's key, with body `{ referee, expires }`: the address allowed to referee and when that ends. An announcement may then be signed by the referee key and carry the pass in its body as `pass`. It counts for the realm that signed the pass (which must also have signed the manifest), may not outlast the pass, and visitors send their messages to the referee address. A server keeps the announcement made under the newest word of the realm's own key: a pass's `time`, or the announcement's `time` when the realm's key signed it directly. An announcement under an older pass is refused, so a new pass replaces a lost or stolen referee key on every server that sees it, and an unreplaced one stops when it runs out. `GET /announce/<address>` and listings use the realm's address, and `online` tells whether its referee is connected.
-- **Claims:** any key may sign a statement about any address: an envelope of kind `emind.claim`, with `to` the address it is about and body `{ says, expires }`. `says` is any JSON of at most 1,024 characters, and its meaning is the issuer's business; the whole signed claim is at most 4,096 characters of JSON. `expires` is left out for something that simply happened and given for something that must be renewed to keep counting. A referee under a pass adds `pass` to the body, and the claim then counts as the realm's but may not outlast the pass. Known limit: nothing tells a reader that a pass was replaced, so a lost or stolen referee key can sign claims until its own pass runs out; short passes keep that window small. A claim about the address that is showing it needs no proof. To show one that is about another of its addresses (a realm it entered privately), the subject adds a proof: a signature by the key it is about, under purpose `emind-show`, over the audience, a line break, and the claim's `sig`. For a realm the audience is the realm's address, a line break, and the visitor's address there, so a shown claim cannot be replayed elsewhere or used without its holder's say. The holder can still sign such a proof for another visitor, which a realm can limit by accepting each subject address for one visitor. The one a claim is about may sign it as well: a signature by that key under purpose `emind-seen` over the claim's `sig`, kept beside it as `{ claim, seen }`. Two signatures show that both parties hold the same claim, not that it is true. Nobody is obliged to issue, keep, sign, show or accept one. A manifest may list `asks`, at most 16 realm addresses whose claims the realm would like to be shown.
-- **Recommendations:** a recommendation is a claim (above) whose `to` is the address recommended, a realm's or an actor's, signed by its author, an actor's lasting key or a realm's key. `says` is `{ recommend: { note?, via? } }` (`note` at most 280 characters, `via` at most 8 server origins where the subject is found), `{ notForMe: true }`, or `{ withdrawn: true }`, which replaces an earlier one. `expires` is required and may be at most 30 days ahead (plus a day for clocks that differ), so a recommendation fades unless its author signs it again. It travels as `{ claim, proof? }`, where `proof` lists at most 4 claims that the recommended realm signed about the author, as proof of playing there; a reader ignores proof that is not a claim by the subject about the author. It may also carry `standing`, at most 4 claims other realms signed about the author: what the author has earned elsewhere, which a reader may count when it trusts those realms. A server keeps the newest from each author about each subject, refuses an older one, keeps at most 64 for each author, and judges none of them. What one is worth is each reader's business.
-- **Travel notes:** a door from one realm to another is a claim the realm being left signs about the actor, with `says` `{ travel: { to, carry? } }`: `to` is the address of the realm the door leads to, and `carry` is whatever the rules chose to send along. It counts for ten minutes. The referee of the realm the note is for passes it to the rules like any shown claim; a referee passes a travel note on only when its `to` is that realm's own address.
-- **Releases without a key:** a manifest body is itself a file: its canonical JSON, named by its hash, which is the release hash. Posted bare to a server, it is kept for a week and renewed by posting it again, by anyone, so a release stays while people use it. Because it names its rules, anyone can fetch it by hash and run their own copy with no referee and no key. Its link is `emind:<release hash>?via=...`.
-- **Character keys:** an actor's portal holds one 32-byte secret for a character. That secret is the seed of the character's Ed25519 key, whose address is the one the character is known by in every realm. To enter a realm privately, the portal instead uses the Ed25519 key whose 32-byte seed is HKDF-SHA-256 of the secret (as key material) with salt `emind-realm-key` and info the realm's address (for a realm with no key, its release hash), both as UTF-8. Every portal that follows this gives a character the same private address in the same realm, and no realm can connect a private address to the character or to its private addresses elsewhere.
-- **Test vectors:** [test-vectors.json](test-vectors.json) gives fixed inputs and the exact outputs (base32, canonical JSON, hashes, an address, a signature, an envelope, a release hash, a claim with its proof and second signature, a realm key) that every implementation must reproduce.
-- **Message kinds:** core kinds have no dot (`manifest`, `announce`). Extension kinds are dotted, following rule 3; the extensions written alongside these documents use the prefix `emind.` (for example `emind.enter`, listed in [RUNTIME.md](RUNTIME.md)).
+```json
+{
+  "v": 1,
+  "type": "enter",
+  "player": "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a",
+  "address": "https://example.com/garden/",
+  "time": 1790000000000,
+  "nonce": "0123456789abcdef",
+  "login": "https://login.example/",
+  "sigs": {
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "qpHEleQYzgO7CN-r4XiMXRPv0WGDVdSl-9Omz1a73uH7XRlW9VarJ_FxyIIYadnVqC0nvImxw3XeEOieTPP2Aw"
+  }
+}
+```
 
-## Shared habits: optional extensions
+| Field     | Meaning                                                                               |
+| --------- | ------------------------------------------------------------------------------------- |
+| `player`  | The player's ID; `sigs` must hold a valid signature by it                             |
+| `address` | The `https` address the player pasted, exactly as given                               |
+| `time`    | When the note was made                                                                |
+| `nonce`   | 16 to 64 random characters                                                            |
+| `login`   | Optional: the login page's address, so the realm can send records there to be signed  |
 
-These are not rules. They are optional extensions, and they matter only as long as people find them useful. The reference portal uses them by default; anyone may ignore or replace them.
+**Delivery.** The login page sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON.
 
-- Sessions bound to a running instance and release, ordered actions and views, and character descriptions (see [RUNTIME.md](RUNTIME.md))
-- Signed claims, the actor's record of them, and showing them on entry (see "Claims" above)
-- The reference JavaScript runtime, optional realm-local storage, hosting UI, and local backups
-- One lasting address for a character, and a separate key for a realm entered privately (see "Character keys" above)
-- Signed announcements with tags, and tag search on a server
-- Recommendations kept by servers, travel notes for doors between realms, and server picks (see above and "Finding realms" in [DESIGN.md](DESIGN.md))
+**What the realm checks.** It accepts the note only if all of these hold:
+
+1. the signature by `player` is valid;
+2. `address` is one of the realm's own addresses;
+3. `time` is within two minutes of the realm's clock;
+4. the realm has not seen this `nonce` in the last ten minutes.
+
+What the realm does next, such as giving the browser a session cookie, is up to the realm. The realm's own ID does not appear in the note: the address already ties the note to this realm, and the player learns the realm's ID from the records it signs.
+
+**Native programs.** A program that cannot receive a web page shows a join address with a one-time code, such as `https://example.com/garden/join/K7Q2`, or the same as a QR code. The player pastes it into their login page as usual. The realm receives the note at that address and lets in the program waiting on that code.
+
+## Records
+
+```json
+{
+  "v": 1,
+  "type": "record",
+  "signers": [
+    "4cdgtlj7kdgdl56z7iv2nchdhl44ggz5kdxpdaxemlrr6lrnkrdq",
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a"
+  ],
+  "time": 1790000000000,
+  "text": "The player finished the Glass Maze in 4 minutes 12 seconds.",
+  "sigs": {
+    "4cdgtlj7kdgdl56z7iv2nchdhl44ggz5kdxpdaxemlrr6lrnkrdq": "8JiKN06tRM4QO5ZrIV5PhR98aFbVRdThWRDJiSBbusPy5hFW_oldJRI1w0N1zg45aeCI7bcktDyG9Aa662uPCg",
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "xbdxxNPpgcz33ZnI_YLsSwZYWqgjc_bPGbVnFs3j5qkQAM-odPm3wr1WWr5J8wGdSXD8W_0IVB3qJOYPul0FDg"
+  }
+}
+```
+
+| Field     | Meaning                                                                         |
+| --------- | ------------------------------------------------------------------------------- |
+| `signers` | The IDs that must all sign: a realm, its players, anyone                        |
+| `time`    | When the first signer proposed it                                               |
+| `text`    | What was agreed, in plain words, at most 1000 characters                        |
+| `data`    | Optional: the same facts for programs, as a JSON object                         |
+
+- **A record is complete** when every ID in `signers` has a valid signature in `sigs`. An incomplete record proves nothing.
+- **Anyone holding a complete record may show it to anyone.** The reader checks the signatures; nobody needs to be contacted.
+- **A realm's own statement** has the realm as its only signer. An agreement lists every party.
+
+**Asking a player to sign, or giving them records.** The realm sends the player's browser to the login page named in their sign-in note, with the request after `#sign=` (the part after `#` never reaches the login page's server):
+
+```
+https://login.example/#sign=<URL-encoded JSON>
+```
+
+The JSON is `{ "return": "<address>", "records": [ ... ] }`. The login page:
+
+1. checks that `return` is an address the player signed in to through this login page, and refuses otherwise;
+2. shows every record's full text and signers, and the return address;
+3. lets the player choose which records to sign; records the player is not a signer of are offered for keeping only;
+4. adds the player's signature to the chosen records and keeps a copy of each;
+5. sends the browser to `return` with an HTML form POST holding one field, `records`: the chosen records as a JSON array.
+
+**Records file.** A login page saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other login page, keeping only records whose signatures check out.
+
+## Rules for login pages
+
+Anyone may write and host a login page. Players and their AI helpers should expect these, and an AI asked "is it safe to type my secret phrase into [address]?" should check them:
+
+1. **One self-contained file.** Readable code, no scripts or styles loaded from anywhere else, no minified code.
+2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to an address the player pasted, or to a `return` address the player signed in to.
+3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words.
+4. **Addresses come only from the player.** The page never signs in to an address taken from its own link.
+5. **Show before signing.** The page shows the full text of every record and asks before signing it.
+6. **Fixed versions.** Each version of the page is published with its SHA-256 fingerprint and is never changed afterwards; a new version gets a new address.
+7. **Records can leave.** The page saves and loads records files.
+
+The reference login page, not yet written, will follow these rules.
 
 ## Versions
 
-- **Meaning is separate from encoding.** The meaning of the core (keys, addresses, signed statements, files named by hash) changes rarely. How messages are encoded and carried can change much more freely, as HTTP/2 and HTTP/3 changed how requests travel without changing what a request is.
-- **Every envelope names its version** (`v`), and a server's first message on a relay connection lists the versions it speaks. Only version 0 exists.
-- **Algorithms carry labels.** Every key, hash and signature says which method made it (for example `ed25519-` or `sha256-`), so a stronger method can be added later, such as one that resists future quantum computers, without changing the meaning of anything else.
-- **Addresses and signatures survive every version.** A key is the same address in any version, and a file's hash names the same file.
-- **Extensions have versions of their own,** chosen and changed by their authors, independent of the core.
+- **Every object names its version** (`v`). Only version 1 exists.
+- **IDs and signatures survive every version.** A future version may add other signature methods, for example ones that resist quantum computers, without changing what an ID or a record means.
 
 ## How the protocol changes
 
-- **Numbered proposals, in the open,** like the internet's RFCs (its numbered public design documents). Anyone can write one, for the core or for an extension. None has been written yet.
-- **A proposal counts when independent portals implement it,** not when someone approves it. "Rough consensus and running code," as the people who built the internet put it.
-- **The core changes only by new versions,** following "Rules for the rules". Extensions change whenever their authors and users like.
-- **This repository holds the reference documents and the reference portal,** but it is a convenience, not an authority. Anyone may copy the documents and carry on.
+- **Numbered proposals, in the open,** like the internet's RFCs (its numbered public design documents). Anyone can write one.
+- **A proposal counts when independent programs implement it,** not when someone approves it: "rough consensus and running code," as the people who built the internet put it.
+- **This repository holds the reference documents and code,** but it is a convenience, not an authority. Anyone may copy the documents and carry on.
