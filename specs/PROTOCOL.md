@@ -158,7 +158,7 @@ A realm serves its newest card at `endlessmind-card.json` under each address in 
 
 It holds the realm's complete records marked `public`, signed by the realm and by every player they name. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
 
-**Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
+**Boards** are realms that read cards and lists and rank other realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
 
 ## Burning an identity
 
@@ -171,8 +171,8 @@ Revealing the secret phrase or the private key burns the identity; either has th
 
 - **It needs no signature:** anyone can turn `words` or `key` into the ID, which proves the publisher had it. Publishing the key keeps the phrase private, which matters only if the phrase is used for anything else.
 - **A burned ID is gone, and any use of it is a ghost.** Everyone should ignore everything signed by it, whenever dated, including records it shares with others.
-- **Spreading it:** a burned realm serves the notice in place of its card. Boards keep burn notices they see, offer a searchable list of burned IDs, and pass notices on.
-- **Realms refuse burned IDs** by checking such a list at sign-in, since a ghost's sign-in note still has a valid signature.
+- **Spreading it:** a burned realm serves the notice in place of its card. Boards keep notices for IDs they already know from records they have read, offer a searchable list of those burned IDs, and pass the notices on. A notice for an unknown ID matters to nobody and is dropped, so making millions of keys and burning them achieves nothing. A player whose ID is known only to some realms, from private records, has their EntryPortal deliver the notice to those realms at an address it signed in to, as an HTML form POST with one field, `burn`.
+- **Realms refuse burned IDs** by checking such a list, and their own, at sign-in, since a ghost's sign-in note still has a valid signature. Realms likewise keep notices only for IDs they have seen.
 - **EntryPortals** offer burning an identity only behind a clear explanation and a typed confirmation, such as "burn this identity".
 
 ## Rules for EntryPortals

@@ -39,7 +39,7 @@ A realm can give you signed **records**: "in good standing as of 1 December", "f
 
 ## Finding realms
 
-You find realms on **boards**: websites that list realms, run by anyone. There are no likes or votes. Boards rank realms by real play: public records from players who are themselves known to play in realms the board trusts. Playing a realm a lot is the strongest recommendation you can give. Most realms link to a board, and endlessmind.com lists boards to start from.
+You find realms on **boards**: realms whose purpose is listing other realms, run by anyone. There are no likes or votes. Boards rank realms by real play: public records from players who are themselves known to play in realms the board trusts. Playing a realm a lot is the strongest recommendation you can give. Most realms link to a board, and endlessmind.com lists boards to start from.
 
 ## Making realms
 
