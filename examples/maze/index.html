@@ -1,4 +1,4 @@
-<!doctype html>
+  if (finished || !run) return;<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -67,7 +67,7 @@ let level = 1;
 let maze = makeMaze(1);
 let cell = 0;
 let moves = "";
-let run = null;
+let run = null; // a promise of the run ID the server gives each attempt
 let started = 0;
 let finished = false;
 
@@ -129,9 +129,11 @@ async function play(n) {
   $("note").textContent = "";
   draw();
   drawBar();
-  const answer = await api("api/start", { level });
-  if (answer.run) run = answer.run;
-  else $("note").textContent = answer.error ?? "";
+  // Moves count at once; finishing waits for the server to have started the run.
+  run = api("api/start", { level }).then((answer) => {
+    if (!answer.run) $("note").textContent = answer.error ?? "";
+    return answer.run;
+  });
 }
 
 async function move(letter) {
@@ -144,7 +146,7 @@ async function move(letter) {
   draw();
   if (cell !== maze.exit) return;
   finished = true;
-  const answer = await api("api/finish", { run, moves });
+  const answer = await api("api/finish", { run: await run, moves });
   if (answer.error) {
     $("note").textContent = answer.error;
     return;
