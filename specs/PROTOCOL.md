@@ -15,7 +15,7 @@ A key pair is an Ed25519 key pair (Ed25519 is a widely used signature method, bu
 
 ## Signed JSON
 
-Sign-in notes and records are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
+Sign-in notes, records and realm cards are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
 
 - **What is signed:** the object without `sigs`, as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
 - **A signature:** the 64-byte Ed25519 signature of those bytes, in base64url without padding.
@@ -173,7 +173,7 @@ Revealing the secret phrase or the private key burns the identity; either has th
 - **A burned ID is gone, and any use of it is a ghost.** Everyone should ignore everything signed by it, whenever dated, including records it shares with others.
 - **Spreading it:** a burned realm serves the notice in place of its card. Boards keep notices for IDs they already know from records they have read, offer a searchable list of those burned IDs, and pass the notices on. A notice for an unknown ID matters to nobody and is dropped, so making millions of keys and burning them achieves nothing. A player whose ID is known only to some realms, from private records, has their EntryPortal deliver the notice to those realms at an address it signed in to, as an HTML form POST with one field, `burn`.
 - **Realms refuse burned IDs** by checking such a list, and their own, at sign-in, since a ghost's sign-in note still has a valid signature. Realms likewise keep notices only for IDs they have seen.
-- **EntryPortals** offer burning an identity only behind a clear explanation and a typed confirmation, such as "burn this identity".
+- **EntryPortals** offer burning an identity only behind a clear explanation and a typed confirmation, such as "burn this identity". Since an EntryPortal keeps no copy of the phrase and cannot read out its key, the player types their phrase again to burn it.
 
 ## Rules for EntryPortals
 

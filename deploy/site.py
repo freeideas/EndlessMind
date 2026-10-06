@@ -46,8 +46,8 @@ def main() -> None:
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<title>Docs | Endless Mind</title><link rel="stylesheet" href="../style.css"></head><body><main>\n'
-        f"{nav}\n<h1>Docs</h1>\n<p class=\"lead\">The design, protocol and guides, as plain Markdown. "
-        "AI agents building realms start with the agent guide.</p>\n<ul>\n" + "\n".join(rows) + f"\n</ul>\n{footer}\n</main></body></html>\n",
+        f"{nav}\n<h1>Docs</h1>\n<p class=\"lead\">The design and the protocol, as plain Markdown."
+        "</p>\n<ul>\n" + "\n".join(rows) + f"\n</ul>\n{footer}\n</main></body></html>\n",
         encoding="utf-8",
     )
     old = TARGET.with_name(TARGET.name + ".old")
