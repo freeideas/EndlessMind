@@ -1,0 +1,25 @@
+# systemd unit for the Lantern Garden example realm at https://garden.endlessmind.com/ on ordinarydata.
+# Install: sudo cp deploy/lantern-garden.service /etc/systemd/system/ && sudo systemctl enable --now lantern-garden
+# Caddy relays garden.endlessmind.com to 127.0.0.1:8750. The garden must have its own host, never a path
+# under endlessmind.com: a page on the EntryPortal's origin could use the player's stored key.
+# Its secret phrase and data are in examples/lantern-garden/data/ in the checkout (ignored by Git).
+
+[Unit]
+Description=Lantern Garden, the example Endless Mind realm
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ace
+Group=ace
+WorkingDirectory=/home/ace/Desktop/prjx/EveryGame
+Environment=HOME=/home/ace
+Environment=GARDEN_PORT=8750
+Environment=GARDEN_BASE=https://garden.endlessmind.com/
+ExecStart=/home/ace/.local/bin/deno run --allow-read --allow-write --allow-net --allow-env examples/lantern-garden/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

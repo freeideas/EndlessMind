@@ -3,7 +3,7 @@
 //
 //   deno task garden
 //
-// Settings, all optional: GARDEN_PORT (8000), GARDEN_BASE (the public address, http://localhost:8000/),
+// Settings, all optional: GARDEN_PORT (8000), GARDEN_HOSTNAME (127.0.0.1), GARDEN_BASE (the public address, http://localhost:8000/),
 // GARDEN_PORTAL (the EntryPortal its codes name) and GARDEN_DATA (folder for its files, ./data/ here).
 
 import { DEFAULT_PORTAL, openRealm } from "../../realm/realm.js";
@@ -97,5 +97,5 @@ async function game(request) {
   return new Response("Not found", { status: 404 });
 }
 
-Deno.serve({ port: PORT }, async (request) => (await realm.handle(request)) ?? game(request));
+Deno.serve({ port: PORT, hostname: Deno.env.get("GARDEN_HOSTNAME") ?? "127.0.0.1" }, async (request) => (await realm.handle(request)) ?? game(request));
 console.log(`Lantern Garden: ${BASE} (realm ID ${realm.id})`);
