@@ -2,14 +2,14 @@
 
 The project's website, served as plain files by Caddy on `ordinarydata.com` from `~/domains/endlessmind.com/`. This folder is the home page; any other page is its own subfolder with its own files and `README.md`. Pages are plain HTML and CSS with no build step.
 
-| Path             | Page                                                  |
-| ---------------- | ----------------------------------------------------- |
-| `/`              | Home: what Endless Mind is, in short                  |
-| `EntryPortal/1/` | The reference EntryPortal, version 1; see below       |
-| `docs/`          | Not in this folder: made at deploy time from `specs/` |
+| Path           | Page                                                           |
+| -------------- | -------------------------------------------------------------- |
+| `/`            | Home: what Endless Mind is, in short                           |
+| `EntryPortal/` | The reference EntryPortal, one folder per version; see below   |
+| `docs/`        | Not in this folder: made at deploy time from `specs/`          |
 
 The docs are never copied by hand. `uv run deploy/site.py` (run in the checkout on ordinarydata after `git pull --ff-only`) copies this folder to the web folder and writes `docs/` from `specs/`, pointing links outside `specs/` at GitHub.
 
-Every page carries the same `<nav>` and `<footer>`; change them on every page together.
+Every page carries the same `<nav>` and `<footer>`; change them on every page together. The EntryPortal is the exception: it stands alone and links nowhere.
 
-`EntryPortal/<version>/` holds the reference EntryPortal ([PROTOCOL.md](../specs/PROTOCOL.md), "Rules for EntryPortals"): one self-contained `index.html` and its fingerprint in `SHA256SUMS`. The shared code in it is copied from `shared/` by `deno task portal`, which also updates its security policy hashes and fingerprint; `deno task test` fails if that was forgotten. Once a version is published it never changes: a change goes into the next version's folder (see `deploy/entryportal.js`).
+`EntryPortal/<version>/` (v0.1, v0.2, ... v1.0) holds one version of the reference EntryPortal ([PROTOCOL.md](../specs/PROTOCOL.md), "Rules for EntryPortals"): one self-contained `index.html` and its fingerprint in `SHA256SUMS`. `EntryPortal/index.html` forwards to the newest version, keeping the part after "#", and is the address realms usually name. All of these are written by `deno task portal`, which copies the shared code in from `shared/` and updates the security policy hashes and fingerprint; `deno task test` fails if that was forgotten. Improvements are welcome as new versions: once a version is published it is never edited in place, so a check of it stays true (see `deploy/entryportal.js`).

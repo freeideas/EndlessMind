@@ -1,13 +1,12 @@
 // The EntryPortal page must carry the current shared code, a security policy that forbids every
-// connection, and its own fingerprint.
+// connection, and its own fingerprint; EntryPortal/ must forward to the newest version.
 
 import assert from "node:assert/strict";
-import { build, pagePath, sums, sumsPath } from "../deploy/entryportal.js";
+import { forwardPath, pagePath, upToDate, VERSION } from "../deploy/entryportal.js";
 
-Deno.test("the EntryPortal is up to date with shared/ (run deno task portal if not)", async () => {
-  const page = await Deno.readTextFile(pagePath());
-  assert.ok(page === (await build(page)), "out of date: run deno task portal");
-  assert.equal(await Deno.readTextFile(sumsPath()), await sums(page));
+Deno.test("the EntryPortal files are up to date with shared/ (run deno task portal if not)", async () => {
+  assert.ok(await upToDate(), "out of date: run deno task portal");
+  assert.match(await Deno.readTextFile(forwardPath()), new RegExp(`"${VERSION}/"`));
 });
 
 Deno.test("the EntryPortal's security policy forbids connections and outside code", async () => {

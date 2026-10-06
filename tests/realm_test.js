@@ -7,7 +7,7 @@ import { addSignature, isComplete, validSigners } from "../shared/signed.js";
 import { memoryStore, openRealm } from "../realm/realm.js";
 
 const BASE = "https://garden.example/";
-const PORTAL = "https://portal.example/EntryPortal/1/";
+const PORTAL = "https://portal.example/EntryPortal/v0.1/";
 const wordsFor = (/** @type {number} */ n) => wordsFromEntropy(new Uint8Array(32).fill(n));
 const player = await signerFromWords(await wordsFor(7));
 

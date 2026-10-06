@@ -8,7 +8,7 @@ Run it with `deno task garden` and open `http://localhost:8000/`. Its files (the
 | --------------- | ---------------------------------------- |
 | `GARDEN_PORT`   | `8000`                                   |
 | `GARDEN_BASE`   | `http://localhost:<port>/`               |
-| `GARDEN_PORTAL` | `https://endlessmind.com/EntryPortal/1/` |
+| `GARDEN_PORTAL` | `https://endlessmind.com/EntryPortal/`   |
 | `GARDEN_DATA`   | `data/` in this folder                   |
 
-To try it with a local EntryPortal, serve `site/` (for example `deno run -A jsr:@std/http/file-server --port 8001 site`) and set `GARDEN_PORTAL=http://127.0.0.1:8001/EntryPortal/1/`. The EntryPortal accepts plain `http` only for `localhost` and `127.0.0.1`.
+To try it with a local EntryPortal, serve `site/` (for example `deno run -A jsr:@std/http/file-server --port 8001 site`) and set `GARDEN_PORTAL=http://127.0.0.1:8001/EntryPortal/`. The EntryPortal accepts plain `http` only for `localhost` and `127.0.0.1`.

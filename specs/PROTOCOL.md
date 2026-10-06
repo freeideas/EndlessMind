@@ -36,8 +36,10 @@ Next to them it shows the line "Only scan sign-in codes shown on your own screen
 **2. The EntryPortal link** is the EntryPortal's address with the join address after `#url=`, URL-encoded, so it never reaches the EntryPortal's server:
 
 ```
-https://endlessmind.com/EntryPortal/1/#url=<join address>
+https://endlessmind.com/EntryPortal/#url=<join address>
 ```
+
+A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://endlessmind.com/EntryPortal/`, which keeps the part after `#` and lands the player on a versioned address such as `https://endlessmind.com/EntryPortal/v0.1/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
 
 **3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
 
@@ -49,9 +51,9 @@ https://endlessmind.com/EntryPortal/1/#url=<join address>
   "address": "https://game-server.com/sword-of-swankery/join/K7Q2",
   "time": 1790000000000,
   "nonce": "0123456789abcdef",
-  "portal": "https://endlessmind.com/EntryPortal/1/",
+  "portal": "https://endlessmind.com/EntryPortal/v0.1/",
   "sigs": {
-    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "DI2Vgcmxvo0ERbbmhIrOEkoSbj2MWIRJUPgZcUTaqWoGZ129ZcrFESyB_hPTvjMHrfYrf85pyPnyJwldG8dZCw"
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "Z9PBzEkq-CY39ptpW345BKWVV1WPjVzGlzmPSxr-2fza_BvgM-5uI4H5PI0uxLybkiqRDa0YE9kys8IBqgBKBg"
   }
 }
 ```
@@ -104,7 +106,7 @@ The realm's own ID is not in the note: the address already ties the note to the 
 **Claiming: asking a player to sign, or giving them records.** The realm shows a QR code, a "claim on this computer" link and a short address, all leading to a one-time claim address of its own, such as `https://game-server.com/sword-of-swankery/claim/X9P4`. That address forwards the browser to the EntryPortal named in the player's sign-in note:
 
 ```
-https://endlessmind.com/EntryPortal/1/#sign=<URL-encoded JSON>
+https://endlessmind.com/EntryPortal/v0.1/#sign=<URL-encoded JSON>
 ```
 
 The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
@@ -187,10 +189,10 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name.
 5. **Show before signing.** The page shows the full text of every record, with its public switch, and asks before signing it.
 6. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.
-7. **Fixed versions.** Each version is published with its SHA-256 fingerprint and never changed afterwards; a new version gets a new address.
+7. **Improved in new versions, never edited in place.** Anyone may improve an EntryPortal, and improvements are welcome. Each version is published at its own address with its SHA-256 fingerprint and is never changed there afterwards, so a check of that version stays true for as long as it is served; an improvement becomes a new version at a new address. A host may also offer an address that forwards to its newest version, as long as it forwards only to versions it has published with their fingerprints.
 8. **Records can leave.** The page saves and loads records files.
 
-The reference EntryPortal follows these rules: [site/EntryPortal/1/index.html](../site/EntryPortal/1/index.html), to be published at `https://endlessmind.com/EntryPortal/1/` with its fingerprint in `SHA256SUMS` beside it. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
+The reference EntryPortal follows these rules. Its versions are numbered v0.1, v0.2 and so on up to v1.0, each in [site/EntryPortal/](../site/EntryPortal/) and published at `https://endlessmind.com/EntryPortal/<version>/` with its fingerprint in `SHA256SUMS` beside it; `https://endlessmind.com/EntryPortal/` forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
 
 ## Versions
 

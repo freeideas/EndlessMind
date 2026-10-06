@@ -44,7 +44,7 @@ const COOKIE = "endlessmind";
  * (made on first run). What it must remember is kept in `dataFile`, or in `store`.
  */
 
-export const DEFAULT_PORTAL = "https://endlessmind.com/EntryPortal/1/";
+export const DEFAULT_PORTAL = "https://endlessmind.com/EntryPortal/"; // forwards to the newest version
 
 /** @param {RealmOptions} options */
 export async function openRealm(options) {

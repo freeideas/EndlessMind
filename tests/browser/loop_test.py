@@ -28,7 +28,8 @@ def free_port() -> int:
 
 GARDEN_PORT, PORTAL_PORT = free_port(), free_port()
 GARDEN = f"http://localhost:{GARDEN_PORT}/"
-PORTAL = f"http://127.0.0.1:{PORTAL_PORT}/EntryPortal/1/"
+# Realms name EntryPortal/, which forwards to the newest version.
+PORTAL = f"http://127.0.0.1:{PORTAL_PORT}/EntryPortal/"
 
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
