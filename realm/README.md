@@ -1,6 +1,6 @@
 # The realm library
 
-What a realm on Deno includes to join Endless Mind: sign-in by QR code, claiming records, its realm card, its public list and refusing burned IDs. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md); [examples/lantern-garden/](../examples/lantern-garden/) uses all of it.
+What a realm on Deno includes to join Endless Mind: sign-in by QR code, claiming records, its realm card, its public list and refusing burned IDs. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md); [examples/lantern-garden/](../examples/lantern-garden/) uses all of it. For game servers written in Python, [realm-py/](../realm-py/) does the same, on the same files.
 
 | File                  | What it is                                                                  |
 | --------------------- | --------------------------------------------------------------------------- |

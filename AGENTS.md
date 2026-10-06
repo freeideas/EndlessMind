@@ -11,6 +11,7 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 | `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |
 | `realm/`    | The realm library: sign-in, claims, realm card and public list for realms on Deno   |
+| `realm-py/` | The realm library's server side for Python game servers (uv project, ASGI adapter)  |
 | `examples/` | Example realms built on the library; `maze/` is Endless Maze                        |
 | `tests/`    | Deno unit tests, and `browser/`: the whole loop in two browsers (Playwright, `uv`)  |
 | `site/`     | The endlessmind.com website, one subfolder per page                                 |
@@ -20,6 +21,7 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 
 - Plain JavaScript ES modules with JSDoc type comments; no build step, no bundler, no npm dependencies in browser or shared code. Browsers must be able to load every file as it is.
 - `deno task check` and `deno task test` must pass before committing; run `deno task browser` too when changing the EntryPortal, the realm library or the example. After editing `shared/` or the EntryPortal, run `deno task portal`.
+- `realm-py/` copies `realm/realm.js` and the `shared/` code it uses; change both together, and run `uv run pytest` in `realm-py/` (it compares the two with Deno).
 - Protocol changes (formats, signing, the phrase-to-key recipe, rules for realms and EntryPortals) must be reflected in [specs/PROTOCOL.md](specs/PROTOCOL.md). The phrase-to-key recipe must keep matching the published BIP39 and SLIP-0010 test vectors in `tests/keys_test.js`.
 - Design decisions go in [specs/DESIGN.md](specs/DESIGN.md), using the terms in its "Words used here" section (realm, player, ID, secret phrase, proof, EntryPortal, record).
 - Player-facing text uses plain words: secret phrase, player ID, proof, EntryPortal, record. Never key, signature or address of a key.
