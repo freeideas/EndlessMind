@@ -14,7 +14,7 @@ const STYLE = `
 .em-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
 .em-panel { margin-top: .8rem; padding: 1rem; border: 1px solid currentColor; border-radius: 12px; max-width: 22rem; }
 .em-panel h3 { margin: 0 0 .6rem; font-size: 1.1em; }
-.em-panel summary { cursor: pointer; }
+.em-box summary { cursor: pointer; }
 .em-qr { width: 220px; max-width: 100%; aspect-ratio: 1; }
 .em-qr svg { width: 100%; height: 100%; display: block; border-radius: 6px; }
 .em-typed { font-family: ui-monospace, Menlo, monospace; font-size: .9em; word-break: break-all; user-select: all; }
@@ -68,11 +68,19 @@ export function mountSignIn(box, options = {}) {
         refresh();
       },
     });
+    const rename = el("details", { className: "em-small" }, [
+      el("summary", { textContent: "Change name" }),
+      el("p", {}, [
+        "Your name is kept by your EntryPortal. Open it on the device you signed in with and choose \"Change name\". Games see the new name the next time you sign in. ",
+        el("a", { href: me.portal + "#rename", target: "_blank", textContent: "Open your EntryPortal here" }),
+      ]),
+    ]);
     const rows = [
       el("div", { className: "em-row" }, [
         el("span", {}, ["Signed in as ", el("strong", { className: "em-name", textContent: me.playerName, title: "Player ID " + me.player })]),
         out,
       ]),
+      rename,
     ];
     if (me.claims > 0) {
       const claim = el("button", { textContent: "Claim", onclick: () => openPanel("claim") });

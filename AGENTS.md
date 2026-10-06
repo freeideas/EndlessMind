@@ -8,7 +8,7 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 | ----------- | ----------------------------------------------------------------------------------- |
 | `README.md` | For end users: people who play and people who create                                |
 | `specs/`    | The design and the protocol                                                         |
-| `shared/`   | Code run unchanged in browsers and Deno: secret phrases, keys, signed JSON          |
+| `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |
 | `realm/`    | The realm library: sign-in, claims, realm card and public list for realms on Deno   |
 | `examples/` | Example realms built on the library; `lantern-garden/` is the first                 |

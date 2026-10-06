@@ -3,6 +3,8 @@
 
 import assert from "node:assert/strict";
 import {
+  compactPhrase,
+  wordsFromCompact,
   base32,
   checkWords,
   fromBase32,
@@ -96,4 +98,12 @@ Deno.test("names: a starting name from the ID, and tidy chosen names", async () 
   assert.equal(tidyName("  Moon \u0000 Pie\n "), "Moon Pie");
   assert.equal(tidyName("x".repeat(60)).length, 40);
   assert.equal(tidyName(7), "");
+});
+
+Deno.test("the compact phrase for QR codes gives back the same words", async () => {
+  assert.equal(await wordsFromCompact(await compactPhrase(ZERO_WORDS)), ZERO_WORDS);
+  const words = await newWords();
+  const compact = await compactPhrase(words);
+  assert.equal(compact.length, 52);
+  assert.equal(await wordsFromCompact(compact), words);
 });

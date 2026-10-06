@@ -290,6 +290,7 @@ export class Realm {
       name: this.card.name,
       player,
       playerName: player ? this.playerName(player) : null,
+      portal: (player && this.data.players[player]?.portal) || this.portal,
       claims: player ? (this.data.offers[player] ?? []).length : 0,
     };
   }

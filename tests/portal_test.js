@@ -13,6 +13,9 @@ Deno.test("the EntryPortal files are up to date with shared/ (run deno task port
 Deno.test("the EntryPortal's security policy forbids connections and outside code", async () => {
   const page = await Deno.readTextFile(pagePath());
   const policy = page.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1] ?? "";
+  assert.ok(page.startsWith("<!doctype html>\n"), "nothing may come before the doctype");
+  const head = page.slice(0, page.indexOf("</head>"));
+  assert.ok(/^<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport"[^>]*>\n<meta http-equiv="Content-Security-Policy"/.test(head), "the policy must sit at the top of the head, or browsers ignore it");
   assert.match(policy, /^default-src 'none'; /);
   assert.doesNotMatch(policy, /connect-src|unsafe-inline|unsafe-eval|\*\.|https:\/\//);
   assert.equal(page.match(/<script/g)?.length, 1, "one script only");

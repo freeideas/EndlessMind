@@ -79,22 +79,42 @@ def read_qr(page, selector: str = ".em-qr") -> str:
     return text
 
 
-def set_up_new_phrase(phone) -> tuple[str, str, str, str]:
-    """Returns the words, the player ID, the starting name, and the link in the setup code."""
+def photo_of_screen(png: bytes, tilt: float = 0.1) -> bytes:
+    """A camera photo of a screen: the screen small in a large dark frame, tilted, blurred, noisy, JPEG."""
+    image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
+    height, width = 3024, 4032
+    photo = np.full((height, width, 3), 40, np.uint8)
+    image = cv2.resize(image, None, fx=0.8 * height / image.shape[0], fy=0.8 * height / image.shape[0])
+    h, w = image.shape[:2]
+    x, y, d = (width - w) // 2, (height - h) // 2, tilt * w
+    corners = np.float32([[x + d, y], [x + w - d, y + d], [x + w, y + h], [x, y + h - d]])
+    warp = cv2.getPerspectiveTransform(np.float32([[0, 0], [w, 0], [w, h], [0, h]]), corners)
+    photo = cv2.warpPerspective(image, warp, (width, height), dst=photo, borderMode=cv2.BORDER_TRANSPARENT)
+    photo = cv2.GaussianBlur(photo, (9, 9), 2.5)
+    noise = np.random.default_rng(1).normal(0, 12, photo.shape)
+    photo = (np.clip(photo + noise, 0, 255) * 0.85 + 20).astype(np.uint8)
+    return cv2.imencode(".jpg", photo, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
+
+
+def set_up_new_phrase(phone) -> tuple[str, str, str, str, bytes]:
+    """Returns the words, the player ID, the starting name, the link in the setup code, and a screenshot."""
     phone.goto(PORTAL)
     phone.get_by_role("button", name="Make a new secret phrase").click()
     words = phone.locator("#new-words li").all_text_contents()
     assert len(words) == 24
     name = phone.locator("#new-name").text_content()
     setup_link = read_qr(phone, "#new-qr")
-    assert setup_link.startswith(PORTAL + "#words=")
+    assert setup_link.startswith(PORTAL + "#phrase=")
+    picture = phone.screenshot()
     phone.get_by_role("button", name="I have kept them").click()
     for label in phone.locator("#check-fields label").all():
         n = int(label.text_content().split()[1])
         label.locator("input").fill(words[n - 1])
     phone.get_by_role("button", name="Check").click()
     expect(phone.locator("#home-name")).to_have_text(name)
-    return " ".join(words), phone.locator("#home-id").text_content(), name, setup_link
+    blocked = phone.evaluate("fetch('https://example.com/', { mode: 'no-cors' }).then(() => 'allowed', () => 'blocked')")
+    assert blocked == "blocked", "the EntryPortal's security policy must forbid connections"
+    return " ".join(words), phone.locator("#home-id").text_content(), name, setup_link, picture
 
 
 def plant(page, *plots: int) -> None:
@@ -121,7 +141,8 @@ def main() -> None:
 
             def watch(page):
                 # Script errors and refusals by the security policy; a realm answering 400 is expected.
-                page.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(f"{page.url}: {m.text}"))
+                # ...and the refusal of the deliberate probe of example.com below.
+                page.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and "example.com" not in m.text and errors.append(f"{page.url}: {m.text}"))
                 page.on("pageerror", lambda e: errors.append(f"{page.url}: {e}"))
                 page.on("popup", watch)
                 return page
@@ -130,10 +151,10 @@ def main() -> None:
             pc = watch(browser.new_context(viewport={"width": 1280, "height": 900}, device_scale_factor=2).new_page())
 
             print("phone: set up an EntryPortal with a new secret phrase")
-            words, player, start_name, setup_link = set_up_new_phrase(phone)
+            words, player, start_name, setup_link, picture = set_up_new_phrase(phone)
             assert len(player) == 52
             phone.get_by_role("button", name="Change name").click()
-            phone.locator("#name-input").fill("Moon Pie")
+            phone.locator(".name-input").fill("Moon Pie")
             phone.get_by_role("button", name="Save", exact=True).click()
             expect(phone.locator("#home-name")).to_have_text("Moon Pie")
             phone.goto(setup_link)
@@ -176,6 +197,16 @@ def main() -> None:
             expect(phone.locator("#home-records")).to_contain_text("complete")
             expect(phone.locator("#home-records")).to_contain_text(f"Signed by you and localhost:{GARDEN_PORT}")
             shot(phone, "5-phone-home")
+
+            print("pc3: set up an EntryPortal from a camera photo of the setup screen")
+            pc3 = watch(browser.new_context().new_page())
+            pc3.goto(PORTAL)
+            pc3.locator("#picture-input").set_input_files(files=[{"name": "IMG_0001.jpg", "mimeType": "image/jpeg", "buffer": photo_of_screen(picture)}])
+            expect(pc3.locator("#restore-name")).to_have_text(start_name)
+            pc3.get_by_role("button", name="Yes, this is me").click()
+            expect(pc3.locator("#home-name")).to_have_text(start_name)
+            assert pc3.locator("#home-id").text_content() == player
+            pc3.context.close()
 
             print("anyone: the public list holds the complete record")
             listing = pc.request.get(GARDEN + "endlessmind-list.json").json()

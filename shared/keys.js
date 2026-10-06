@@ -102,6 +102,24 @@ export async function checkWords(text) {
   return words.join(" ");
 }
 
+/**
+ * The phrase written compactly, for QR codes: its 256 random bits in base32 (52 characters). The words
+ * are the BIP39 encoding of the same bits, so either form gives the other.
+ * @param {string} words
+ */
+export async function compactPhrase(words) {
+  const tidy = (await checkWords(words)).split(" ");
+  const bits = tidy.map((w) => WORDS.indexOf(w).toString(2).padStart(11, "0")).join("");
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  return base32(bytes);
+}
+
+/** The words for a compact phrase. @param {string} compact */
+export async function wordsFromCompact(compact) {
+  if (!/^[a-z2-7]{52}$/.test(compact)) throw new Error("not a compact phrase");
+  return wordsFromEntropy(fromBase32(compact));
+}
 
 /**
  * @typedef {{ id: string, privateKey: CryptoKey }} Signer
