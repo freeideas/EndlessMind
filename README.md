@@ -10,26 +10,30 @@ AI coding agents now let anyone make a game just by describing it. Endless Mind 
 
 You are your **secret phrase**: 24 ordinary words. They are your one identity in every realm (a game, a place, anything you can enter). There is no account, password or email address.
 
-- **It never leaves your device.** A login page turns your phrase into a key kept inside your browser. The key can prove that you have your phrase, but nobody can read it out, not even the page itself.
+- **It never leaves your device.** An EntryPortal turns your phrase into a key kept inside your browser. The key can prove that you have your phrase, but nobody can read it out, not even the page itself.
 - **Write it down.** You see a new phrase only once. Keep it on paper or in a file where only you can find it.
 - **Anyone who has it can be you, forever.** If it is stolen or lost, nobody can get it back for you, not even us. You can start over with a new phrase, but your history stays with the old one.
-- **Any login page works.** Anyone can host a login page, and they all turn the same phrase into the same **player ID**. If yours disappears, type your phrase into another and carry on.
-- **Ask your AI helper before trusting a page.** "Someone asked me to type my secret phrase into [address]. Is it safe?" Login pages are built so that this question has a clear answer.
+- **Any EntryPortal works.** An EntryPortal is a small web page, usually on your phone, that proves who you are. Anyone can host one, and they all turn the same phrase into the same **player ID**. If yours disappears, type your phrase into another and carry on.
+- **Ask your AI helper before trusting a page.** "Someone asked me to type my secret phrase into [address]. Is it safe?" EntryPortals are built so that this question has a clear answer.
 - **We ask for your phrase only when you set up a device.** If a page asks for it while you are playing, it is a trick. Close it.
 
 ## Playing
 
-1. Open a realm's link. Many realms let you play right away as a guest.
-2. To play as yourself, copy the realm's address, paste it into your login page and press **Play**. Your login page proves who you are to that realm, without showing your phrase to anyone.
+1. Open a realm's link, on a computer or anywhere else. Many realms let you play right away as a guest.
+2. To play as yourself, choose to sign in. The realm shows a QR code. Scan it with your phone, check that the site name and the two matching words are right, and tap once. Your EntryPortal proves who you are to that realm, without showing your phrase to anyone, and your screen starts the game.
+3. The first time, your phone has no EntryPortal yet. It offers to make your secret phrase, or to take the one you already have.
+4. No phone, or the code will not scan? Use the "sign in on this computer" link, or type the short address shown under the code into your EntryPortal.
+
+Only scan sign-in codes shown on your own screen. A code posted somewhere else could sign a stranger in as you.
 
 ## Your records
 
 A realm can give you signed **records**: "in good standing as of 1 December", "finished the Glass Maze in 4 minutes 12 seconds", or a trade, "P gives the helmet to Q, and Q gives 95 diamonds to P".
 
-- Your login page shows you every record before you sign it.
+- Your EntryPortal shows you every record before you sign it.
 - Records are signed by everyone involved, so anyone you show them to can check them, and nobody can fake them.
 - You keep the records you want and drop the rest. Your reputation can only grow.
-- Your login page can save your records as a file, which any other login page can load.
+- Your EntryPortal can save your records as a file, which any other EntryPortal can load.
 
 ## Making realms
 
@@ -40,7 +44,7 @@ Being worked out. The idea: make a game any way you like (usually by describing 
 | Document                         | What it covers                                          |
 | -------------------------------- | ------------------------------------------------------- |
 | [DESIGN.md](specs/DESIGN.md)     | The design, the reasons behind it, and what is not decided yet |
-| [PROTOCOL.md](specs/PROTOCOL.md) | Exact formats: IDs, sign-in notes, records, login page rules |
+| [PROTOCOL.md](specs/PROTOCOL.md) | Exact formats: IDs, signing in, records, EntryPortal rules |
 
 ## License
 

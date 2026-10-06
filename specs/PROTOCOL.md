@@ -6,63 +6,71 @@ The exact formats: keys, signed JSON, signing in, and records. Why things are th
 
 A key pair is an Ed25519 key pair (Ed25519 is a widely used signature method, built into browsers). Players and realms use the same kind.
 
-- **ID:** the 32-byte public key in base32 (RFC 4648 alphabet, lowercase, no padding): 52 characters of `a-z` and `2-7`. Short enough to be one label of a web address.
+- **ID:** the 32-byte public key in base32 (RFC 4648 alphabet, lowercase, no padding): 52 characters of `a-z` and `2-7`.
 - **Secret phrase:** 24 words from the BIP39 English word list, encoding 256 random bits plus an 8-bit checksum, as BIP39 says.
 - **From phrase to key:** the BIP39 seed with an empty passphrase (PBKDF2 with HMAC-SHA512, 2048 rounds, salt `mnemonic`), then the SLIP-0010 Ed25519 master key: HMAC-SHA512 with key `ed25519 seed` over the seed, keeping the first 32 bytes as the Ed25519 private key.
 - **Example:** the phrase of 23 times `abandon` then `art` (all-zero entropy; never use it) gives the ID `pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a`.
 
-Programs that follow this recipe make the same ID from the same phrase, so a player can move between them freely. [tests/keys_test.js](../tests/keys_test.js) checks the recipe against the published BIP39 and SLIP-0010 test vectors.
+[tests/keys_test.js](../tests/keys_test.js) checks the recipe against the published BIP39 and SLIP-0010 test vectors.
 
 ## Signed JSON
 
 Sign-in notes and records are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
 
-- **What is signed:** the object without `sigs`, written as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
+- **What is signed:** the object without `sigs`, as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
 - **A signature:** the 64-byte Ed25519 signature of those bytes, in base64url without padding.
-- **Every signer signs the same bytes,** so signatures can be added in any order without disturbing each other.
+- **Every signer signs the same bytes,** so signatures can be added in any order.
 - **Every object carries `v` (the version, `1`) and `type`.** Unknown fields are allowed and are signed like any other.
-- **Times** are whole milliseconds since 1970-01-01 UTC.
-- **Size:** at most 16 KB of canonical JSON.
+- **Times** are whole milliseconds since 1970-01-01 UTC. **Size:** at most 16 KB of canonical JSON.
 
 ## Signing in
 
-**The sign-in note**
+**1. The realm shows a sign-in screen** with a one-time join address, such as `https://game-server.com/sword-of-swankery/join/K7Q2`, in three forms:
+
+- a QR code of an EntryPortal link (below);
+- a "sign in on this computer" link: the same EntryPortal link;
+- the join address as short text to type, for when scanning fails.
+
+Next to them it shows two matching words, such as "green otter", and the line "Only scan sign-in codes shown on your own screen."
+
+**2. The EntryPortal link** is the EntryPortal's address with the details after `#`, so they never reach the EntryPortal's server:
+
+```
+https://endlessmind.com/EntryPortal#url=<join address>&match=<matching words>
+```
+
+Both values are URL-encoded, and `match` is optional.
+
+**3. The EntryPortal asks once and signs.** For an address from a link, it shows "Play at **game-server.com**?" and, when `match` is given, "Is '**green otter**' on the screen in front of you?" One tap confirms both. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
 
 ```json
 {
   "v": 1,
   "type": "enter",
   "player": "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a",
-  "address": "https://example.com/garden/",
+  "address": "https://game-server.com/sword-of-swankery/join/K7Q2",
   "time": 1790000000000,
   "nonce": "0123456789abcdef",
-  "login": "https://login.example/",
+  "portal": "https://endlessmind.com/EntryPortal",
   "sigs": {
-    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "qpHEleQYzgO7CN-r4XiMXRPv0WGDVdSl-9Omz1a73uH7XRlW9VarJ_FxyIIYadnVqC0nvImxw3XeEOieTPP2Aw"
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "jc9qx24lcYOd9rKWsbaq-SLptrxnrWuidPxQX5oRgQam6gnNI7ZBRsepIdp8ZKeA1H0FoLDdxjtTJcysJRAfBA"
   }
 }
 ```
 
-| Field     | Meaning                                                                               |
-| --------- | ------------------------------------------------------------------------------------- |
-| `player`  | The player's ID; `sigs` must hold a valid signature by it                             |
-| `address` | The `https` address the player pasted, exactly as given                               |
-| `time`    | When the note was made                                                                |
-| `nonce`   | 16 to 64 random characters                                                            |
-| `login`   | Optional: the login page's address, so the realm can send records there to be signed  |
+| Field     | Meaning                                                                     |
+| --------- | --------------------------------------------------------------------------- |
+| `player`  | The player's ID; `sigs` must hold a valid signature by it                   |
+| `address` | The join address, exactly as given                                          |
+| `time`    | When the note was made                                                      |
+| `nonce`   | 16 to 64 random characters                                                  |
+| `portal`  | Optional: the EntryPortal's address, so the realm can send records there    |
 
-**Delivery.** The login page sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON.
+**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. Go back to your screen."
 
-**What the realm checks.** It accepts the note only if all of these hold:
+**5. The realm checks** that the signature by `player` is valid, that `address` is one of its own join addresses, not yet used and less than two minutes old, that `time` is within two minutes of its clock, and that it has not seen `nonce` before. Then it lets in the screen waiting on that join address. What happens next, such as a session cookie, is up to the realm.
 
-1. the signature by `player` is valid;
-2. `address` is one of the realm's own addresses;
-3. `time` is within two minutes of the realm's clock;
-4. the realm has not seen this `nonce` in the last ten minutes.
-
-What the realm does next, such as giving the browser a session cookie, is up to the realm. The realm's own ID does not appear in the note: the address already ties the note to this realm, and the player learns the realm's ID from the records it signs.
-
-**Native programs.** A program that cannot receive a web page shows a join address with a one-time code, such as `https://example.com/garden/join/K7Q2`, or the same as a QR code. The player pastes it into their login page as usual. The realm receives the note at that address and lets in the program waiting on that code.
+The realm's own ID is not in the note: the address already ties the note to the realm, and the player learns the realm's ID from the records it signs.
 
 ## Records
 
@@ -83,46 +91,47 @@ What the realm does next, such as giving the browser a session cookie, is up to 
 }
 ```
 
-| Field     | Meaning                                                                         |
-| --------- | ------------------------------------------------------------------------------- |
-| `signers` | The IDs that must all sign: a realm, its players, anyone                        |
-| `time`    | When the first signer proposed it                                               |
-| `text`    | What was agreed, in plain words, at most 1000 characters                        |
-| `data`    | Optional: the same facts for programs, as a JSON object                         |
+| Field     | Meaning                                                    |
+| --------- | ---------------------------------------------------------- |
+| `signers` | The IDs that must all sign: a realm, its players, anyone   |
+| `time`    | When the first signer proposed it                          |
+| `text`    | What was agreed, in plain words, at most 1000 characters   |
+| `data`    | Optional: the same facts for programs, as a JSON object    |
 
 - **A record is complete** when every ID in `signers` has a valid signature in `sigs`. An incomplete record proves nothing.
 - **Anyone holding a complete record may show it to anyone.** The reader checks the signatures; nobody needs to be contacted.
 - **A realm's own statement** has the realm as its only signer. An agreement lists every party.
 
-**Asking a player to sign, or giving them records.** The realm sends the player's browser to the login page named in their sign-in note, with the request after `#sign=` (the part after `#` never reaches the login page's server):
+**Claiming: asking a player to sign, or giving them records.** The realm shows a QR code, a "claim on this computer" link and a short address, all leading to a one-time claim address of its own, such as `https://game-server.com/sword-of-swankery/claim/X9P4`. That address forwards the browser to the EntryPortal named in the player's sign-in note:
 
 ```
-https://login.example/#sign=<URL-encoded JSON>
+https://endlessmind.com/EntryPortal#sign=<URL-encoded JSON>
 ```
 
-The JSON is `{ "return": "<address>", "records": [ ... ] }`. The login page:
+The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
 
-1. checks that `return` is an address the player signed in to through this login page, and refuses otherwise;
-2. shows every record's full text and signers, and the return address;
+1. checks that `return` is on the same site as an address the player signed in to through this EntryPortal, and refuses otherwise;
+2. shows every record's full text and signers;
 3. lets the player choose which records to sign; records the player is not a signer of are offered for keeping only;
 4. adds the player's signature to the chosen records and keeps a copy of each;
 5. sends the browser to `return` with an HTML form POST holding one field, `records`: the chosen records as a JSON array.
 
-**Records file.** A login page saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other login page, keeping only records whose signatures check out.
+**Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out.
 
-## Rules for login pages
+## Rules for EntryPortals
 
-Anyone may write and host a login page. Players and their AI helpers should expect these, and an AI asked "is it safe to type my secret phrase into [address]?" should check them:
+Anyone may write and host an EntryPortal. Players and their AI helpers should expect these, and an AI asked "is it safe to type my secret phrase into [address]?" should check them:
 
 1. **One self-contained file.** Readable code, no scripts or styles loaded from anywhere else, no minified code.
-2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to an address the player pasted, or to a `return` address the player signed in to.
-3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words.
-4. **Addresses come only from the player.** The page never signs in to an address taken from its own link.
+2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to a join address or a `return` address, as described above.
+3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words. The page asks the browser to keep its storage permanently.
+4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name and, if given, the matching words.
 5. **Show before signing.** The page shows the full text of every record and asks before signing it.
-6. **Fixed versions.** Each version of the page is published with its SHA-256 fingerprint and is never changed afterwards; a new version gets a new address.
-7. **Records can leave.** The page saves and loads records files.
+6. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.
+7. **Fixed versions.** Each version is published with its SHA-256 fingerprint and never changed afterwards; a new version gets a new address.
+8. **Records can leave.** The page saves and loads records files.
 
-The reference login page, not yet written, will follow these rules.
+The reference EntryPortal, not yet written, will follow these rules.
 
 ## Versions
 
