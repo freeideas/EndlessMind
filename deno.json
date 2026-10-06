@@ -1,7 +1,10 @@
 {
   "tasks": {
-    "test": "deno test tests/",
-    "check": "deno check shared/*.js tests/*.js"
+    "test": "deno test --allow-read --allow-write --allow-run --allow-net --allow-env tests/",
+    "check": "deno check shared/*.js realm/*.js examples/*/*.js deploy/*.js tests/*.js",
+    "portal": "deno run --allow-read --allow-write deploy/entryportal.js",
+    "browser": "uv run tests/browser/loop_test.py",
+    "garden": "deno run --allow-read --allow-write --allow-net --allow-env examples/lantern-garden/server.js"
   },
   "compilerOptions": {
     "checkJs": true,

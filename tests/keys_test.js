@@ -73,3 +73,13 @@ Deno.test("a record is complete only when every signer has signed the same text"
   const changed = { ...whole, text: "Finished the Glass Maze twice." };
   assert.deepEqual(await validSigners(changed), []);
 });
+
+Deno.test("the signed examples in PROTOCOL.md check out", async () => {
+  const md = await Deno.readTextFile(new URL("../specs/PROTOCOL.md", import.meta.url));
+  const examples = [...md.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]).filter((t) => t.includes('"sigs"') && !t.includes('"..."'));
+  assert.ok(examples.length >= 2);
+  for (const text of examples) {
+    const example = JSON.parse(text);
+    assert.deepEqual((await validSigners(example)).sort(), Object.keys(example.sigs).sort(), text);
+  }
+});

@@ -4,7 +4,7 @@ A free, open network for anything AI can make: games, places, shops, tools, whol
 
 AI coding agents now let anyone make a game just by describing it. Endless Mind connects all of them, the way the web connects websites, with no company in the middle. What ties it together is identity: you are the same player everywhere, and what you earn in one game you can show in another, with proof.
 
-**Status: being redesigned.** Identity, records and finding realms are settled and written down; hosting and making realms are still being worked out. Nothing is running right now.
+**Status: being redesigned.** Identity, records and finding realms are settled and written down; hosting and making realms are still being worked out. A first EntryPortal, a library for realms and a small example realm are written and tested on one computer; nothing is running publicly yet.
 
 ## Your secret phrase
 

@@ -1,0 +1,233 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["playwright", "opencv-python-headless", "numpy"]
+# ///
+"""The whole loop in real browsers: a PC playing Lantern Garden and a phone holding the EntryPortal.
+
+Guest play, sign-in by QR code (read from the screen), claiming a record, the public list, "sign in on
+this computer", a typed address, and burning an identity. The EntryPortal and the realm run on
+different local addresses, like two sites. Run: uv run tests/browser/loop_test.py [--headed]
+(the first run may need: uv run --with playwright playwright install chromium)
+"""
+import functools, http.server, json, os, socket, subprocess, sys, tempfile, threading, time
+from pathlib import Path
+
+import cv2
+import numpy as np
+from playwright.sync_api import expect, sync_playwright
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+GARDEN_PORT, PORTAL_PORT = free_port(), free_port()
+GARDEN = f"http://localhost:{GARDEN_PORT}/"
+PORTAL = f"http://127.0.0.1:{PORTAL_PORT}/EntryPortal/1/"
+
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *args) -> None:
+        pass
+
+
+def serve_site() -> None:
+    handler = functools.partial(Quiet, directory=str(REPO / "site"))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", PORTAL_PORT), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+
+def start_garden(data: str) -> subprocess.Popen:
+    env = {**os.environ, "GARDEN_PORT": str(GARDEN_PORT), "GARDEN_BASE": GARDEN, "GARDEN_PORTAL": PORTAL, "GARDEN_DATA": data}
+    garden = subprocess.Popen(
+        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-env", "examples/lantern-garden/server.js"],
+        cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    for _ in range(100):
+        try:
+            socket.create_connection(("localhost", GARDEN_PORT), timeout=0.2).close()
+            return garden
+        except OSError:
+            time.sleep(0.1)
+    raise RuntimeError("the garden did not start")
+
+
+def read_qr(page) -> str:
+    """Read the QR code on the screen the way a phone's camera would."""
+    image = cv2.imdecode(np.frombuffer(page.locator(".em-qr").screenshot(), np.uint8), cv2.IMREAD_COLOR)
+    # OpenCV's reader sometimes misses a code at one size and reads it at another, as a camera would
+    # after moving a little.
+    text = ""
+    for scale in (1, 0.5, 0.75, 1.5, 0.35):
+        resized = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        for detector in (cv2.QRCodeDetector(), cv2.QRCodeDetectorAruco()):
+            text = detector.detectAndDecode(resized)[0]
+            if text:
+                break
+        if text:
+            break
+    if not text:
+        cv2.imwrite("unreadable-qr.png", image)
+    assert text, "the QR code could not be read; see unreadable-qr.png"
+    assert text == page.locator(".em-qr").get_attribute("data-link")
+    return text
+
+
+def set_up_new_phrase(phone) -> tuple[str, str]:
+    phone.goto(PORTAL)
+    phone.get_by_role("button", name="Make a new secret phrase").click()
+    words = phone.locator("#new-words li").all_text_contents()
+    assert len(words) == 24
+    phone.get_by_role("button", name="I have written them down").click()
+    for label in phone.locator("#check-fields label").all():
+        n = int(label.text_content().split()[1])
+        label.locator("input").fill(words[n - 1])
+    phone.get_by_role("button", name="Check").click()
+    expect(phone.locator("#s-home")).to_be_visible()
+    return " ".join(words), phone.locator("#home-id").text_content()
+
+
+def plant(page, *plots: int) -> None:
+    for plot in plots:
+        page.locator(f'.plot[data-plot="{plot}"]').click()
+        expect(page.locator(f'.plot.lit[data-plot="{plot}"]')).to_be_visible()
+
+
+def main() -> None:
+    headed = "--headed" in sys.argv
+    shots = Path(sys.argv[sys.argv.index("--screenshots") + 1]) if "--screenshots" in sys.argv else None
+
+    def shot(page, name: str) -> None:
+        if shots:
+            shots.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=shots / f"{name}.png", full_page=True)
+
+    serve_site()
+    with tempfile.TemporaryDirectory() as data, sync_playwright() as pw:
+        garden = start_garden(data)
+        try:
+            browser = pw.chromium.launch(headless=not headed)
+            errors: list[str] = []
+
+            def watch(page):
+                # Script errors and refusals by the security policy; a realm answering 400 is expected.
+                page.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(f"{page.url}: {m.text}"))
+                page.on("pageerror", lambda e: errors.append(f"{page.url}: {e}"))
+                page.on("popup", watch)
+                return page
+
+            phone = watch(browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2).new_page())
+            pc = watch(browser.new_context(viewport={"width": 1280, "height": 900}, device_scale_factor=2).new_page())
+
+            print("phone: set up an EntryPortal with a new secret phrase")
+            words, player = set_up_new_phrase(phone)
+            assert len(player) == 52
+
+            print("pc: play as a guest, then sign in by scanning the QR code with the phone")
+            pc.goto(GARDEN)
+            expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
+            plant(pc, 0, 1, 2)
+            expect(pc.locator("#count")).to_have_text("3 of 10 seeds toward a record.")
+            pc.get_by_role("button", name="Sign in").click()
+            link = read_qr(pc)
+            shot(pc, "1-pc-sign-in-code")
+            assert link.startswith(PORTAL + "#url=")
+            phone.goto(link)
+            expect(phone.locator("#enter-site")).to_have_text(f"localhost:{GARDEN_PORT}")
+            shot(phone, "2-phone-confirm-sign-in")
+            phone.locator("#enter-ok").click()
+            expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+            expect(pc.locator(".em-id")).to_have_text(player)
+            expect(pc.locator("#count")).to_have_text("3 of 10 seeds toward a record.")
+
+            print("pc: plant ten seeds and claim the record with the phone")
+            plant(pc, *range(3, 10))
+            expect(pc.get_by_text("1 record is waiting for you to claim.")).to_be_visible()
+            shot(pc, "3-pc-garden")
+            pc.get_by_role("button", name="Claim").click()
+            claim = read_qr(pc)
+            assert claim.startswith(GARDEN + "claim/")
+            phone.goto(claim)
+            expect(phone.locator("#sign-records")).to_contain_text("Planted 10 lantern seeds in Lantern Garden.")
+            expect(phone.get_by_label("Public: anyone may see this record")).to_be_checked()
+            shot(phone, "4-phone-sign-record")
+            phone.locator("#sign-ok").click()
+            expect(phone.locator("#message-title")).to_have_text("Records kept")
+            expect(pc.get_by_text("Signed in as player")).to_be_visible()
+            expect(pc.get_by_role("button", name="Claim")).to_have_count(0)
+            phone.locator("#message-home").click()
+            expect(phone.locator("#home-records")).to_contain_text("complete")
+            shot(phone, "5-phone-home")
+
+            print("anyone: the public list holds the complete record")
+            listing = pc.request.get(GARDEN + "endlessmind-list.json").json()
+            card = pc.request.get(GARDEN + "endlessmind-card.json").json()
+            assert card["name"] == "Lantern Garden" and listing["realm"] == card["signers"][0]
+            [record] = listing["records"]
+            assert record["public"] is True and set(record["sigs"]) == {player, listing["realm"]}
+
+            print("pc2: sign in on this computer, with the same phrase typed into its own EntryPortal")
+            pc2 = watch(browser.new_context(viewport={"width": 1280, "height": 900}).new_page())
+            pc2.goto(GARDEN)
+            pc2.get_by_role("button", name="Sign in").click()
+            with pc2.expect_popup() as popup:
+                pc2.get_by_role("link", name="Sign in on this computer").click()
+            portal2 = popup.value
+            portal2.get_by_role("button", name="I already have a secret phrase").click()
+            portal2.locator("#have-words").fill(words)
+            portal2.get_by_role("button", name="Use this phrase").click()
+            expect(portal2.locator("#enter-site")).to_have_text(f"localhost:{GARDEN_PORT}")
+            portal2.locator("#enter-ok").click()
+            expect(portal2.get_by_role("heading", name="You're in")).to_be_visible()
+            expect(pc2.locator(".em-id")).to_have_text(player)
+            expect(pc2.locator("#count")).to_contain_text("10 lanterns glowing")
+
+            print("pc2: sign out, then sign in by typing the short address into the EntryPortal")
+            pc2.get_by_role("button", name="Sign out").click()
+            pc2.get_by_role("button", name="Sign in").click()
+            typed = pc2.locator(".em-typed").text_content()
+            portal2.goto(PORTAL)
+            portal2.locator("#typed-address").fill(typed)
+            portal2.get_by_role("button", name="Sign in").click()
+            expect(portal2.get_by_role("heading", name="You're in")).to_be_visible()
+            expect(pc2.locator(".em-id")).to_have_text(player)
+
+            print("phone: burn the identity and tell the realm; the ID is refused from then on")
+            phone.goto(PORTAL)
+            phone.locator("#burn summary").click()
+            phone.locator("#burn-words").fill(words)
+            phone.locator("#burn-confirm").fill("burn this identity")
+            phone.locator("#burn-ok").click()
+            expect(phone.locator("#burned-id")).to_have_text(player)
+            shot(phone, "6-phone-burned")
+            notice = json.loads(phone.locator("#burned-notice").input_value())
+            assert notice["type"] == "burn" and len(notice["key"]) == 43
+            with phone.expect_popup() as told:
+                phone.get_by_role("button", name=f"Tell localhost:{GARDEN_PORT}").click()
+            expect(told.value.get_by_text("that player ID is burned here")).to_be_visible()
+            pc2.reload()
+            expect(pc2.get_by_text("Playing as a guest.")).to_be_visible()
+            assert pc.request.get(GARDEN + "endlessmind-list.json").json()["records"] == []
+            pc2.get_by_role("button", name="Sign in").click()
+            portal2.goto(PORTAL)
+            portal2.locator("#typed-address").fill(pc2.locator(".em-typed").text_content())
+            portal2.get_by_role("button", name="Sign in").click()
+            expect(portal2.get_by_text("That player ID has been burned")).to_be_visible()
+
+            browser.close()
+            assert not errors, "errors in the browsers:\n" + "\n".join(errors)
+            print("ok: the whole loop works")
+        finally:
+            garden.terminate()
+            out, _ = garden.communicate(timeout=5)
+            if headed or "--verbose" in sys.argv:
+                print(out)
+
+
+if __name__ == "__main__":
+    main()

@@ -2,8 +2,6 @@
 
 import { base64url, fromBase64url, sign, verify } from "./keys.js";
 
-const enc = new TextEncoder();
-
 /** JSON with object keys sorted at every level and no spaces; numbers must be integers. @param {unknown} value @returns {string} */
 export function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -18,7 +16,7 @@ export function canonical(value) {
 /** The bytes every signer signs: the canonical JSON of everything except `sigs`. @param {Record<string, unknown>} object */
 export function signedBytes(object) {
   const { sigs: _, ...body } = object;
-  return enc.encode(canonical(body));
+  return new TextEncoder().encode(canonical(body));
 }
 
 /**

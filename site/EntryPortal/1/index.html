@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/wBfYgQNOBwlQnbrRfjcjNucYXrhNh/HQwaqR/EiKw4='; style-src 'sha256-i5GCj31LCTKHxFjv/M2zJ4AFg5ZrU4uRlwlHIC9xaVE='; form-action https: http://localhost:* http://127.0.0.1:*; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>EntryPortal | Endless Mind</title>
+<!--
+  Endless Mind EntryPortal, version 1. https://github.com/freeideas/EndlessMind
+
+  This page keeps your secret phrase on this device. If you are checking whether it is safe, see
+  "Rules for EntryPortals" in specs/PROTOCOL.md. In short:
+  - Everything is in this one file. The security policy above forbids every connection to any server
+    (no connect-src at all) and runs only the script and style below, matched by their SHA-256 hashes.
+  - The only thing that ever leaves is a form POST to a sign-in or claim address the player confirmed,
+    holding a sign-in note or records, or a burn notice the player asked to send.
+  - The phrase is turned into a browser key that cannot be read back out ("non-extractable"), stored in
+    this browser's IndexedDB, and the phrase itself is not kept.
+  The code between the "begin shared" and "end shared" lines is copied from shared/ in the repository
+  by deploy/entryportal.js; everything else is written here.
+-->
+<style>
+:root { --bg: #fbfaf7; --fg: #1f1d1a; --muted: #5d5850; --accent: #6a3fd0; --card: #f1eee8; --line: #ddd8cf; --warn: #a3321f; }
+@media (prefers-color-scheme: dark) { :root { --bg: #15141a; --fg: #ebe8f0; --muted: #a29eab; --accent: #b79bff; --card: #201e27; --line: #34313d; --warn: #ff8f7a; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 34rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .8rem; }
+h2 { font-size: 1.15rem; margin: 2rem 0 .4rem; }
+p { margin: .6rem 0; }
+.muted { color: var(--muted); font-size: .92rem; }
+.warn { color: var(--warn); }
+.brand { color: var(--muted); font-size: .85rem; margin-bottom: 1.2rem; }
+button, .button { font: inherit; font-weight: 600; padding: .65rem 1.1rem; border-radius: 10px; border: 0; background: var(--accent); color: var(--bg); cursor: pointer; margin: .3rem .5rem .3rem 0; }
+button.plain, label.button { background: var(--card); color: var(--fg); border: 1px solid var(--line); font-weight: 500; }
+label.button { display: inline-block; }
+button.danger { background: var(--warn); }
+input[type=text], textarea { font: inherit; width: 100%; padding: .55rem .7rem; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+textarea { min-height: 7rem; }
+label { display: block; margin: .5rem 0; }
+.id { font: .95rem/1.5 ui-monospace, Menlo, monospace; word-break: break-all; background: var(--card); padding: .5rem .7rem; border-radius: 8px; }
+.site { font-size: 1.5rem; font-weight: 700; word-break: break-all; }
+ol.words { columns: 2; padding-left: 2.2rem; font: 1.05rem/1.9 ui-monospace, Menlo, monospace; background: var(--card); border-radius: 10px; padding-top: .6rem; padding-bottom: .6rem; }
+.record { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: .7rem .9rem; margin: .7rem 0; }
+.record .text { white-space: pre-wrap; font-weight: 600; }
+.record .meta { color: var(--muted); font-size: .85rem; word-break: break-all; }
+.record label { display: flex; gap: .5rem; align-items: center; margin: .3rem 0; }
+details { margin: 1.5rem 0; border-top: 1px solid var(--line); padding-top: .8rem; }
+summary { cursor: pointer; font-weight: 600; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+<div class="brand">Endless Mind EntryPortal, version 1</div>
+
+<section id="s-loading"><p>Opening...</p></section>
+
+<section id="s-message" hidden>
+  <h1 id="message-title"></h1>
+  <p id="message-text"></p>
+  <button id="message-home" class="plain">Back to your EntryPortal</button>
+</section>
+
+<section id="s-setup" hidden>
+  <h1>Set up your EntryPortal</h1>
+  <p>Your <strong>secret phrase</strong> is 24 ordinary words. It is your identity in every realm: no account, password or email.</p>
+  <p>This page turns your phrase into a key kept inside this browser, which can prove you have your phrase but cannot show it to anyone, not even to this page. Then it forgets the phrase.</p>
+  <button id="setup-new">Make a new secret phrase</button>
+  <button id="setup-have" class="plain">I already have a secret phrase</button>
+  <details>
+    <summary>Use a different EntryPortal</summary>
+    <p>Any EntryPortal works, and they all make the same player ID from the same phrase. To use another one instead, open it and type your secret phrase there. When a realm's code opens this page, type the address shown under the code into your other EntryPortal.</p>
+  </details>
+</section>
+
+<section id="s-new" hidden>
+  <h1>Write down your secret phrase</h1>
+  <p class="warn"><strong>You will see these words only once.</strong> Write them on paper, in order, or keep them in a file only you can open. Anyone who has them can be you, forever, and nobody can get them back for you if they are lost.</p>
+  <ol class="words" id="new-words"></ol>
+  <button id="new-done">I have written them down</button>
+</section>
+
+<section id="s-check" hidden>
+  <h1>Check that you wrote it down</h1>
+  <p>Type these words from your secret phrase.</p>
+  <div id="check-fields"></div>
+  <p id="check-error" class="warn" hidden></p>
+  <button id="check-ok">Check</button>
+  <button id="check-back" class="plain">Show the words again</button>
+</section>
+
+<section id="s-have" hidden>
+  <h1>Type your secret phrase</h1>
+  <p>All 24 words, in order, separated by spaces. Type it only when you set up a device or choose to burn an identity.</p>
+  <textarea id="have-words" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+  <p id="have-error" class="warn" hidden></p>
+  <button id="have-ok">Use this phrase</button>
+  <button id="have-back" class="plain">Back</button>
+</section>
+
+<section id="s-home" hidden>
+  <h1>Your EntryPortal</h1>
+  <p>Your player ID:</p>
+  <p class="id" id="home-id"></p>
+  <p class="muted" id="home-storage"></p>
+
+  <h2>Sign in by typing an address</h2>
+  <p class="muted">If a realm's code will not scan, type the address shown under it.</p>
+  <form id="typed-form">
+    <input type="text" id="typed-address" placeholder="game-server.com/join/K7Q2XM" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p id="typed-error" class="warn" hidden></p>
+    <button type="submit">Sign in</button>
+  </form>
+
+  <h2>Your records</h2>
+  <div id="home-records"></div>
+  <button id="records-save" class="plain">Save records file</button>
+  <label class="button plain">Load records file <input type="file" id="records-load" accept=".json,application/json" hidden></label>
+  <p id="records-note" class="muted" hidden></p>
+
+  <details>
+    <summary>Use a different EntryPortal</summary>
+    <p>Any EntryPortal works, and they all make the same player ID from the same phrase. To move, open the other one, type your secret phrase there, and load your records file into it. When a realm's code opens this page, you can instead type the address shown under the code into your other EntryPortal.</p>
+  </details>
+
+  <details id="burn">
+    <summary>Burn this identity</summary>
+    <p>Burning reveals your secret so that anyone can use it. From then on, everyone treats this player ID as gone, and anything signed with it, old or new, counts for nothing. Do this if your phrase was stolen, or to retire this identity for good. <strong>It cannot be undone.</strong> You will start over with a new phrase and no history.</p>
+    <p>This page keeps no copy of your phrase, so type it again:</p>
+    <textarea id="burn-words" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <label>Type <strong>burn this identity</strong> to confirm:
+      <input type="text" id="burn-confirm" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <p id="burn-error" class="warn" hidden></p>
+    <button id="burn-ok" class="danger">Burn this identity</button>
+  </details>
+</section>
+
+<section id="s-enter" hidden>
+  <h1>Sign in the screen in front of you at</h1>
+  <p class="site" id="enter-site"></p>
+  <p class="muted" id="enter-address"></p>
+  <p class="warn">Only continue if you scanned a code on your own screen. A code posted somewhere else could sign a stranger in as you.</p>
+  <button id="enter-ok">Sign in</button>
+  <button id="enter-cancel" class="plain">Cancel</button>
+</section>
+
+<section id="s-sign" hidden>
+  <h1 id="sign-title"></h1>
+  <p id="sign-intro"></p>
+  <div id="sign-records"></div>
+  <p id="sign-skipped" class="muted" hidden></p>
+  <button id="sign-ok"></button>
+  <button id="sign-cancel" class="plain">Cancel</button>
+</section>
+
+<section id="s-burned" hidden>
+  <h1>This identity is burned</h1>
+  <p>Player ID <span class="id" id="burned-id"></span> is now gone. Its burn notice is below. Realms and boards that know this ID should hear about it; publish the notice anywhere you like.</p>
+  <textarea id="burned-notice" readonly></textarea>
+  <button id="burned-save" class="plain">Save burn notice</button>
+  <h2>Tell the realms you signed in to</h2>
+  <div id="burned-realms"></div>
+  <h2>Start over</h2>
+  <button id="burned-again">Set up a new identity</button>
+</section>
+</main>
+
+<script type="module">
+// ---- begin shared/words-en.js ----
+// The BIP39 English word list (2048 words), from https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt
+const WORDS = "abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual adapt add addict address adjust admit adult advance advice aerobic affair afford afraid again age agent agree ahead aim air airport aisle alarm album alcohol alert alien all alley allow almost alone alpha already also alter always amateur amazing among amount amused analyst anchor ancient anger angle angry animal ankle announce annual another answer antenna antique anxiety any apart apology appear apple approve april arch arctic area arena argue arm armed armor army around arrange arrest arrive arrow art artefact artist artwork ask aspect assault asset assist assume asthma athlete atom attack attend attitude attract auction audit august aunt author auto autumn average avocado avoid awake aware away awesome awful awkward axis baby bachelor bacon badge bag balance balcony ball bamboo banana banner bar barely bargain barrel base basic basket battle beach bean beauty because become beef before begin behave behind believe below belt bench benefit best betray better between beyond bicycle bid bike bind biology bird birth bitter black blade blame blanket blast bleak bless blind blood blossom blouse blue blur blush board boat body boil bomb bone bonus book boost border boring borrow boss bottom bounce box boy bracket brain brand brass brave bread breeze brick bridge brief bright bring brisk broccoli broken bronze broom brother brown brush bubble buddy budget buffalo build bulb bulk bullet bundle bunker burden burger burst bus business busy butter buyer buzz cabbage cabin cable cactus cage cake call calm camera camp can canal cancel candy cannon canoe canvas canyon capable capital captain car carbon card cargo carpet carry cart case cash casino castle casual cat catalog catch category cattle caught cause caution cave ceiling celery cement census century cereal certain chair chalk champion change chaos chapter charge chase chat cheap check cheese chef cherry chest chicken chief child chimney choice choose chronic chuckle chunk churn cigar cinnamon circle citizen city civil claim clap clarify claw clay clean clerk clever click client cliff climb clinic clip clock clog close cloth cloud clown club clump cluster clutch coach coast coconut code coffee coil coin collect color column combine come comfort comic common company concert conduct confirm congress connect consider control convince cook cool copper copy coral core corn correct cost cotton couch country couple course cousin cover coyote crack cradle craft cram crane crash crater crawl crazy cream credit creek crew cricket crime crisp critic crop cross crouch crowd crucial cruel cruise crumble crunch crush cry crystal cube culture cup cupboard curious current curtain curve cushion custom cute cycle dad damage damp dance danger daring dash daughter dawn day deal debate debris decade december decide decline decorate decrease deer defense define defy degree delay deliver demand demise denial dentist deny depart depend deposit depth deputy derive describe desert design desk despair destroy detail detect develop device devote diagram dial diamond diary dice diesel diet differ digital dignity dilemma dinner dinosaur direct dirt disagree discover disease dish dismiss disorder display distance divert divide divorce dizzy doctor document dog doll dolphin domain donate donkey donor door dose double dove draft dragon drama drastic draw dream dress drift drill drink drip drive drop drum dry duck dumb dune during dust dutch duty dwarf dynamic eager eagle early earn earth easily east easy echo ecology economy edge edit educate effort egg eight either elbow elder electric elegant element elephant elevator elite else embark embody embrace emerge emotion employ empower empty enable enact end endless endorse enemy energy enforce engage engine enhance enjoy enlist enough enrich enroll ensure enter entire entry envelope episode equal equip era erase erode erosion error erupt escape essay essence estate eternal ethics evidence evil evoke evolve exact example excess exchange excite exclude excuse execute exercise exhaust exhibit exile exist exit exotic expand expect expire explain expose express extend extra eye eyebrow fabric face faculty fade faint faith fall false fame family famous fan fancy fantasy farm fashion fat fatal father fatigue fault favorite feature february federal fee feed feel female fence festival fetch fever few fiber fiction field figure file film filter final find fine finger finish fire firm first fiscal fish fit fitness fix flag flame flash flat flavor flee flight flip float flock floor flower fluid flush fly foam focus fog foil fold follow food foot force forest forget fork fortune forum forward fossil foster found fox fragile frame frequent fresh friend fringe frog front frost frown frozen fruit fuel fun funny furnace fury future gadget gain galaxy gallery game gap garage garbage garden garlic garment gas gasp gate gather gauge gaze general genius genre gentle genuine gesture ghost giant gift giggle ginger giraffe girl give glad glance glare glass glide glimpse globe gloom glory glove glow glue goat goddess gold good goose gorilla gospel gossip govern gown grab grace grain grant grape grass gravity great green grid grief grit grocery group grow grunt guard guess guide guilt guitar gun gym habit hair half hammer hamster hand happy harbor hard harsh harvest hat have hawk hazard head health heart heavy hedgehog height hello helmet help hen hero hidden high hill hint hip hire history hobby hockey hold hole holiday hollow home honey hood hope horn horror horse hospital host hotel hour hover hub huge human humble humor hundred hungry hunt hurdle hurry hurt husband hybrid ice icon idea identify idle ignore ill illegal illness image imitate immense immune impact impose improve impulse inch include income increase index indicate indoor industry infant inflict inform inhale inherit initial inject injury inmate inner innocent input inquiry insane insect inside inspire install intact interest into invest invite involve iron island isolate issue item ivory jacket jaguar jar jazz jealous jeans jelly jewel job join joke journey joy judge juice jump jungle junior junk just kangaroo keen keep ketchup key kick kid kidney kind kingdom kiss kit kitchen kite kitten kiwi knee knife knock know lab label labor ladder lady lake lamp language laptop large later latin laugh laundry lava law lawn lawsuit layer lazy leader leaf learn leave lecture left leg legal legend leisure lemon lend length lens leopard lesson letter level liar liberty library license life lift light like limb limit link lion liquid list little live lizard load loan lobster local lock logic lonely long loop lottery loud lounge love loyal lucky luggage lumber lunar lunch luxury lyrics machine mad magic magnet maid mail main major make mammal man manage mandate mango mansion manual maple marble march margin marine market marriage mask mass master match material math matrix matter maximum maze meadow mean measure meat mechanic medal media melody melt member memory mention menu mercy merge merit merry mesh message metal method middle midnight milk million mimic mind minimum minor minute miracle mirror misery miss mistake mix mixed mixture mobile model modify mom moment monitor monkey monster month moon moral more morning mosquito mother motion motor mountain mouse move movie much muffin mule multiply muscle museum mushroom music must mutual myself mystery myth naive name napkin narrow nasty nation nature near neck need negative neglect neither nephew nerve nest net network neutral never news next nice night noble noise nominee noodle normal north nose notable note nothing notice novel now nuclear number nurse nut oak obey object oblige obscure observe obtain obvious occur ocean october odor off offer office often oil okay old olive olympic omit once one onion online only open opera opinion oppose option orange orbit orchard order ordinary organ orient original orphan ostrich other outdoor outer output outside oval oven over own owner oxygen oyster ozone pact paddle page pair palace palm panda panel panic panther paper parade parent park parrot party pass patch path patient patrol pattern pause pave payment peace peanut pear peasant pelican pen penalty pencil people pepper perfect permit person pet phone photo phrase physical piano picnic picture piece pig pigeon pill pilot pink pioneer pipe pistol pitch pizza place planet plastic plate play please pledge pluck plug plunge poem poet point polar pole police pond pony pool popular portion position possible post potato pottery poverty powder power practice praise predict prefer prepare present pretty prevent price pride primary print priority prison private prize problem process produce profit program project promote proof property prosper protect proud provide public pudding pull pulp pulse pumpkin punch pupil puppy purchase purity purpose purse push put puzzle pyramid quality quantum quarter question quick quit quiz quote rabbit raccoon race rack radar radio rail rain raise rally ramp ranch random range rapid rare rate rather raven raw razor ready real reason rebel rebuild recall receive recipe record recycle reduce reflect reform refuse region regret regular reject relax release relief rely remain remember remind remove render renew rent reopen repair repeat replace report require rescue resemble resist resource response result retire retreat return reunion reveal review reward rhythm rib ribbon rice rich ride ridge rifle right rigid ring riot ripple risk ritual rival river road roast robot robust rocket romance roof rookie room rose rotate rough round route royal rubber rude rug rule run runway rural sad saddle sadness safe sail salad salmon salon salt salute same sample sand satisfy satoshi sauce sausage save say scale scan scare scatter scene scheme school science scissors scorpion scout scrap screen script scrub sea search season seat second secret section security seed seek segment select sell seminar senior sense sentence series service session settle setup seven shadow shaft shallow share shed shell sheriff shield shift shine ship shiver shock shoe shoot shop short shoulder shove shrimp shrug shuffle shy sibling sick side siege sight sign silent silk silly silver similar simple since sing siren sister situate six size skate sketch ski skill skin skirt skull slab slam sleep slender slice slide slight slim slogan slot slow slush small smart smile smoke smooth snack snake snap sniff snow soap soccer social sock soda soft solar soldier solid solution solve someone song soon sorry sort soul sound soup source south space spare spatial spawn speak special speed spell spend sphere spice spider spike spin spirit split spoil sponsor spoon sport spot spray spread spring spy square squeeze squirrel stable stadium staff stage stairs stamp stand start state stay steak steel stem step stereo stick still sting stock stomach stone stool story stove strategy street strike strong struggle student stuff stumble style subject submit subway success such sudden suffer sugar suggest suit summer sun sunny sunset super supply supreme sure surface surge surprise surround survey suspect sustain swallow swamp swap swarm swear sweet swift swim swing switch sword symbol symptom syrup system table tackle tag tail talent talk tank tape target task taste tattoo taxi teach team tell ten tenant tennis tent term test text thank that theme then theory there they thing this thought three thrive throw thumb thunder ticket tide tiger tilt timber time tiny tip tired tissue title toast tobacco today toddler toe together toilet token tomato tomorrow tone tongue tonight tool tooth top topic topple torch tornado tortoise toss total tourist toward tower town toy track trade traffic tragic train transfer trap trash travel tray treat tree trend trial tribe trick trigger trim trip trophy trouble truck true truly trumpet trust truth try tube tuition tumble tuna tunnel turkey turn turtle twelve twenty twice twin twist two type typical ugly umbrella unable unaware uncle uncover under undo unfair unfold unhappy uniform unique unit universe unknown unlock until unusual unveil update upgrade uphold upon upper upset urban urge usage use used useful useless usual utility vacant vacuum vague valid valley valve van vanish vapor various vast vault vehicle velvet vendor venture venue verb verify version very vessel veteran viable vibrant vicious victory video view village vintage violin virtual virus visa visit visual vital vivid vocal voice void volcano volume vote voyage wage wagon wait walk wall walnut want warfare warm warrior wash wasp waste water wave way wealth weapon wear weasel weather web wedding weekend weird welcome west wet whale what wheat wheel when where whip whisper wide width wife wild will win window wine wing wink winner winter wire wisdom wise wish witness wolf woman wonder wood wool word work world worry worth wrap wreck wrestle wrist write wrong yard year yellow you young youth zebra zero zone zoo".split(" ");
+// ---- end shared/words-en.js ----
+// ---- begin shared/keys.js ----
+// Keys and IDs. Runs unchanged in browsers and Deno, using only WebCrypto.
+//
+// A key is an Ed25519 key pair. Its ID is the public key in lowercase base32 (52 characters),
+// short enough to be a web address label. A person's key comes from 24 words (BIP39), which
+// recreate the same key on any device.
+
+
+const B32 = "abcdefghijklmnopqrstuvwxyz234567";
+const enc = new TextEncoder();
+
+/** @param {Uint8Array} bytes */
+function base32(bytes) {
+  let out = "", bits = 0, value = 0;
+  for (const b of bytes) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      out += B32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += B32[(value << (5 - bits)) & 31];
+  return out;
+}
+
+/** @param {string} text */
+function fromBase32(text) {
+  const out = [];
+  let bits = 0, value = 0;
+  for (const ch of text) {
+    const i = B32.indexOf(ch);
+    if (i < 0) throw new Error("not base32");
+    value = ((value << 5) | i) & 0xffff;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(out);
+}
+
+/** @param {Uint8Array} bytes */
+function base64url(bytes) {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+/** @param {string} text */
+function fromBase64url(text) {
+  const s = atob(text.replaceAll("-", "+").replaceAll("_", "/"));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+}
+
+/** @param {Uint8Array} bytes */
+function hex(bytes) {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** @param {string} id */
+function isId(id) {
+  return typeof id === "string" && /^[a-z2-7]{52}$/.test(id);
+}
+
+/** @param {string} algorithm @param {Uint8Array<ArrayBuffer>} data */
+async function digest(algorithm, data) {
+  return new Uint8Array(await crypto.subtle.digest(algorithm, data));
+}
+
+/** 24 new words: 256 random bits and an 8-bit checksum, as BIP39 says. */
+async function newWords() {
+  return wordsFromEntropy(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+/** @param {Uint8Array<ArrayBuffer>} entropy 32 bytes */
+async function wordsFromEntropy(entropy) {
+  const check = (await digest("SHA-256", entropy))[0];
+  const bits = [...entropy, check].map((b) => b.toString(2).padStart(8, "0")).join("");
+  const words = [];
+  for (let i = 0; i < 24; i++) words.push(WORDS[parseInt(bits.slice(i * 11, i * 11 + 11), 2)]);
+  return words.join(" ");
+}
+
+/** Tidy typed words, or throw if they are not 24 valid words with a matching checksum. @param {string} text */
+async function checkWords(text) {
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length !== 24) throw new Error(`expected 24 words, got ${words.length}`);
+  const bad = words.filter((w) => !WORDS.includes(w));
+  if (bad.length) throw new Error(`not in the word list: ${bad.join(", ")}`);
+  const bits = words.map((w) => WORDS.indexOf(w).toString(2).padStart(11, "0")).join("");
+  const bytes = new Uint8Array(33);
+  for (let i = 0; i < 33; i++) bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  if ((await digest("SHA-256", bytes.slice(0, 32)))[0] !== bytes[32]) {
+    throw new Error("the words do not fit together; check for a mistyped word");
+  }
+  return words.join(" ");
+}
+
+
+/**
+ * @typedef {{ id: string, privateKey: CryptoKey }} Signer
+ * A signing key. The private key is non-extractable: not even this code can read it back.
+ */
+
+/** The BIP39 seed (64 bytes) for the words. @param {string} words @param {string} [passphrase] */
+async function seedFromWords(words, passphrase = "") {
+  const tidy = await checkWords(words);
+  const pw = await crypto.subtle.importKey("raw", enc.encode(tidy.normalize("NFKD")), "PBKDF2", false, [
+    "deriveBits",
+  ]);
+  const salt = enc.encode(("mnemonic" + passphrase).normalize("NFKD"));
+  return new Uint8Array(
+    await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-512", salt, iterations: 2048 }, pw, 512),
+  );
+}
+
+/** The SLIP-0010 Ed25519 master private key (32 bytes) for a seed. @param {Uint8Array<ArrayBuffer>} seed */
+async function masterKey(seed) {
+  const mac = await crypto.subtle.importKey(
+    "raw",
+    enc.encode("ed25519 seed"),
+    { name: "HMAC", hash: "SHA-512" },
+    false,
+    ["sign"],
+  );
+  return new Uint8Array(await crypto.subtle.sign("HMAC", mac, seed)).slice(0, 32);
+}
+
+const PKCS8_PREFIX = Uint8Array.from([48, 46, 2, 1, 0, 48, 5, 6, 3, 43, 101, 112, 4, 34, 4, 32]);
+
+/** @param {Uint8Array} raw a 32-byte Ed25519 private key @returns {Promise<Signer>} */
+async function signerFromPrivateKey(raw) {
+  const pkcs8 = new Uint8Array(48);
+  pkcs8.set(PKCS8_PREFIX);
+  pkcs8.set(raw, 16);
+  // Import once to learn the public key, then again so the key cannot be read out.
+  const open = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "Ed25519" }, true, ["sign"]);
+  const jwk = await crypto.subtle.exportKey("jwk", open);
+  const privateKey = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["sign"]);
+  pkcs8.fill(0);
+  return { id: base32(fromBase64url(/** @type {string} */ (jwk.x))), privateKey };
+}
+
+/** The key for 24 words: the BIP39 seed with no passphrase, then its SLIP-0010 master key. @param {string} words */
+async function signerFromWords(words) {
+  const seed = await seedFromWords(words);
+  const raw = await masterKey(seed);
+  seed.fill(0);
+  const signer = await signerFromPrivateKey(raw);
+  raw.fill(0);
+  return signer;
+}
+
+/** @param {Signer} signer @param {Uint8Array<ArrayBuffer>} data */
+async function sign(signer, data) {
+  return new Uint8Array(await crypto.subtle.sign("Ed25519", signer.privateKey, data));
+}
+
+/** @param {string} id @param {Uint8Array<ArrayBuffer>} signature @param {Uint8Array<ArrayBuffer>} data */
+async function verify(id, signature, data) {
+  if (!isId(id)) return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", fromBase32(id), { name: "Ed25519" }, false, [
+      "verify",
+    ]);
+    return await crypto.subtle.verify("Ed25519", key, signature, data);
+  } catch {
+    return false;
+  }
+}
+// ---- end shared/keys.js ----
+// ---- begin shared/signed.js ----
+// Signed JSON: notes and records. See "Signed JSON" in specs/PROTOCOL.md.
+
+
+/** JSON with object keys sorted at every level and no spaces; numbers must be integers. @param {unknown} value @returns {string} */
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    const o = /** @type {Record<string, unknown>} */ (value);
+    return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(",")}}`;
+  }
+  if (typeof value === "number" && !Number.isSafeInteger(value)) throw new Error("numbers must be integers");
+  return JSON.stringify(value);
+}
+
+/** The bytes every signer signs: the canonical JSON of everything except `sigs`. @param {Record<string, unknown>} object */
+function signedBytes(object) {
+  const { sigs: _, ...body } = object;
+  return new TextEncoder().encode(canonical(body));
+}
+
+/**
+ * Add one signature to a note or record, keeping any signatures it already has.
+ * @param {Record<string, any>} object
+ * @param {import("./keys.js").Signer} signer
+ */
+async function addSignature(object, signer) {
+  const sig = base64url(await sign(signer, signedBytes(object)));
+  return { ...object, sigs: { ...(object.sigs ?? {}), [signer.id]: sig } };
+}
+
+/**
+ * The IDs whose signatures on this object are valid.
+ * @param {Record<string, any>} object
+ */
+async function validSigners(object) {
+  const bytes = signedBytes(object);
+  const ok = [];
+  for (const [id, sig] of Object.entries(object.sigs ?? {})) {
+    if (typeof sig === "string" && (await verify(id, fromBase64url(sig), bytes))) ok.push(id);
+  }
+  return ok;
+}
+
+/** A record is complete when every ID in `signers` has validly signed it. @param {Record<string, any>} record */
+async function isComplete(record) {
+  if (!Array.isArray(record.signers) || record.signers.length === 0) return false;
+  const ok = await validSigners(record);
+  return record.signers.every((/** @type {string} */ id) => ok.includes(id));
+}
+// ---- end shared/signed.js ----
+
+// ---- The EntryPortal ----
+
+const HERE = location.origin + location.pathname;
+const MAX_SIGNED = 16 * 1024;
+
+/** @param {string} id */
+const $ = (id) => /** @type {any} */ (document.getElementById(id));
+
+/** Show one screen and hide the others. @param {string} name */
+function show(name) {
+  for (const s of document.querySelectorAll("main > section")) s.hidden = s.id !== "s-" + name;
+  scrollTo(0, 0);
+}
+
+/** @param {string} title @param {string} text */
+function message(title, text) {
+  $("message-title").textContent = title;
+  $("message-text").textContent = text;
+  show("message");
+}
+
+/** @param {string} tag @param {Record<string, any>} [props] @param {(Node | string)[]} [children] */
+function el(tag, props = {}, children = []) {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+}
+
+/** A shortened ID for lists; the full ID is always shown on the home screen. @param {string} id */
+const shortId = (id) => id.slice(0, 6) + "..." + id.slice(-6);
+
+// ---- storage: one IndexedDB store of named values ----
+
+/** @type {Promise<IDBDatabase> | null} */
+let dbOpen = null;
+function db() {
+  dbOpen ??= new Promise((resolve, reject) => {
+    const request = indexedDB.open("endlessmind", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("kv");
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return dbOpen;
+}
+
+/** @param {"readonly" | "readwrite"} mode @param {(store: IDBObjectStore) => IDBRequest} action */
+async function kv(mode, action) {
+  const store = (await db()).transaction("kv", mode).objectStore("kv");
+  return new Promise((resolve, reject) => {
+    const request = action(store);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+/** @param {string} key */
+const load = (key) => kv("readonly", (s) => s.get(key));
+/** @param {string} key @param {unknown} value */
+const save = (key, value) => kv("readwrite", (s) => s.put(value, key));
+/** @param {string} key */
+const remove = (key) => kv("readwrite", (s) => s.delete(key));
+
+/** @type {{ id: string, privateKey: CryptoKey } | null} */
+let identity = null;
+/** What the link asked for, kept while the player sets up. @type {{ kind: "url", address: string } | { kind: "sign", payload: any } | null} */
+let pending = null;
+
+// ---- start ----
+
+async function start() {
+  if (window.top !== window.self) {
+    document.body.textContent = "This EntryPortal does not work inside another page. Open it directly.";
+    return;
+  }
+  pending = readHash();
+  identity = (await load("identity")) ?? null;
+  if (!identity) return show("setup");
+  carryOn();
+}
+
+/** Read and clear what the link asked for, so reloading the page does not ask again. */
+function readHash() {
+  const hash = location.hash;
+  if (!hash) return null;
+  history.replaceState(null, "", location.pathname + location.search);
+  const params = new URLSearchParams(hash.slice(1));
+  const url = params.get("url");
+  const sign = params.get("sign");
+  if (url) return { kind: /** @type {const} */ ("url"), address: url };
+  if (sign) {
+    try {
+      return { kind: /** @type {const} */ ("sign"), payload: JSON.parse(sign) };
+    } catch {
+      message("Not readable", "The records this link carries are not readable, so nothing was signed.");
+    }
+  }
+  return null;
+}
+
+function carryOn() {
+  const next = pending;
+  pending = null;
+  if (next?.kind === "url") return showEnter(next.address);
+  if (next?.kind === "sign") return showSign(next.payload);
+  showHome();
+}
+
+addEventListener("hashchange", () => {
+  pending = readHash();
+  if (identity && pending) carryOn();
+});
+
+// ---- setup ----
+
+/** @type {string | null} the new phrase, kept only until the player has typed back some of it */
+let newPhrase = null;
+/** @type {number[]} */
+let checkAt = [];
+
+$("setup-new").onclick = async () => {
+  newPhrase = await newWords();
+  $("new-words").replaceChildren(...newPhrase.split(" ").map((w) => el("li", { textContent: w })));
+  show("new");
+};
+
+$("new-done").onclick = () => {
+  const spots = new Set();
+  while (spots.size < 3) spots.add(Math.floor(Math.random() * 24));
+  checkAt = [...spots].sort((a, b) => a - b);
+  $("check-fields").replaceChildren(...checkAt.map((i) =>
+    el("label", {}, [`Word ${i + 1}`, el("input", { type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: false })])
+  ));
+  $("new-words").replaceChildren();
+  $("check-error").hidden = true;
+  show("check");
+};
+
+$("check-back").onclick = () => {
+  if (!newPhrase) return show("setup");
+  $("new-words").replaceChildren(...newPhrase.split(" ").map((w) => el("li", { textContent: w })));
+  show("new");
+};
+
+$("check-ok").onclick = async () => {
+  if (!newPhrase) return show("setup");
+  const words = newPhrase.split(" ");
+  const typed = [...$("check-fields").querySelectorAll("input")].map((i) => i.value.trim().toLowerCase());
+  if (!checkAt.every((spot, n) => typed[n] === words[spot])) {
+    $("check-error").textContent = "Those words do not match. Check what you wrote down, or show the words again.";
+    $("check-error").hidden = false;
+    return;
+  }
+  const phrase = newPhrase;
+  newPhrase = null;
+  await finishSetup(phrase);
+};
+
+$("setup-have").onclick = () => {
+  $("have-error").hidden = true;
+  show("have");
+};
+$("have-back").onclick = () => show("setup");
+
+$("have-ok").onclick = async () => {
+  try {
+    const phrase = await checkWords($("have-words").value);
+    $("have-words").value = "";
+    await finishSetup(phrase);
+  } catch (e) {
+    $("have-error").textContent = "That is not a secret phrase: " + (e instanceof Error ? e.message : e) + ".";
+    $("have-error").hidden = false;
+  }
+};
+
+/** Turn the phrase into a key that cannot be read back out, keep the key, and forget the phrase. @param {string} phrase */
+async function finishSetup(phrase) {
+  message("Setting up", "One moment...");
+  $("message-home").hidden = true;
+  const signer = await signerFromWords(phrase);
+  identity = { id: signer.id, privateKey: signer.privateKey };
+  await save("identity", { ...identity, created: Date.now() });
+  try {
+    await navigator.storage?.persist?.();
+  } catch {
+    // Not every browser offers this; the home screen says what it promised.
+  }
+  $("message-home").hidden = false;
+  carryOn();
+}
+
+// ---- home ----
+
+async function showHome() {
+  if (!identity) return show("setup");
+  $("home-id").textContent = identity.id;
+  let kept = false;
+  try {
+    kept = Boolean(await navigator.storage?.persisted?.());
+  } catch {
+    kept = false;
+  }
+  $("home-storage").textContent = kept
+    ? "This browser has promised to keep this EntryPortal's storage."
+    : "This browser may erase this EntryPortal's storage if you do not use it for a while. Keep your secret phrase safe, so you can set it up again.";
+  $("typed-error").hidden = true;
+  await drawRecords();
+  show("home");
+}
+
+$("message-home").onclick = () => showHome();
+
+$("typed-form").onsubmit = (/** @type {Event} */ event) => {
+  event.preventDefault();
+  try {
+    signIn(checkAddress($("typed-address").value));
+  } catch (e) {
+    $("typed-error").textContent = e instanceof Error ? e.message : String(e);
+    $("typed-error").hidden = false;
+  }
+};
+
+/**
+ * Tidy a sign-in or return address and refuse anything but https (or a computer's own address, for
+ * people testing a realm). An address without "https://" is taken to mean it.
+ * @param {string} text
+ */
+function checkAddress(text) {
+  let t = text.trim();
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) t = (/^(localhost|127\.0\.0\.1)([:/]|$)/i.test(t) ? "http://" : "https://") + t;
+  /** @type {URL} */
+  let url;
+  try {
+    url = new URL(t);
+  } catch {
+    throw new Error("That is not a web address.");
+  }
+  const local = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname);
+  if (url.protocol !== "https:" && !local) throw new Error("Only https addresses can be used.");
+  return url.href;
+}
+
+// ---- signing in ----
+
+/** An address from a link: ask once, showing its site. @param {string} address */
+function showEnter(address) {
+  let checked;
+  try {
+    checked = checkAddress(address);
+  } catch (e) {
+    return message("Not a sign-in address", (e instanceof Error ? e.message : String(e)) + " Nothing was signed.");
+  }
+  $("enter-site").textContent = new URL(checked).host;
+  $("enter-address").textContent = checked;
+  $("enter-ok").onclick = () => signIn(checked);
+  show("enter");
+}
+$("enter-cancel").onclick = () => showHome();
+
+/** Make a sign-in note for the address and send the browser there with it. @param {string} address */
+async function signIn(address) {
+  if (!identity) return show("setup");
+  const note = {
+    v: 1,
+    type: "enter",
+    player: identity.id,
+    address,
+    time: Date.now(),
+    nonce: hex(crypto.getRandomValues(new Uint8Array(16))),
+    portal: HERE,
+  };
+  const signed = await addSignature(note, identity);
+  const realms = ((await load("realms")) ?? []).filter((/** @type {any} */ r) => r.origin !== new URL(address).origin);
+  realms.push({ origin: new URL(address).origin, address, time: Date.now() });
+  await save("realms", realms);
+  message("Signing in", "Sending you to " + new URL(address).host + "...");
+  post(address, { enter: JSON.stringify(signed) });
+}
+
+/** Send the browser to an address with an HTML form POST. @param {string} address @param {Record<string, string>} fields @param {string} [target] */
+function post(address, fields, target) {
+  const form = el("form", { method: "post", action: address, ...(target ? { target } : {}) });
+  for (const [name, value] of Object.entries(fields)) form.append(el("input", { type: "hidden", name, value }));
+  document.body.append(form);
+  form.submit();
+  form.remove();
+}
+
+// ---- records ----
+
+/** @param {any} r */
+function looksLikeRecord(r) {
+  return r && typeof r === "object" && r.v === 1 && r.type === "record" && Array.isArray(r.signers) && r.signers.length > 0 &&
+    r.signers.length <= 20 && r.signers.every(isId) && typeof r.text === "string" && r.text.length <= 1000 &&
+    Number.isSafeInteger(r.time) && (r.public === undefined || typeof r.public === "boolean") &&
+    (r.data === undefined || (r.data && typeof r.data === "object" && !Array.isArray(r.data))) &&
+    (r.sigs === undefined || (r.sigs && typeof r.sigs === "object")) && size(r) <= MAX_SIGNED;
+}
+
+/** @param {any} r */
+function size(r) {
+  try {
+    return signedBytes(r).length;
+  } catch {
+    return Infinity;
+  }
+}
+
+/** The text that identifies a record whatever proofs it carries. @param {any} r */
+const bodyKey = (r) => {
+  const { sigs: _, ...body } = r;
+  return canonical(body);
+};
+
+/** Keep records, merging the proofs of ones already kept. Every proof must check out. @param {any[]} records */
+async function keep(records) {
+  /** @type {any[]} */
+  const kept = (await load("records")) ?? [];
+  for (const record of records) {
+    const valid = await validSigners(record);
+    const sigs = Object.fromEntries(Object.entries(record.sigs ?? {}).filter(([id]) => valid.includes(id) && record.signers.includes(id)));
+    const at = kept.findIndex((k) => bodyKey(k) === bodyKey(record));
+    if (at >= 0) kept[at] = { ...kept[at], sigs: { ...kept[at].sigs, ...sigs } };
+    else kept.push({ ...record, sigs });
+  }
+  await save("records", kept);
+}
+
+/** @param {any} r */
+function signersLine(r) {
+  return r.signers.map((/** @type {string} */ id) => {
+    const who = id === identity?.id ? "you" : shortId(id);
+    return who + (r.sigs?.[id] ? " (signed)" : " (not yet)");
+  }).join(", ");
+}
+
+async function drawRecords() {
+  /** @type {any[]} */
+  const kept = (await load("records")) ?? [];
+  if (!kept.length) {
+    $("home-records").replaceChildren(el("p", { className: "muted", textContent: "None yet. Realms give you records for what you do there." }));
+    return;
+  }
+  const cards = [];
+  for (const [i, r] of kept.entries()) {
+    const complete = await isComplete(r);
+    const drop = el("button", { className: "plain", textContent: "Drop" });
+    drop.onclick = async () => {
+      if (!confirm("Drop this record from this EntryPortal?")) return;
+      kept.splice(i, 1);
+      await save("records", kept);
+      drawRecords();
+    };
+    cards.push(el("div", { className: "record" }, [
+      el("div", { className: "text", textContent: r.text }),
+      el("div", { className: "meta", textContent: `${new Date(r.time).toLocaleString()} | ${r.public ? "public" : "private"} | ${complete ? "complete" : "waiting for others to sign"}` }),
+      el("div", { className: "meta", textContent: "Signed by: " + signersLine(r) }),
+      drop,
+    ]));
+  }
+  $("home-records").replaceChildren(...cards);
+}
+
+$("records-save").onclick = async () => {
+  const records = (await load("records")) ?? [];
+  download("endlessmind-records.json", JSON.stringify({ v: 1, type: "records", records }, null, 1));
+};
+
+/** @param {string} name @param {string} text */
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  const a = el("a", { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+$("records-load").onchange = async () => {
+  const file = $("records-load").files?.[0];
+  $("records-load").value = "";
+  if (!file) return;
+  let loaded = 0, skipped = 0;
+  try {
+    const parsed = JSON.parse(await file.text());
+    const good = [];
+    for (const r of Array.isArray(parsed?.records) ? parsed.records : []) {
+      const valid = looksLikeRecord(r) ? await validSigners(r) : [];
+      const all = Object.keys(r?.sigs ?? {});
+      if (valid.length && valid.length === all.length && all.every((id) => r.signers.includes(id))) good.push(r);
+      else skipped++;
+    }
+    await keep(good);
+    loaded = good.length;
+    $("records-note").textContent = `Loaded ${loaded} records` + (skipped ? `; skipped ${skipped} whose proofs did not check out.` : ".");
+  } catch {
+    $("records-note").textContent = "That file is not a records file.";
+  }
+  $("records-note").hidden = false;
+  drawRecords();
+};
+
+/**
+ * Records from a realm: { return?, records }. With `return`, the player may sign the records that name
+ * them and the chosen ones are sent back there. Without it, records can only be kept.
+ * @param {any} payload
+ */
+async function showSign(payload) {
+  if (!identity) return show("setup");
+  const records = Array.isArray(payload?.records) ? payload.records.slice(0, 50) : [];
+  /** @type {string | null} */
+  let back = null;
+  if (payload?.return !== undefined) {
+    try {
+      back = checkAddress(String(payload.return));
+    } catch {
+      return message("Not readable", "The return address is not a web address, so nothing was signed.");
+    }
+    const realms = (await load("realms")) ?? [];
+    if (!realms.some((/** @type {any} */ r) => r.origin === new URL(back ?? "").origin)) {
+      return message(
+        "Not signed in there",
+        `These records came with a request to sign them for ${new URL(back).host}, where you have not signed in with this EntryPortal. Nothing was signed.`,
+      );
+    }
+  }
+
+  const items = [];
+  const completed = [];
+  let skipped = 0;
+  for (const record of records) {
+    if (!looksLikeRecord(record)) {
+      skipped++;
+      continue;
+    }
+    const valid = await validSigners(record);
+    if (Object.keys(record.sigs ?? {}).some((id) => !valid.includes(id))) {
+      skipped++;
+      continue;
+    }
+    // Records already carrying your own proof are yours: keep them without asking.
+    if (valid.includes(identity.id)) {
+      completed.push(record);
+      continue;
+    }
+    const mine = back !== null && record.signers.includes(identity.id);
+    // Changing `public` would break proofs others have already added, so then it stays as it is.
+    const locked = valid.length > 0;
+    items.push({ record, mine, locked });
+  }
+  if (completed.length) await keep(completed);
+
+  if (!items.length) {
+    const done = completed.length === 1 ? "1 record is" : `${completed.length} records are`;
+    return message(
+      completed.length ? "Records kept" : "Nothing to sign",
+      completed.length ? `${done} now complete and kept in this EntryPortal. You can go back to your screen.` : "There were no records here that you can sign or keep.",
+    );
+  }
+
+  const site = back ? new URL(back).host : "";
+  $("sign-title").textContent = back ? `${site} asks you to sign` : "Records to keep";
+  $("sign-intro").textContent = back
+    ? "Read each record. Signing one means you agree to its exact text. Public records can be shown to anyone and help others find good realms."
+    : "These records were given to you. Keep the ones you want.";
+  $("sign-skipped").textContent = skipped ? `${skipped} records were left out because they were not readable or their proofs did not check out.` : "";
+  $("sign-skipped").hidden = !skipped;
+
+  const controls = items.map(({ record, mine, locked }) => {
+    const choose = el("input", { type: "checkbox", checked: true });
+    const pub = el("input", { type: "checkbox", checked: locked ? record.public === true : true, disabled: locked });
+    const card = el("div", { className: "record" }, [
+      el("div", { className: "text", textContent: record.text }),
+      ...(record.data ? [el("div", { className: "meta", textContent: "Details for programs: " + JSON.stringify(record.data) })] : []),
+      el("div", { className: "meta", textContent: `${new Date(record.time).toLocaleString()} | Signers: ${signersLine(record)}` }),
+      el("label", {}, [choose, mine ? "Sign this record" : "Keep a copy"]),
+      ...(mine ? [el("label", {}, [pub, locked ? "Public (already decided by its other signers)" : "Public: anyone may see this record"])] : []),
+    ]);
+    return { record, mine, locked, choose, pub, card };
+  });
+  $("sign-records").replaceChildren(...controls.map((c) => c.card));
+  $("sign-ok").textContent = back ? "Sign and send" : "Keep";
+  $("sign-ok").onclick = async () => {
+    $("sign-ok").disabled = true;
+    const chosen = [];
+    for (const c of controls) {
+      if (!c.choose.checked) continue;
+      let record = c.record;
+      if (c.mine && identity) {
+        if (!c.locked) {
+          const { sigs: _, ...body } = record;
+          record = { ...body, public: c.pub.checked };
+          if (!c.pub.checked) delete record.public;
+        }
+        record = await addSignature(record, identity);
+      }
+      chosen.push(record);
+    }
+    $("sign-ok").disabled = false;
+    await keep(chosen);
+    if (back) {
+      message("Sending", `Sending your records to ${site}...`);
+      post(back, { records: JSON.stringify(chosen) });
+    } else {
+      message("Records kept", `${chosen.length} records kept in this EntryPortal.`);
+    }
+  };
+  $("sign-cancel").onclick = () => showHome();
+  show("sign");
+}
+
+// ---- burning ----
+
+$("burn-ok").onclick = async () => {
+  const fail = (/** @type {string} */ text) => {
+    $("burn-error").textContent = text;
+    $("burn-error").hidden = false;
+  };
+  if ($("burn-confirm").value.trim().toLowerCase() !== "burn this identity") return fail('Type "burn this identity" to confirm.');
+  if (!identity) return;
+  /** @type {Uint8Array<ArrayBuffer>} */
+  let raw;
+  try {
+    raw = await masterKey(await seedFromWords($("burn-words").value));
+  } catch (e) {
+    return fail("That is not a secret phrase: " + (e instanceof Error ? e.message : e) + ".");
+  }
+  if ((await signerFromPrivateKey(raw)).id !== identity.id) {
+    raw.fill(0);
+    return fail("Those words make a different player ID, not the one in this EntryPortal. Nothing was burned.");
+  }
+  // The notice reveals the key, not the phrase, in case the phrase is also used for anything else.
+  const notice = { v: 1, type: "burn", key: base64url(raw) };
+  raw.fill(0);
+  $("burn-words").value = "";
+  $("burn-confirm").value = "";
+  const realms = (await load("realms")) ?? [];
+  await save("burned", [...((await load("burned")) ?? []), { id: identity.id, notice, realms, time: Date.now() }]);
+  await remove("identity");
+  await remove("records");
+  await remove("realms");
+  const id = identity.id;
+  identity = null;
+  showBurned(id, notice, realms);
+};
+
+/** @param {string} id @param {any} notice @param {any[]} realms */
+function showBurned(id, notice, realms) {
+  const text = JSON.stringify(notice);
+  $("burned-id").textContent = id;
+  $("burned-notice").value = text;
+  $("burned-save").onclick = () => download("endlessmind-burn-notice.json", text);
+  $("burned-realms").replaceChildren(
+    ...(realms.length ? realms.map((r) => {
+      const button = el("button", { className: "plain", textContent: "Tell " + new URL(r.address).host });
+      button.onclick = () => {
+        post(r.address, { burn: text }, "_blank");
+        button.textContent = "Sent to " + new URL(r.address).host;
+      };
+      return el("div", {}, [button]);
+    }) : [el("p", { className: "muted", textContent: "This EntryPortal has not signed in anywhere." })]),
+  );
+  $("burned-again").onclick = () => show("setup");
+  show("burned");
+}
+
+start().catch((e) => message("Something went wrong", String(e?.message ?? e)));
+</script>
+</body>
+</html>

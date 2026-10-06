@@ -36,7 +36,7 @@ Next to them it shows the line "Only scan sign-in codes shown on your own screen
 **2. The EntryPortal link** is the EntryPortal's address with the join address after `#url=`, URL-encoded, so it never reaches the EntryPortal's server:
 
 ```
-https://endlessmind.com/EntryPortal#url=<join address>
+https://endlessmind.com/EntryPortal/1/#url=<join address>
 ```
 
 **3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
@@ -49,9 +49,9 @@ https://endlessmind.com/EntryPortal#url=<join address>
   "address": "https://game-server.com/sword-of-swankery/join/K7Q2",
   "time": 1790000000000,
   "nonce": "0123456789abcdef",
-  "portal": "https://endlessmind.com/EntryPortal",
+  "portal": "https://endlessmind.com/EntryPortal/1/",
   "sigs": {
-    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "jc9qx24lcYOd9rKWsbaq-SLptrxnrWuidPxQX5oRgQam6gnNI7ZBRsepIdp8ZKeA1H0FoLDdxjtTJcysJRAfBA"
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "DI2Vgcmxvo0ERbbmhIrOEkoSbj2MWIRJUPgZcUTaqWoGZ129ZcrFESyB_hPTvjMHrfYrf85pyPnyJwldG8dZCw"
   }
 }
 ```
@@ -64,7 +64,7 @@ https://endlessmind.com/EntryPortal#url=<join address>
 | `nonce`   | 16 to 64 random characters                                                  |
 | `portal`  | Optional: the EntryPortal's address, so the realm can send records there    |
 
-**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. Go back to your screen."
+**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. Go back to your screen." A realm may also answer a plain visit to a join address by sending the browser on to its EntryPortal link, so the short address works when opened in a phone's browser too.
 
 **5. The realm checks** that the signature by `player` is valid, that `address` is one of its own join addresses, not yet used and less than two minutes old, that `time` is within two minutes of its clock, and that it has not seen `nonce` before. Then it lets in the screen waiting on that join address. What happens next, such as a session cookie, is up to the realm.
 
@@ -104,18 +104,20 @@ The realm's own ID is not in the note: the address already ties the note to the 
 **Claiming: asking a player to sign, or giving them records.** The realm shows a QR code, a "claim on this computer" link and a short address, all leading to a one-time claim address of its own, such as `https://game-server.com/sword-of-swankery/claim/X9P4`. That address forwards the browser to the EntryPortal named in the player's sign-in note:
 
 ```
-https://endlessmind.com/EntryPortal#sign=<URL-encoded JSON>
+https://endlessmind.com/EntryPortal/1/#sign=<URL-encoded JSON>
 ```
 
 The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
 
-1. checks that `return` is on the same site as an address the player signed in to through this EntryPortal, and refuses otherwise;
+1. checks that `return` has the same origin (scheme, host and port) as an address the player signed in to through this EntryPortal, and refuses otherwise;
 2. shows every record's full text and signers, and a public switch, on by default;
 3. lets the player choose which records to sign; records the player is not a signer of are offered for keeping only;
 4. sets `public` on each chosen record as the player chose, adds the player's signature, and keeps a copy;
 5. sends the browser to `return` with an HTML form POST holding one field, `records`: the chosen records as a JSON array.
 
 Because `public` is set by the player and is part of the signed text, the realm proposes records without its own signature and signs them after they come back, once it has checked that only `public` and `sigs` changed.
+
+**Handing back complete records.** Once it has signed, the realm answers the POST by sending the browser back to the EntryPortal with `#sign=` holding the complete records and no `return`. Without `return`, the EntryPortal signs nothing and sends nothing: records that already carry the player's own proof are kept without asking (completing the copy it kept at step 4), and the player may choose to keep any others.
 
 **Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out.
 
@@ -171,7 +173,7 @@ Revealing the secret phrase or the private key burns the identity; either has th
 
 - **It needs no signature:** anyone can turn `words` or `key` into the ID, which proves the publisher had it. Publishing the key keeps the phrase private, which matters only if the phrase is used for anything else.
 - **A burned ID is gone, and any use of it is a ghost.** Everyone should ignore everything signed by it, whenever dated, including records it shares with others.
-- **Spreading it:** a burned realm serves the notice in place of its card. Boards keep notices for IDs they already know from records they have read, offer a searchable list of those burned IDs, and pass the notices on. A notice for an unknown ID matters to nobody and is dropped, so making millions of keys and burning them achieves nothing. A player whose ID is known only to some realms, from private records, has their EntryPortal deliver the notice to those realms at an address it signed in to, as an HTML form POST with one field, `burn`.
+- **Spreading it:** a burned realm serves the notice in place of its card. Boards keep notices for IDs they already know from records they have read, offer a searchable list of those burned IDs, and pass the notices on. A notice for an unknown ID matters to nobody and is dropped, so making millions of keys and burning them achieves nothing. A player whose ID is known only to some realms, from private records, has their EntryPortal deliver the notice to those realms at the join address it last signed in to there, as an HTML form POST with one field, `burn`. A realm accepts `burn` at any of its join addresses, used or not.
 - **Realms refuse burned IDs** by checking such a list, and their own, at sign-in, since a ghost's sign-in note still has a valid signature. Realms likewise keep notices only for IDs they have seen.
 - **EntryPortals** offer burning an identity only behind a clear explanation and a typed confirmation, such as "burn this identity". Since an EntryPortal keeps no copy of the phrase and cannot read out its key, the player types their phrase again to burn it.
 
@@ -188,7 +190,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 7. **Fixed versions.** Each version is published with its SHA-256 fingerprint and never changed afterwards; a new version gets a new address.
 8. **Records can leave.** The page saves and loads records files.
 
-The reference EntryPortal, not yet written, will follow these rules.
+The reference EntryPortal follows these rules: [site/EntryPortal/1/index.html](../site/EntryPortal/1/index.html), to be published at `https://endlessmind.com/EntryPortal/1/` with its fingerprint in `SHA256SUMS` beside it. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
 
 ## Versions
 
