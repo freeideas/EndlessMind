@@ -77,7 +77,7 @@ async function whoFor(request) {
     who = "player:" + player;
     // No progress kept here (a new server, or lost data)? The records this realm signed with the player
     // still say how far they got.
-    const recorded = realm.publicRecords(player).map((r) => Number(r.data?.level) || 0);
+    const recorded = realm.records(player).map((r) => Number(r.data?.level) || 0);
     const mine = (progress[who] ??= { reached: Math.max(0, ...recorded) + 1, best: {}, earned: recorded });
     const theirs = guest ? progress["guest:" + guest] : undefined;
     if (theirs) {

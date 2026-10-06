@@ -87,17 +87,23 @@ export function mountSignIn(box, options = {}) {
       const what = me.claims === 1 ? "1 record is" : `${me.claims} records are`;
       rows.push(el("div", { className: "em-row" }, [el("span", { textContent: `${what} waiting for you to claim.` }), claim]));
     }
+    if (me.records > 0) {
+      // For a player whose EntryPortal lost its records, such as after setting up a new phone.
+      rows.push(el("div", { className: "em-row" }, [
+        el("button", { className: "em-quiet", textContent: "Get my records back", onclick: () => openPanel("restore") }),
+      ]));
+    }
     box.replaceChildren(...rows);
   }
 
   /**
-   * @param {"join" | "rename" | "claim"} kind
+   * @param {"join" | "rename" | "claim" | "restore"} kind
    * @param {boolean} [here] go to the EntryPortal in this tab instead of showing a code
    */
   async function openPanel(kind, here = ON_PHONE) {
     clearInterval(timer);
     panelOpen = true;
-    const path = { join: "endlessmind/start", rename: "endlessmind/start?rename", claim: "endlessmind/claim" }[kind];
+    const path = { join: "endlessmind/start", rename: "endlessmind/start?rename", claim: "endlessmind/claim", restore: "endlessmind/restore" }[kind];
     const response = await fetch(BASE + path, { method: "POST" });
     const code = await response.json();
     if (!response.ok) return draw();
@@ -105,12 +111,13 @@ export function mountSignIn(box, options = {}) {
       location.href = code.link;
       return;
     }
-    const join = kind !== "claim";
+    const join = kind === "join" || kind === "rename";
     const device = ON_PHONE ? "this phone" : "this computer";
     const words = {
       join: ["Sign in with your phone", "Point your phone's camera at this code and tap the link it shows. Nothing to install.", `Sign in on ${device}`],
       rename: ["Change your name", "Scan this code with the phone you signed in with, change your name there, and this screen shows it.", `Change it on ${device}`],
       claim: ["Claim with your phone", "Point your phone's camera at this code to keep your records on your phone.", `Claim on ${device}`],
+      restore: ["Get your records back", "Point the camera of the phone that holds your EntryPortal at this code, and it keeps every record this game has for you.", `Get them on ${device}`],
     }[kind];
     const qr = el("div", { className: "em-qr", title: "Point your phone's camera at this code" });
     qr.innerHTML = code.qr; // an SVG drawn by this realm's own server

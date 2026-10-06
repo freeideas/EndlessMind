@@ -22,6 +22,7 @@ Deno.serve(async (request) => (await realm.handle(request)) ?? myGame(request));
 // In the game:
 const player = await realm.player(request); // the player ID, or null for a guest
 realm.playerName(player); // the name to show for them, such as "Witty Clover"
+realm.records(player); // every record signed with them, public and private (only public ones are listed)
 await realm.offer(player, [{ text: "Finished the Glass Maze." }]); // a record for the player to claim
 ```
 
@@ -40,5 +41,6 @@ A game keeps its data in `.data/` inside its own folder, which Git ignores and w
 | `endlessmind/start`, `claim` | Make a join or claim code for the page (POST); `start?rename` for a name change |
 | `endlessmind/wait/<code>`    | The page waits here; a finished sign-in gets its session cookie here  |
 | `endlessmind/me`, `signout`  | Who is signed in, and how many records wait to be claimed             |
+| `endlessmind/restore`        | Hand a signed-in player every record kept for them (POST)              |
 
 Join codes work once, for two minutes. Only the page that asked for a code (it holds a secret token) can collect the session, so seeing someone's code on screen is not enough to take their sign-in.

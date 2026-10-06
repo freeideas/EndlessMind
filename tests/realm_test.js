@@ -156,6 +156,17 @@ Deno.test("private records are signed but not published", async () => {
   const done = signPayload(await call(realm, `claim/${claim.code}`, form({ records: JSON.stringify([signed]) })));
   assert.ok(await isComplete(done.records[0]));
   assert.deepEqual(realm.list().records, []);
+
+  // The realm keeps it, unlisted, and hands it back when the player asks.
+  assert.deepEqual(realm.records(player.id), done.records);
+  assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie } })).json()).records, 1);
+  const restore = await (await call(realm, "endlessmind/restore", { method: "POST", headers: { cookie } })).json();
+  const back = signPayload(await call(realm, `claim/${restore.code}`));
+  assert.equal(back.return, undefined, "nothing to sign, only records to keep");
+  assert.equal(back.back, BASE);
+  assert.deepEqual(back.records, done.records);
+  assert.equal((await call(realm, `claim/${restore.code}`)).status, 410, "a restore code works once");
+  assert.equal((await call(realm, "endlessmind/restore", { method: "POST" })).status, 401, "only for a signed-in player");
 });
 
 Deno.test("the realm card is signed by the realm and served to any page", async () => {

@@ -122,7 +122,9 @@ The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
 
 Because `public` is set by the player and is part of the signed text, the realm proposes records without its own signature and signs them after they come back, once it has checked that only `public` and `sigs` changed.
 
-**Handing back complete records.** Once it has signed, the realm answers the POST by sending the browser back to the EntryPortal with `#sign=` holding the complete records and no `return`. It may add `back`, the address of the game, and the EntryPortal then offers a link there, but only if `back` has the origin of a site the player signed in to through it. Without `return`, the EntryPortal signs nothing and sends nothing: records that already carry the player's own proof are kept without asking (completing the copy it kept at step 4), and the player may choose to keep any others.
+**Handing back complete records.** Once it has signed, the realm answers the POST by sending the browser back to the EntryPortal with `#sign=` holding the complete records and no `return`. It may add `back`, the address of the game, and the EntryPortal then offers a link there, but only if `back` has the origin of a site the player signed in to through it.
+
+**Getting records back.** A realm may keep every record it has signed, public and private, while listing only the public ones. A signed-in player who has lost theirs, for example after setting up a new device, can ask for them, and the realm hands them over the same way: the browser goes to the EntryPortal with `#sign=` holding the records and no `return`, and the EntryPortal keeps the ones carrying the player's proof. Without `return`, the EntryPortal signs nothing and sends nothing: records that already carry the player's own proof are kept without asking (completing the copy it kept at step 4), and the player may choose to keep any others.
 
 **Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out.
 

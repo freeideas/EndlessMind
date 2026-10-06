@@ -61,7 +61,7 @@ export async function openRealm(options) {
 export class Realm {
   /** @type {Map<string, { token: string, created: number, player?: string, taken?: boolean }>} */
   #joins = new Map();
-  /** @type {Map<string, { token: string, created: number, player: string, records: any[], done?: number }>} */
+  /** @type {Map<string, { token: string, created: number, player: string, records: any[], done?: number, restore?: boolean }>} */
   #claims = new Map();
   /** @type {Map<string, number>} sign-in note nonces seen recently, with when they can be forgotten */
   #nonces = new Map();
@@ -85,8 +85,8 @@ export class Realm {
     this.id = signer.id;
     this.store = store;
     this.now = options.now ?? Date.now;
-    /** @type {{ sessions: Record<string, { player: string, created: number }>, offers: Record<string, any[]>, public: any[], burned: Record<string, any>, players: Record<string, { portal?: string, name?: string, seen: number }> }} */
-    this.data = { sessions: {}, offers: {}, public: [], burned: {}, players: {}, ...data };
+    /** @type {{ sessions: Record<string, { player: string, created: number }>, offers: Record<string, any[]>, public: any[], records: any[], burned: Record<string, any>, players: Record<string, { portal?: string, name?: string, seen: number }> }} */
+    this.data = { sessions: {}, offers: {}, public: [], records: [], burned: {}, players: {}, ...data };
   }
 
   /** Sign a fresh realm card. */
@@ -132,6 +132,7 @@ export class Realm {
     if (get && path === "endlessmind/me") return json(await this.#me(request));
     if (post && path === "endlessmind/start") return json(await this.#startJoin(request, url.searchParams.has("rename")));
     if (post && path === "endlessmind/claim") return this.#startClaim(request);
+    if (post && path === "endlessmind/restore") return this.#startRestore(request);
     if (post && path === "endlessmind/signout") return this.#signOut(request);
     let m = path.match(/^endlessmind\/wait\/([A-Za-z0-9]+)$/);
     if (get && m) return this.#wait(m[1].toUpperCase(), url.searchParams.get("token") ?? "");
@@ -170,12 +171,27 @@ export class Realm {
   }
 
   /**
-   * Complete records this realm has signed together with the player, oldest first. Only public ones are
-   * kept by this library; a game that wants private ones too can keep them from `onRecord`.
+   * The complete public records this realm has signed together with the player, oldest first.
    * @param {string} player
    */
   publicRecords(player) {
     return this.data.public.filter((r) => r.signers.includes(player));
+  }
+
+  /**
+   * Every complete record this realm has signed together with the player, public and private, oldest
+   * first. Private ones are never listed; they are kept so the player can get them back.
+   * @param {string} player
+   */
+  records(player) {
+    const all = [...this.data.records, ...this.data.public.filter((r) => !this.data.records.includes(r))];
+    const seen = new Set();
+    return all.filter((r) => {
+      const key = canonical(r);
+      if (!r.signers.includes(player) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   /**
@@ -310,6 +326,7 @@ export class Realm {
       playerName: player ? this.playerName(player) : null,
       portal: (player && this.data.players[player]?.portal) || this.portal,
       claims: player ? (this.data.offers[player] ?? []).length : 0,
+      records: player ? this.records(player).length : 0,
     };
   }
 
@@ -336,13 +353,36 @@ export class Realm {
     return json({ code, token, address, link: address, typed: typedAddress(address), qr: qrSvg(address), count: records.length, expires: this.now() + CLAIM_MS });
   }
 
+  /**
+   * "Get my records back": a one-time code that hands the signed-in player every record this realm
+   * holds for them, through their EntryPortal, the same way finished claims are handed back.
+   * @param {Request} request
+   */
+  async #startRestore(request) {
+    const player = await this.player(request);
+    if (!player) return json({ error: "not signed in" }, 401);
+    const records = this.records(player);
+    if (!records.length) return json({ error: "no records" }, 400);
+    this.#forgetOld();
+    const code = this.#newCode();
+    const token = hex(crypto.getRandomValues(new Uint8Array(16)));
+    this.#claims.set(code, { token, created: this.now(), player, records, restore: true });
+    const address = this.claimAddress(code);
+    return json({ code, token, address, link: address, typed: typedAddress(address), qr: qrSvg(address), count: records.length, expires: this.now() + CLAIM_MS });
+  }
+
   /** @param {string} code */
   #claimGet(code) {
     const claim = this.#claims.get(code);
     if (!claim || claim.done !== undefined || this.now() - claim.created > CLAIM_MS) {
-      return this.#page("Expired", "This claim code has expired or was already used. Ask your screen for a new one.", 410);
+      return this.#page("Expired", "This code has expired or was already used. Ask your screen for a new one.", 410);
     }
     const portal = this.data.players[claim.player]?.portal ?? this.portal;
+    if (claim.restore) {
+      // Complete records to keep: no `return`, since there is nothing to sign.
+      claim.done = claim.records.length;
+      return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: claim.records, back: this.base })));
+    }
     return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ return: this.claimAddress(code), records: claim.records })));
   }
 
@@ -396,6 +436,7 @@ export class Realm {
     /** @type {any} */
     const done = await addSignature({ ...body, sigs: { [claim.player]: sigs[claim.player] } }, this.signer);
     if (!(await isComplete(done))) return null;
+    this.data.records.push(done);
     if (done.public === true) this.data.public.push(done);
     return done;
   }
@@ -434,6 +475,7 @@ export class Realm {
     for (const [token, session] of Object.entries(this.data.sessions)) if (session.player === id) delete this.data.sessions[token];
     delete this.data.offers[id];
     this.data.public = this.data.public.filter((r) => !r.signers.includes(id));
+    this.data.records = this.data.records.filter((r) => !r.signers.includes(id));
     await this.#save();
   }
 

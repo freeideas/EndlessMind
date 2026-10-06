@@ -334,13 +334,29 @@ def main() -> None:
             solo.get_by_role("link", name=f"Back to localhost:{MAZE_PORT}").click()
             expect(solo.locator("#level")).to_have_text("Level 4")
             expect(solo.get_by_role("button", name="Claim")).to_have_count(0)
+            solo.context.close()
+
+            print("lost phone: a new phone set up from the old screenshot gets its progress and records back")
+            new_phone = watch(browser.new_context(**pw.devices["iPhone 13"]).new_page())
+            new_phone.goto(MAZE)
+            new_phone.get_by_role("button", name="Sign in", exact=True).click()
+            new_phone.locator("#picture-input").set_input_files(files=[{"name": "IMG.png", "mimeType": "image/png", "buffer": setup_screen}])
+            new_phone.get_by_role("button", name="Yes, this is me").click()
+            new_phone.locator("#enter-ok").click()
+            new_phone.get_by_role("link", name="Play Endless Maze here").click()
+            expect(new_phone.locator("#level")).to_have_text("Level 4")
+            new_phone.get_by_role("button", name="Get my records back").click()
+            expect(new_phone.locator("#message-title")).to_have_text("Records kept")
+            new_phone.get_by_role("button", name="Back to your EntryPortal").click()
+            expect(new_phone.locator("#home-records")).to_contain_text("Finished the first 3 mazes in Endless Maze.")
 
             print("in another app's browser, the EntryPortal says to open it in the usual browser")
             agent = pw.devices["iPhone 13"]["user_agent"] + " Instagram 300.0.0.0"
             inside = watch(browser.new_context(**{**pw.devices["iPhone 13"], "user_agent": agent}).new_page())
             inside.goto(PORTAL)
             expect(inside.locator("#in-app")).to_be_visible()
-            expect(solo.locator("#in-app")).to_have_count(0)  # the game page has no such warning
+            new_phone.goto(PORTAL)
+            expect(new_phone.locator("#in-app")).to_be_hidden()  # an ordinary browser gets no warning
 
             browser.close()
             assert not errors, "errors in the browsers:\n" + "\n".join(errors)
