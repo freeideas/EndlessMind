@@ -12,7 +12,7 @@ You are your **secret phrase**: 24 ordinary words. They are your one identity in
 
 - **It never leaves your device.** An EntryPortal turns your phrase into a key kept inside your browser. The key can prove that you have your phrase, but nobody can read it out, not even the page itself.
 - **Write it down.** You see a new phrase only once. Keep it on paper or in a file where only you can find it.
-- **Anyone who has it can be you, forever.** If it is stolen or lost, nobody can get it back for you, not even us. You can start over with a new phrase, but your history stays with the old one.
+- **Anyone who has it can be you, forever.** If it is lost, nobody can get it back for you, not even us. If it is stolen, your EntryPortal can burn it: it publishes your key so anyone can use it, which makes that identity worthless to the thief and to everyone. Either way you start over with a new phrase and no history.
 - **Any EntryPortal works.** An EntryPortal is a small web page, usually on your phone, that proves who you are. Anyone can host one, and they all turn the same phrase into the same **player ID**. If yours disappears, type your phrase into another and carry on.
 - **Ask your AI helper before trusting a page.** "Someone asked me to type my secret phrase into [address]. Is it safe?" EntryPortals are built so that this question has a clear answer.
 - **We ask for your phrase only when you set up a device.** If a page asks for it while you are playing, it is a trick. Close it.

@@ -1,6 +1,6 @@
 # Endless Mind protocol
 
-The exact formats: keys, signed JSON, signing in, records, and finding realms. Why things are this way is in [DESIGN.md](DESIGN.md). Hosting and making realms are not decided yet.
+The exact formats: keys, signed JSON, signing in, records, finding realms, and burning a key. Why things are this way is in [DESIGN.md](DESIGN.md). Hosting and making realms are not decided yet.
 
 ## Keys and IDs
 
@@ -158,7 +158,20 @@ A realm serves its newest card at `endlessmind-card.json` under each address in 
 
 It holds the realm's complete records marked `public`, signed by the realm and by every player they name. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
 
-**Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern.
+**Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
+
+## Burning a key
+
+Whoever holds a key can make its ID worthless by publishing a burn notice:
+
+```json
+{ "v": 1, "type": "burn", "key": "<the 32-byte Ed25519 private key, base64url without padding>" }
+```
+
+- **It needs no signature:** anyone can turn `key` into its ID, which proves the publisher had it.
+- **It is never the secret phrase,** which some people may reuse elsewhere and which a key cannot be turned back into.
+- **A burned ID is gone.** Everyone should ignore everything signed by it, whenever dated, including records it shares with others.
+- **Spreading it:** a burned realm serves the notice in place of its card. Boards keep burn notices they see and pass them on, for example in a list of burned IDs.
 
 ## Rules for EntryPortals
 
