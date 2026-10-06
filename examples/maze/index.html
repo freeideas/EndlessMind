@@ -7,7 +7,7 @@
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; color: #e9f1ff; background: #0d1420; font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { margin: 0; min-height: 100vh; touch-action: manipulation; color: #e9f1ff; background: #0d1420; font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 40rem; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 h1 { margin: 0; font-size: 1.9rem; }
 .lead { color: #9fb2cc; margin: .2rem 0 .8rem; }
@@ -17,7 +17,9 @@ h1 { margin: 0; font-size: 1.9rem; }
 #clock { font-variant-numeric: tabular-nums; color: #9fb2cc; }
 #board { display: block; width: 100%; max-width: 560px; aspect-ratio: 1; margin: .4rem auto; touch-action: none; border-radius: 8px; background: #111b2b; }
 #note { min-height: 1.6em; text-align: center; color: #ffd76a; font-weight: 600; }
-.pad { display: grid; grid-template-columns: repeat(3, 4rem); grid-template-rows: repeat(2, 3.4rem); gap: .4rem; justify-content: center; margin: .6rem 0; }
+/* Taps on the arrows are for moving: no double-tap zoom, no text selection, no long-press menu. */
+.pad { display: grid; grid-template-columns: repeat(3, 4.6rem); grid-template-rows: repeat(2, 4rem); gap: .5rem; justify-content: center; margin: .6rem 0;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .pad button { font-size: 1.6rem; border-radius: 12px; border: 1px solid #ffffff30; background: #ffffff12; color: inherit; cursor: pointer; }
 .pad button:active { background: #ffffff30; }
 .pad .up { grid-column: 2; grid-row: 1; }
@@ -166,11 +168,21 @@ addEventListener("keydown", (event) => {
   event.preventDefault();
   move(letter);
 });
+// An arrow button moves once when pressed, and keeps moving while held down.
 for (const button of document.querySelectorAll(".pad button")) {
+  let repeat = 0;
+  const stop = () => {
+    clearTimeout(repeat);
+    clearInterval(repeat);
+  };
   button.addEventListener("pointerdown", (event) => {
     event.preventDefault();
+    button.setPointerCapture(event.pointerId);
     move(button.dataset.move);
+    stop();
+    repeat = setTimeout(() => (repeat = setInterval(() => move(button.dataset.move), 110)), 350);
   });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(type, stop);
 }
 
 // Swiping on the maze moves one step in the swipe's direction.
