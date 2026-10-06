@@ -1,7 +1,12 @@
 // Keeps the EntryPortal in step with shared/: copies the shared code into the newest version's page
 // between its "begin shared" and "end shared" lines, puts the SHA-256 hashes of its script and style
-// into its security policy, writes the page's fingerprint next to it, and writes EntryPortal/index.html,
-// which forwards to the newest version.
+// into its security policy, and writes the page's fingerprint next to it. It also writes the two
+// forwarding pages: portal/index.html (portal.endlessmind.com/, to the newest version) and
+// site/EntryPortal/index.html (the old address, endlessmind.com/EntryPortal/, to portal.endlessmind.com/).
+//
+// The EntryPortal has a site of its own, portal.endlessmind.com, served from portal/: any script on the
+// same site could use the stored key, so nothing else may ever be served there. v0.1, published on
+// endlessmind.com before this rule, stays in site/EntryPortal/v0.1/ unchanged.
 //
 //   deno task portal          update the files
 //   deno task portal --check  fail if they are out of date
@@ -10,13 +15,15 @@
 // of it stays true. To change the EntryPortal after VERSION is published, copy its folder to the next
 // version (v0.1, v0.2, ... v1.0), set VERSION to it, and edit the copy.
 
-export const VERSION = "v0.1";
+export const VERSION = "v0.2";
+export const PORTAL_SITE = "https://portal.endlessmind.com/";
 const ROOT = new URL("../", import.meta.url);
 const SHARED = ["words-en.js", "keys.js", "signed.js"];
 
-export const pagePath = () => new URL(`site/EntryPortal/${VERSION}/index.html`, ROOT);
-export const sumsPath = () => new URL(`site/EntryPortal/${VERSION}/SHA256SUMS`, ROOT);
-export const forwardPath = () => new URL("site/EntryPortal/index.html", ROOT);
+export const pagePath = () => new URL(`portal/${VERSION}/index.html`, ROOT);
+export const sumsPath = () => new URL(`portal/${VERSION}/SHA256SUMS`, ROOT);
+export const forwardPath = () => new URL("portal/index.html", ROOT);
+export const oldForwardPath = () => new URL("site/EntryPortal/index.html", ROOT);
 
 /** @param {string} text */
 async function sha256(text) {
@@ -57,19 +64,20 @@ export async function sums(page) {
 }
 
 /**
- * EntryPortal/index.html: forwards to the newest version, keeping the part after "#", so a realm can
- * name EntryPortal/ and its players always reach the newest version. The player still lands on a
- * versioned address they can check.
+ * A page that forwards to `target`, keeping the part after "#". portal.endlessmind.com/ forwards to the
+ * newest version, so a realm can name it and its players always reach the newest version; the player
+ * still lands on a versioned address they can check.
+ * @param {string} target
  */
-export async function forwardPage() {
-  const script = `location.replace(${JSON.stringify(VERSION + "/")} + location.hash);`;
+export async function forwardPage(target) {
+  const script = `location.replace(${JSON.stringify(target)} + location.hash);`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-${b64(await sha256(script))}'">
 <meta name="referrer" content="no-referrer">
 <title>EntryPortal | Endless Mind</title>
 <script>${script}</script></head>
-<body><p>The newest Endless Mind EntryPortal is <a href="${VERSION}/">${VERSION}</a>.</p></body></html>
+<body><p>The Endless Mind EntryPortal is at <a href="${target}">${target}</a>.</p></body></html>
 `;
 }
 
@@ -80,7 +88,8 @@ async function files() {
   return [
     { path: pagePath(), want: page, have: await read(pagePath()) },
     { path: sumsPath(), want: await sums(page), have: await read(sumsPath()) },
-    { path: forwardPath(), want: await forwardPage(), have: await read(forwardPath()) },
+    { path: forwardPath(), want: await forwardPage(VERSION + "/"), have: await read(forwardPath()) },
+    { path: oldForwardPath(), want: await forwardPage(PORTAL_SITE), have: await read(oldForwardPath()) },
   ];
 }
 
@@ -93,7 +102,7 @@ if (import.meta.main) {
   const all = await files();
   if (Deno.args.includes("--check")) {
     if (!all.every((f) => f.want === f.have)) {
-      console.error("site/EntryPortal/ is out of date: run deno task portal");
+      console.error("the EntryPortal files are out of date: run deno task portal");
       Deno.exit(1);
     }
   } else {

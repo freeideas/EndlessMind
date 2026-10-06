@@ -28,8 +28,8 @@ def free_port() -> int:
 
 GARDEN_PORT, PORTAL_PORT = free_port(), free_port()
 GARDEN = f"http://localhost:{GARDEN_PORT}/"
-# Realms name EntryPortal/, which forwards to the newest version.
-PORTAL = f"http://127.0.0.1:{PORTAL_PORT}/EntryPortal/"
+# The EntryPortal has a site of its own; realms name its root, which forwards to the newest version.
+PORTAL = f"http://127.0.0.1:{PORTAL_PORT}/"
 
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
@@ -37,8 +37,8 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-def serve_site() -> None:
-    handler = functools.partial(Quiet, directory=str(REPO / "site"))
+def serve_portal() -> None:
+    handler = functools.partial(Quiet, directory=str(REPO / "portal"))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", PORTAL_PORT), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
@@ -108,7 +108,7 @@ def main() -> None:
             shots.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=shots / f"{name}.png", full_page=True)
 
-    serve_site()
+    serve_portal()
     with tempfile.TemporaryDirectory() as data, sync_playwright() as pw:
         garden = start_garden(data)
         try:
@@ -163,6 +163,7 @@ def main() -> None:
             expect(pc.get_by_role("button", name="Claim")).to_have_count(0)
             phone.locator("#message-home").click()
             expect(phone.locator("#home-records")).to_contain_text("complete")
+            expect(phone.locator("#home-records")).to_contain_text(f"Signed by you and localhost:{GARDEN_PORT}")
             shot(phone, "5-phone-home")
 
             print("anyone: the public list holds the complete record")

@@ -9,8 +9,8 @@ Run it with `deno task garden` and open `http://localhost:8000/`. Its files (the
 | `GARDEN_PORT`     | `8000`                                         |
 | `GARDEN_HOSTNAME` | `127.0.0.1`: only this computer can reach it   |
 | `GARDEN_BASE`     | `http://localhost:<port>/`                     |
-| `GARDEN_PORTAL`   | `https://endlessmind.com/EntryPortal/`         |
+| `GARDEN_PORTAL`   | `https://portal.endlessmind.com/`              |
 | `GARDEN_DATA`     | `data/` in this folder                         |
 
-To try it with a local EntryPortal, serve `site/` (for example `deno run -A jsr:@std/http/file-server --port 8001 site`) and set `GARDEN_PORTAL=http://127.0.0.1:8001/EntryPortal/`. The EntryPortal accepts plain `http` only for `localhost` and `127.0.0.1`.
+To try it with a local EntryPortal, serve `portal/` (for example `deno run -A jsr:@std/http/file-server --port 8001 portal`) and set `GARDEN_PORTAL=http://127.0.0.1:8001/`. The EntryPortal accepts plain `http` only for `localhost` and `127.0.0.1`.
 On endlessmind.com it runs as [deploy/lantern-garden.service](../../deploy/lantern-garden.service) at `https://garden.endlessmind.com/`.

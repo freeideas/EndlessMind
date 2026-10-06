@@ -2,7 +2,8 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Publish endlessmind.com: copy site/ to the web folder and write docs/ from specs/.
+"""Publish endlessmind.com: copy site/ to the web folder and write docs/ from specs/; and publish
+portal.endlessmind.com, the EntryPortal's own site, from portal/ to the folder beside it.
 
 Run in the checkout on ordinarydata after `git pull --ff-only`. Usage: uv run deploy/site.py [web folder]
 """
@@ -11,6 +12,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 TARGET = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "domains" / "endlessmind.com")
+PORTAL_TARGET = TARGET.with_name("portal.endlessmind.com")
 GITHUB = "https://github.com/freeideas/EndlessMind/blob/main/"
 
 
@@ -50,13 +52,23 @@ def main() -> None:
         "</p>\n<ul>\n" + "\n".join(rows) + f"\n</ul>\n{footer}\n</main></body></html>\n",
         encoding="utf-8",
     )
-    old = TARGET.with_name(TARGET.name + ".old")
-    shutil.rmtree(old, ignore_errors=True)
-    if TARGET.exists():
-        TARGET.rename(old)
-    staging.rename(TARGET)
-    shutil.rmtree(old, ignore_errors=True)
+    swap(staging, TARGET)
     print(f"Published {TARGET} ({len(rows)} docs)")
+    portal = PORTAL_TARGET.with_name(PORTAL_TARGET.name + ".new")
+    shutil.rmtree(portal, ignore_errors=True)
+    shutil.copytree(REPO / "portal", portal, ignore=shutil.ignore_patterns("README.md"))
+    swap(portal, PORTAL_TARGET)
+    print(f"Published {PORTAL_TARGET}")
+
+
+def swap(staging: Path, target: Path) -> None:
+    """Replace target with staging, leaving no moment with neither."""
+    old = target.with_name(target.name + ".old")
+    shutil.rmtree(old, ignore_errors=True)
+    if target.exists():
+        target.rename(old)
+    staging.rename(target)
+    shutil.rmtree(old, ignore_errors=True)
 
 
 if __name__ == "__main__":
