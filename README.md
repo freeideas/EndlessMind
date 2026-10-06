@@ -4,7 +4,7 @@ A free, open network for anything AI can make: games, places, shops, tools, whol
 
 AI coding agents now let anyone make a game just by describing it. Endless Mind connects all of them, the way the web connects websites, with no company in the middle. What ties it together is identity: you are the same player everywhere, and what you earn in one game you can show in another, with proof.
 
-**Status: being redesigned.** The identity part is settled and written down; finding games, hosting and making them are still being worked out. Nothing is running right now.
+**Status: being redesigned.** Identity, records and finding realms are settled and written down; hosting and making realms are still being worked out. Nothing is running right now.
 
 ## Your secret phrase
 
@@ -34,6 +34,12 @@ A realm can give you signed **records**: "in good standing as of 1 December", "f
 - Records are signed by everyone involved, so anyone you show them to can check them, and nobody can fake them.
 - You keep the records you want and drop the rest. Your reputation can only grow.
 - Your EntryPortal can save your records as a file, which any other EntryPortal can load.
+- Each record has a **public** switch, on unless you turn it off. Public records are how your reputation becomes visible, and how good realms get found. Turn it off for anything you would rather keep to yourself.
+- Want a separate identity for something private? Use a second secret phrase. Your player ID hides your name, but like any website, realms can see your connection, so this is privacy from other people, not a place to hide from the law.
+
+## Finding realms
+
+You find realms on **boards**: websites that list realms, run by anyone. There are no likes or votes. Boards rank realms by real play: public records from players who are themselves known to play in realms the board trusts. Playing a realm a lot is the strongest recommendation you can give. Most realms link to a board, and endlessmind.com lists boards to start from.
 
 ## Making realms
 

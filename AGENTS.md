@@ -1,6 +1,6 @@
 # Working on this repository
 
-Instructions for AI agents (and people) changing Endless Mind itself. The project is being redesigned: identity is settled, and finding realms, hosting and making them are still open (see "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md)).
+Instructions for AI agents (and people) changing Endless Mind itself. The project is being redesigned: identity, records and finding realms are settled, and hosting and making realms are still open (see "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md)).
 
 ## Layout
 

@@ -1,6 +1,6 @@
 # Endless Mind protocol
 
-The exact formats: keys, signed JSON, signing in, and records. Why things are this way is in [DESIGN.md](DESIGN.md). This document covers identity only; finding realms and hosting are not decided yet.
+The exact formats: keys, signed JSON, signing in, records, and finding realms. Why things are this way is in [DESIGN.md](DESIGN.md). Hosting and making realms are not decided yet.
 
 ## Keys and IDs
 
@@ -95,6 +95,7 @@ The realm's own ID is not in the note: the address already ties the note to the 
 | `time`    | When the first signer proposed it                          |
 | `text`    | What was agreed, in plain words, at most 1000 characters   |
 | `data`    | Optional: the same facts for programs, as a JSON object    |
+| `public`  | Optional: `true` if every signer agrees it may be published |
 
 - **A record is complete** when every ID in `signers` has a valid signature in `sigs`. An incomplete record proves nothing.
 - **Anyone holding a complete record may show it to anyone.** The reader checks the signatures; nobody needs to be contacted.
@@ -109,12 +110,55 @@ https://endlessmind.com/EntryPortal#sign=<URL-encoded JSON>
 The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
 
 1. checks that `return` is on the same site as an address the player signed in to through this EntryPortal, and refuses otherwise;
-2. shows every record's full text and signers;
+2. shows every record's full text and signers, and a public switch, on by default;
 3. lets the player choose which records to sign; records the player is not a signer of are offered for keeping only;
-4. adds the player's signature to the chosen records and keeps a copy of each;
+4. sets `public` on each chosen record as the player chose, adds the player's signature, and keeps a copy;
 5. sends the browser to `return` with an HTML form POST holding one field, `records`: the chosen records as a JSON array.
 
+Because `public` is set by the player and is part of the signed text, the realm proposes records without its own signature and signs them after they come back, once it has checked that only `public` and `sigs` changed.
+
 **Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out.
+
+## Finding realms
+
+**Realm card.** A realm describes itself with a card, signed by the realm alone. The newest card from a realm replaces older ones.
+
+```json
+{
+  "v": 1,
+  "type": "card",
+  "signers": ["4cdgtlj7kdgdl56z7iv2nchdhl44ggz5kdxpdaxemlrr6lrnkrdq"],
+  "time": 1790000000000,
+  "name": "Sword of Swankery",
+  "description": "Duels with very fancy swords.",
+  "picture": "data:image/svg+xml;base64,...",
+  "tags": ["duels", "multiplayer"],
+  "play": ["https://game-server.com/sword-of-swankery/"],
+  "list": "https://game-server.com/sword-of-swankery/endlessmind-list.json",
+  "sigs": { "4cdgtlj7kdgdl56z7iv2nchdhl44ggz5kdxpdaxemlrr6lrnkrdq": "..." }
+}
+```
+
+| Field         | Meaning                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| `name`        | At most 80 characters                                                   |
+| `description` | At most 500 characters                                                  |
+| `picture`     | Optional: a `data:` image, at most 32 KB                                |
+| `tags`        | Optional: up to 10 short words                                          |
+| `play`        | The addresses where players start, now                                  |
+| `list`        | Optional: the address of the realm's public list                        |
+
+A realm serves its newest card at `endlessmind-card.json` under each address in `play` (for example `https://game-server.com/sword-of-swankery/endlessmind-card.json`), with the header `Access-Control-Allow-Origin: *` so any web page may read it.
+
+**Public list.** The address in `list` serves, with the same header:
+
+```json
+{ "v": 1, "type": "list", "realm": "<realm ID>", "records": [ ... ] }
+```
+
+It holds the realm's complete records marked `public`, signed by the realm and by every player they name. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
+
+**Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern.
 
 ## Rules for EntryPortals
 
@@ -124,7 +168,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to a join address or a `return` address, as described above.
 3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words. The page asks the browser to keep its storage permanently.
 4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name.
-5. **Show before signing.** The page shows the full text of every record and asks before signing it.
+5. **Show before signing.** The page shows the full text of every record, with its public switch, and asks before signing it.
 6. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.
 7. **Fixed versions.** Each version is published with its SHA-256 fingerprint and never changed afterwards; a new version gets a new address.
 8. **Records can leave.** The page saves and loads records files.

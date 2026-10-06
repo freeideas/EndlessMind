@@ -19,6 +19,8 @@ What makes it one network rather than many separate games is identity: a player 
 - **EntryPortal:** a small web page that holds a player's key inside their browser, usually on their phone, and makes proofs for them. Anyone can write or host one.
 - **Sign-in note:** a proof that a player wants to enter a realm at a particular web address, now.
 - **Record:** a short text signed by one or more IDs, such as a realm and its players. Anyone holding it can show it to anyone.
+- **Realm card:** what a realm says about itself (name, description, picture, where to play), signed by the realm.
+- **Board:** a website where people browse realms. It reads realm cards and public records and ranks realms by its own judgment.
 
 ## Decisions
 
@@ -65,6 +67,16 @@ What makes it one network rather than many separate games is identity: a player 
 - **Records travel with the player.** An EntryPortal keeps the records its player signed or received and can save them as a file, which any other EntryPortal can load. Since every record is signed, nobody can slip a fake into the file.
 - **A record is worth what its signers are worth.** A realm that signs false records loses the trust of other realms, which then ignore its records. An AI could make a thousand realms that vouch for a thousand fake players, so how much a signer is worth depends on the trust network still to be designed.
 
+**Finding realms**
+
+- **Playing is the recommendation.** There is no "like" button. Twenty-five achievements in a realm, each taking hours, say more than any vote, and are far harder to fake.
+- **Players choose which records are public.** A record carries a `public` mark inside its signed text, so every signer agreed to it. EntryPortals show the choice plainly on the signing screen and default to public, since a record exists to be shown.
+- **Realms publish their public records.** Each realm keeps a list of its complete public records, named in its realm card. Realms want to publish, because published play is what ranks them.
+- **Boards read cards and lists, and rank.** Anyone can run a board. A board decides what counts, and players choose boards whose judgment they like. A realm should link to a board of its choice ("find more realms"), so a player who arrived from a random web page always has a next step. endlessmind.com lists boards, as one starting point among many.
+- **Trust flows outward from realms a board already trusts.** A board starts from a few realms it trusts. Players count when trusted realms have public records of their play, and a realm becomes trusted when trusted players put real time into it. Trust weakens with each step. A new realm with a thousand AI players claiming thousands of hours gets nothing, because none of those players appears in any trusted realm's records. A patient attacker with bots that really play can still earn trust, slowly and expensively; trusted realms limit what newcomers earn.
+- **Realms read the same lists.** When a player signs in, a realm can look up their ID and see, for example, "40 hours in a realm we trust," without asking them for anything.
+- **Ranking reflects what people are willing to be seen doing,** not what is good or legal. Embarrassing or risky realms collect few public records and rank low, which is mostly a good brake. It also hides sensitive realms of value, such as a support group; see "Safety and law".
+
 **The project**
 
 - **License: MIT or Apache 2.0, the user's choice; the specs in the public domain (CC0).** Anyone may build on any of it. Contributions come in under the same terms, so nobody, including the founder, holds extra rights.
@@ -74,17 +86,18 @@ What makes it one network rather than many separate games is identity: a player 
 
 These are being worked out. The leanings below are not commitments.
 
-- **Finding realms.** Leaning: signed listings that anyone may copy, ranked by recommendations from people you follow rather than raw popularity, with relays acting as curators.
 - **Making and hosting.** Leaning: a game is made without knowledge of the network, then wrapped. A browser game with no server is uploaded and served as it is. A multiplayer server written as one sandboxed JavaScript file can be run by volunteer hosts. Anything else is run with a downloadable program, at home or on a server that takes HTTPS connections from players.
-- **Relays.** Leaning: optional, for realms on home computers that cannot accept connections, and as places to list and promote realms. Anyone can run one.
+- **Relays.** Leaning: optional, for realms on home computers that cannot accept connections. Anyone can run one.
 - **Distribution.** Leaning: releases are ordinary torrents with web seeds, so any BitTorrent client can fetch and share them.
-- **A realm's key is stolen.** The thief could sign records in the realm's name. A signed "my key was stolen as of this date" needs a place everyone checks, which waits on finding realms.
+- **A realm's key is stolen.** The thief could sign records in the realm's name. Leaning: the realm signs "my key was stolen as of this date" with the stolen key and publishes it where its card was; boards then distrust records dated after it. Whether that is enough is open.
 - **iPhone storage.** Safari may erase a site's stored key after about a week without a visit. Asking the browser to keep storage permanently may prevent it; this needs testing on real iPhones.
 
 ## Safety and law
 
 - Safety has no central moderator, so it lives with each person: their AI helper can check an EntryPortal or a realm's code, and they decide what to trust.
 - Like the web, the protocol cannot enforce law centrally. Each person is responsible for what their own realms do, and each host for what they run and list. "No single point of failure, like email", never "built to escape authorities".
+- **Pseudonymous, not anonymous.** A player ID hides a name, not tracks. Realms run at ordinary web addresses on ordinary servers, see connections the way any website does, and public records are signed evidence that cannot be denied later. The network is not built for hiding and is not suited to it.
+- **Privacy where it matters, within the law.** A player may use more than one secret phrase, keeping a second identity apart from their main one. A sensitive realm, such as a support group, can keep all its records private and let members use second identities, so that other members and the public cannot tell who they are. That is real privacy from other people, not protection from a lawful investigation.
 
 ## Original work only
 
