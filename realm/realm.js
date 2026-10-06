@@ -46,9 +46,13 @@ export const DEFAULT_PORTAL = "https://portal.endlessmind.com/"; // forwards to 
 
 /** @param {RealmOptions} options */
 export async function openRealm(options) {
-  const words = options.words ?? (await secretWords(options.secretFile ?? "realm-secret.txt"));
+  // A game keeps its data in .data/ inside its own folder; web servers that refuse names starting with
+  // a dot never serve it.
+  const usesDefault = (!options.words && !options.secretFile) || (!options.store && !options.dataFile);
+  if (usesDefault) await Deno.mkdir(".data", { recursive: true });
+  const words = options.words ?? (await secretWords(options.secretFile ?? ".data/realm-secret.txt"));
   const signer = await signerFromWords(words);
-  const store = options.store ?? fileStore(options.dataFile ?? "realm-data.json");
+  const store = options.store ?? fileStore(options.dataFile ?? ".data/realm-data.json");
   const realm = new Realm(options, signer, store, (await store.load()) ?? {});
   await realm.signCard();
   return realm;

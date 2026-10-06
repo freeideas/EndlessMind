@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 async function* pages(dir) {
   for await (const entry of Deno.readDir(dir)) {
     const url = new URL(entry.name + (entry.isDirectory ? "/" : ""), dir);
-    if (entry.isDirectory && entry.name !== "data") yield* pages(url);
+    if (entry.isDirectory && entry.name !== ".data") yield* pages(url);
     else if (entry.name.endsWith(".html")) yield url;
   }
 }

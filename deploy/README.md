@@ -4,4 +4,4 @@
 
 The example realm, Endless Maze, runs at `https://maze.endlessmind.com/` as the systemd unit in [endless-maze.service](endless-maze.service), which says how to install it; after `git pull --ff-only`, `sudo systemctl restart endless-maze`. `garden.endlessmind.com`, the earlier example, now forwards there. DNS for endlessmind.com is on Cloudflare.
 
-The maze's secret phrase, its realm identity, exists only in `examples/maze/data/realm-secret.txt` in the checkout on ordinarydata (ignored by Git); copy it somewhere safe if the realm should outlive that machine.
+The maze's secret phrase, its realm identity, exists only in `examples/maze/.data/realm-secret.txt` in the checkout on ordinarydata (ignored by Git); copy it somewhere safe if the realm should outlive that machine.

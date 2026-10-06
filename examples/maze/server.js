@@ -6,14 +6,14 @@
 //
 // Settings, all optional: MAZE_PORT (8000), MAZE_HOSTNAME (127.0.0.1), MAZE_BASE (the public address,
 // http://localhost:8000/), MAZE_PORTAL (the EntryPortal its codes name) and MAZE_DATA (folder for its
-// files, ./data/ here).
+// files, ./.data/ here).
 
 import { DEFAULT_PORTAL, openRealm } from "../../realm/realm.js";
 import { makeMaze, solves } from "./maze.js";
 
 const PORT = Number(Deno.env.get("MAZE_PORT") ?? 8000);
 const BASE = Deno.env.get("MAZE_BASE") ?? `http://localhost:${PORT}/`;
-const DATA = Deno.env.get("MAZE_DATA") ?? new URL("./data/", import.meta.url).pathname;
+const DATA = Deno.env.get("MAZE_DATA") ?? new URL("./.data/", import.meta.url).pathname;
 const RUN_MS = 2 * 60 * 60 * 1000; // a run left unfinished this long is forgotten
 const FASTEST_MS = 10; // no person moves faster than one step per 10 ms, even holding a key down
 

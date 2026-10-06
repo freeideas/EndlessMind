@@ -2,7 +2,7 @@
 # Install: sudo cp deploy/endless-maze.service /etc/systemd/system/ && sudo systemctl enable --now endless-maze
 # Caddy relays maze.endlessmind.com to 127.0.0.1:8760. The realm must have its own host, never a path
 # under the EntryPortal's site: a page on the EntryPortal's site could use the player's stored key.
-# Its secret phrase and data are in examples/maze/data/ in the checkout (ignored by Git).
+# Its secret phrase and data are in examples/maze/.data/ in the checkout (ignored by Git).
 
 [Unit]
 Description=Endless Maze, the example Endless Mind realm
