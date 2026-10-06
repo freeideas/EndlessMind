@@ -183,3 +183,11 @@ Deno.test("a burned ID is refused, and its sessions and public records are gone"
   const again = await join(realm, clock.now);
   assert.match(await again.answer.text(), /burned/);
 });
+
+Deno.test("the device that signs in gets a session too, and a link to play there", async () => {
+  const { realm, clock } = await setup();
+  const { answer } = await join(realm, clock.now);
+  const cookie = /** @type {string} */ (answer.headers.get("set-cookie")).split(";")[0];
+  assert.match(await answer.text(), new RegExp(`href="${BASE}"`));
+  assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie } })).json()).player, player.id);
+});

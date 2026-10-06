@@ -69,7 +69,7 @@ A realm usually names an address that forwards to the newest version of an Entry
 | `portal`  | Optional: the EntryPortal's address, so the realm can send records there    |
 | `name`    | Optional: the name the player chose, at most 40 characters; not unique      |
 
-**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. Go back to your screen." A realm may also answer a plain visit to a join address by sending the browser on to its EntryPortal link, so the short address works when opened in a phone's browser too.
+**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. You can close this page and go back to the game on your screen." It may also sign in the browser that sent the note, which belongs to the same player, and offer a link to play there instead. A realm may also answer a plain visit to a join address by sending the browser on to its EntryPortal link, so the short address works when opened in a phone's browser too.
 
 **5. The realm checks** that the signature by `player` is valid, that `address` is one of its own join addresses, not yet used and less than two minutes old, that `time` is within two minutes of its clock, and that it has not seen `nonce` before. Then it lets in the screen waiting on that join address. What happens next, such as a session cookie, is up to the realm.
 

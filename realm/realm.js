@@ -228,7 +228,15 @@ export class Realm {
     if (typeof text !== "string") return this.#page("Nothing to do", "This address expects a sign-in note.", 400);
     const problem = await this.#checkNote(code, text);
     if (problem) return this.#page("Not signed in", problem, 400);
-    return this.#page("You're in", "You're in. Go back to your screen.");
+    // The device that made the note may play too: give its browser a session of its own.
+    const session = await this.#newSession(/** @type {string} */ (this.#joins.get(code)?.player));
+    return this.#page(
+      "You're in",
+      "You're in. You can close this page and go back to the game on your screen.",
+      200,
+      { href: this.base, text: `Or play ${this.card.name} on this device` },
+      { "set-cookie": this.#cookie(session, SESSION_MS) },
+    );
   }
 
   /**
@@ -274,9 +282,7 @@ export class Realm {
     if (join && join.token === token) {
       if (join.player && !join.taken) {
         join.taken = true;
-        const session = hex(crypto.getRandomValues(new Uint8Array(24)));
-        this.data.sessions[session] = { player: join.player, created: this.now() };
-        await this.#save();
+        const session = await this.#newSession(join.player);
         return json({ state: "in", player: join.player }, 200, { "set-cookie": this.#cookie(session, SESSION_MS) });
       }
       if (join.taken) return json({ state: "in", player: join.player });
@@ -454,13 +460,29 @@ export class Realm {
     return `${COOKIE}=${value}; Path=${this.basePath}; Max-Age=${Math.floor(ms / 1000)}; HttpOnly; SameSite=Lax${secure}`;
   }
 
-  /** @param {string} title @param {string} message @param {number} [status] */
-  #page(title, message, status = 200) {
+  /** A new session for a player, kept until it expires or they sign out. @param {string} player */
+  async #newSession(player) {
+    const session = hex(crypto.getRandomValues(new Uint8Array(24)));
+    this.data.sessions[session] = { player, created: this.now() };
+    await this.#save();
+    return session;
+  }
+
+  /**
+   * A small page for the browser that sent a form here.
+   * @param {string} title @param {string} message @param {number} [status]
+   * @param {{ href: string, text: string }} [link] a button to show, if any
+   * @param {Record<string, string>} [headers]
+   */
+  #page(title, message, status = 200, link = { href: "", text: "" }, headers = {}) {
     const name = escapeHtml(this.card.name);
+    const button = link.href
+      ? `<p><a href="${escapeHtml(link.href)}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none">${escapeHtml(link.text)}</a></p>`
+      : "";
     const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} | ${name}</title><style>body{font:20px/1.5 system-ui,sans-serif;max-width:30rem;margin:3rem auto;padding:0 1rem}</style></head>
-<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><p><small>${name}</small></p></body></html>`;
-    return new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8" } });
+<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p>${button}<p><small>${name}</small></p></body></html>`;
+    return new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
   }
 
   #save() {

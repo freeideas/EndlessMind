@@ -193,6 +193,9 @@ def main() -> None:
             expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
             expect(pc.locator(".em-name")).to_have_text("Moon Pie")
             assert player in pc.locator(".em-name").get_attribute("title")
+            phone.get_by_role("link", name="Or play Endless Maze on this device").click()
+            expect(phone.locator(".em-name")).to_have_text("Moon Pie")
+            expect(phone.locator("#level")).to_have_text("Level 2")
             expect(pc.locator("#level")).to_have_text("Level 2")
 
             print("pc: change the name from the game; the phone saves it and signs in again")
