@@ -98,7 +98,7 @@ These are being worked out. The leanings below are not commitments.
 - **Making and hosting.** Leaning: a game is made without knowledge of the network, then wrapped. A browser game with no server is uploaded and served as it is. A multiplayer server written as one sandboxed JavaScript file can be run by volunteer hosts. Anything else is run with a downloadable program, at home or on a server that takes HTTPS connections from players.
 - **Relays.** Leaning: optional, for realms on home computers that cannot accept connections. Anyone can run one.
 - **Distribution.** Leaning: releases are ordinary torrents with web seeds, so any BitTorrent client can fetch and share them.
-- **iPhone storage.** Safari may erase a site's stored key after about a week without a visit. Asking the browser to keep storage permanently may prevent it; this needs testing on real iPhones.
+- **iPhone storage.** iPhone browsers (all of them run on WebKit) erase what a page's scripts stored, such as the EntryPortal's key, after seven days of browser use without a tap or click on that site; ordinary login cookies set by servers are not affected. Every sign-in taps the EntryPortal, so only a player who goes that long without signing in anywhere is at risk, and their screenshot brings the identity back. Asking the browser to keep storage permanently may prevent it. Left until players actually hit it; the leaning fix is game sign-ins of about five days, so regular play keeps tapping the EntryPortal.
 
 ## Safety and law
 
