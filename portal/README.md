@@ -5,6 +5,6 @@ The reference EntryPortal's own site. Nothing else may ever be served here: the 
 | Path                | What it is                                                                |
 | ------------------- | ------------------------------------------------------------------------- |
 | `index.html`        | Forwards to the newest version, keeping the part after "#"; realms use it |
-| `v0.2/` to `v0.61/` | Each version: `index.html`, one self-contained file, and `SHA256SUMS`     |
+| `v0.2/` to `v0.62/` | Each version: `index.html`, one self-contained file, and `SHA256SUMS`     |
 
 Every file here is written or checked by `deno task portal` (see `deploy/entryportal.js`): it copies the shared code in from `shared/`, updates the security policy hashes and the fingerprint, and writes the forwarding page. Improvements are welcome as new versions: once a version is published it is never edited in place, so a check of it stays true. Versions after v0.4 are numbered v0.61, v0.62 and so on, to leave room before v1.0. Copy the newest folder to the next version, set `VERSION` in `deploy/entryportal.js`, and edit the copy.

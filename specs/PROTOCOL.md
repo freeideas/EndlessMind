@@ -31,7 +31,7 @@ Sign-in notes, records and realm cards are JSON objects with a `sigs` field: an 
 - a "sign in on this computer" link: the same EntryPortal link;
 - the join address as short text to type, for when scanning fails.
 
-Next to them it shows the line "Only scan sign-in codes shown on your own screen."
+Next to them it warns the player to scan the code only because they just asked to sign in, since a code someone else sends or shows them would sign that person in as them.
 
 **2. The EntryPortal link** is the EntryPortal's address with the join address after `#url=`, URL-encoded, so it never reaches the EntryPortal's server:
 

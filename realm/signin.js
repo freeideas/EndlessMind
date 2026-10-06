@@ -106,7 +106,10 @@ export function mountSignIn(box, options = {}) {
       el("h3", { textContent: words[0] }),
       el("p", { textContent: words[1] }),
       qr,
-      el("p", { className: "em-small", textContent: "Only scan sign-in codes shown on your own screen." }),
+      el("p", {
+        className: "em-small",
+        textContent: "Scan this code only because you just pressed a button here. If someone sent or showed you a code, do not scan it: it would sign them in as you.",
+      }),
       el("details", { className: "em-small" }, [
         el("summary", { textContent: "No phone, or the code won't scan?" }),
         el("p", {}, [

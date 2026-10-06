@@ -25,7 +25,7 @@ You are your **secret phrase**: 24 ordinary words. They are your one identity in
 3. The first time, your phone has no EntryPortal yet. It offers to make your secret phrase, or to take the one you already have.
 4. No phone, or the code will not scan? Use the "sign in on this computer" link, or type the short address shown under the code into your EntryPortal.
 
-Only scan sign-in codes shown on your own screen. A code posted somewhere else could sign a stranger in as you.
+Only scan a sign-in code right after you pressed "Sign in" in a game yourself. If someone sends or shows you a code, on a web page, in a video or in a message, do not scan it: it would sign them in as you.
 
 ## Your records
 
