@@ -39,6 +39,8 @@ Next to them it shows the line "Only scan sign-in codes shown on your own screen
 https://portal.endlessmind.com/#url=<join address>
 ```
 
+To let a signed-in player change their name, a realm may add `&rename` to the link (and name the EntryPortal from the player's sign-in note): the EntryPortal then shows the name with a box to change it and a "Save and sign in again" button, so the new name arrives in a fresh sign-in note at once.
+
 A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.2/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
 
 **3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:

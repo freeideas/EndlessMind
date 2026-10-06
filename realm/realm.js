@@ -126,7 +126,7 @@ export class Realm {
       return new Response(code, { headers: { "content-type": "text/javascript; charset=utf-8" } });
     }
     if (get && path === "endlessmind/me") return json(await this.#me(request));
-    if (post && path === "endlessmind/start") return json(await this.#startJoin());
+    if (post && path === "endlessmind/start") return json(await this.#startJoin(request, url.searchParams.has("rename")));
     if (post && path === "endlessmind/claim") return this.#startClaim(request);
     if (post && path === "endlessmind/signout") return this.#signOut(request);
     let m = path.match(/^endlessmind\/wait\/([A-Za-z0-9]+)$/);
@@ -200,13 +200,21 @@ export class Realm {
 
   // ---- signing in ----
 
-  async #startJoin() {
+  /**
+   * A one-time join code for the page to show. With `rename`, a signed-in player wants to change their
+   * name: the code opens their own EntryPortal with the name box, and signing in again brings the name.
+   * @param {Request} request
+   * @param {boolean} rename
+   */
+  async #startJoin(request, rename) {
     this.#forgetOld();
     const code = this.#newCode();
     const token = hex(crypto.getRandomValues(new Uint8Array(16)));
     this.#joins.set(code, { token, created: this.now() });
     const address = this.joinAddress(code);
-    const link = this.#portalLink(address);
+    const player = rename ? await this.player(request) : null;
+    const portal = (player && this.data.players[player]?.portal) || this.portal;
+    const link = this.#portalLink(address, portal) + (rename ? "&rename" : "");
     return { code, token, address, link, typed: typedAddress(address), qr: qrSvg(link), expires: this.now() + JOIN_MS };
   }
 
@@ -435,9 +443,9 @@ export class Realm {
     for (const [nonce, until] of this.#nonces) if (now > until) this.#nonces.delete(nonce);
   }
 
-  /** @param {string} address */
-  #portalLink(address) {
-    return this.portal + "#url=" + encodeURIComponent(address);
+  /** @param {string} address @param {string} [portal] */
+  #portalLink(address, portal = this.portal) {
+    return portal + "#url=" + encodeURIComponent(address);
   }
 
   /** @param {string} value @param {number} ms */

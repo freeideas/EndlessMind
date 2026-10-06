@@ -68,19 +68,13 @@ export function mountSignIn(box, options = {}) {
         refresh();
       },
     });
-    const rename = el("details", { className: "em-small" }, [
-      el("summary", { textContent: "Change name" }),
-      el("p", {}, [
-        "Your name is kept by your EntryPortal. Open it on the device you signed in with and choose \"Change name\". Games see the new name the next time you sign in. ",
-        el("a", { href: me.portal + "#rename", target: "_blank", textContent: "Open your EntryPortal here" }),
-      ]),
-    ]);
+    const rename = el("button", { textContent: "Change name", onclick: () => openPanel("rename") });
     const rows = [
       el("div", { className: "em-row" }, [
         el("span", {}, ["Signed in as ", el("strong", { className: "em-name", textContent: me.playerName, title: "Player ID " + me.player })]),
+        rename,
         out,
       ]),
-      rename,
     ];
     if (me.claims > 0) {
       const claim = el("button", { textContent: "Claim", onclick: () => openPanel("claim") });
@@ -90,31 +84,33 @@ export function mountSignIn(box, options = {}) {
     box.replaceChildren(...rows);
   }
 
-  /** @param {"join" | "claim"} kind */
+  /** @param {"join" | "rename" | "claim"} kind */
   async function openPanel(kind) {
     clearInterval(timer);
     panelOpen = true;
-    const response = await fetch(BASE + (kind === "join" ? "endlessmind/start" : "endlessmind/claim"), { method: "POST" });
+    const path = { join: "endlessmind/start", rename: "endlessmind/start?rename", claim: "endlessmind/claim" }[kind];
+    const response = await fetch(BASE + path, { method: "POST" });
     const code = await response.json();
     if (!response.ok) return draw();
-    const join = kind === "join";
+    const join = kind !== "claim";
+    const words = {
+      join: ["Sign in with your phone", "Point your phone's camera at this code and tap the link it shows. Nothing to install.", "Sign in on this computer"],
+      rename: ["Change your name", "Scan this code with the phone you signed in with, change your name there, and this screen shows it.", "Change it on this computer"],
+      claim: ["Claim with your phone", "Point your phone's camera at this code to keep your records on your phone.", "Claim on this computer"],
+    }[kind];
     const qr = el("div", { className: "em-qr", title: "Point your phone's camera at this code" });
     qr.innerHTML = code.qr; // an SVG drawn by this realm's own server
     qr.dataset.link = code.link;
     const status = el("p", { className: "em-small" });
     const panel = el("div", { className: "em-panel" }, [
-      el("h3", { textContent: join ? "Sign in with your phone" : "Claim with your phone" }),
-      el("p", {
-        textContent: join
-          ? "Point your phone's camera at this code and tap the link it shows. Nothing to install."
-          : "Point your phone's camera at this code to keep your records on your phone.",
-      }),
+      el("h3", { textContent: words[0] }),
+      el("p", { textContent: words[1] }),
       qr,
       el("p", { className: "em-small", textContent: "Only scan sign-in codes shown on your own screen." }),
       el("details", { className: "em-small" }, [
         el("summary", { textContent: "No phone, or the code won't scan?" }),
         el("p", {}, [
-          el("a", { href: code.link, target: "_blank", textContent: join ? "Sign in on this computer" : "Claim on this computer" }),
+          el("a", { href: code.link, target: "_blank", textContent: words[2] }),
         ]),
         el("p", {}, [
           join ? "Or type this address into your EntryPortal: " : "Or open this address on your phone: ",
@@ -140,7 +136,7 @@ export function mountSignIn(box, options = {}) {
         clearInterval(timer);
         refresh();
       } else if (state === "expired" || state === "unknown") {
-        if (join) openPanel("join");
+        if (join) openPanel(kind);
         else draw();
       }
     };

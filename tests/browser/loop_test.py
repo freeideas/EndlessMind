@@ -10,7 +10,7 @@ this computer", a typed address, and burning an identity. The EntryPortal and th
 different local addresses, like two sites. Run: uv run tests/browser/loop_test.py [--headed]
 (the first run may need: uv run --with playwright playwright install chromium)
 """
-import functools, http.server, json, os, socket, subprocess, sys, tempfile, threading, time
+import base64, functools, http.server, json, os, socket, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
 import cv2
@@ -117,6 +117,19 @@ def set_up_new_phrase(phone) -> tuple[str, str, str, str, bytes]:
     return " ".join(words), phone.locator("#home-id").text_content(), name, setup_link, picture
 
 
+def paste_picture(page, png: bytes) -> None:
+    """Paste a picture into the page, as Ctrl+V or Cmd+V would."""
+    page.evaluate(
+        """b64 => {
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const data = new DataTransfer();
+            data.items.add(new File([bytes], "pasted.png", { type: "image/png" }));
+            document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true }));
+        }""",
+        base64.b64encode(png).decode(),
+    )
+
+
 def plant(page, *plots: int) -> None:
     for plot in plots:
         page.locator(f'.plot[data-plot="{plot}"]').click()
@@ -178,6 +191,17 @@ def main() -> None:
             assert player in pc.locator(".em-name").get_attribute("title")
             expect(pc.locator("#count")).to_have_text("3 of 10 seeds toward a record.")
 
+            print("pc: change the name from the game; the phone saves it and signs in again")
+            pc.get_by_role("button", name="Change name").click()
+            rename = read_qr(pc)
+            assert rename.endswith("&rename")
+            phone.goto(rename)
+            expect(phone.locator("#enter-title")).to_have_text("Change your name at")
+            phone.locator("#enter-name").fill("Star Fish")
+            phone.get_by_role("button", name="Save and sign in again").click()
+            expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+            expect(pc.locator(".em-name")).to_have_text("Star Fish")
+
             print("pc: plant ten seeds and claim the record with the phone")
             plant(pc, *range(3, 10))
             expect(pc.get_by_text("1 record is waiting for you to claim.")).to_be_visible()
@@ -207,6 +231,17 @@ def main() -> None:
             expect(pc3.locator("#home-name")).to_have_text(start_name)
             assert pc3.locator("#home-id").text_content() == player
             pc3.context.close()
+
+            print("pc4: make a phrase, then pass the check by pasting the screenshot instead of typing")
+            pc4 = watch(browser.new_context().new_page())
+            pc4.goto(PORTAL)
+            pc4.get_by_role("button", name="Make a new secret phrase").click()
+            expect(pc4.locator("#new-qr svg")).to_be_visible()
+            screenshot = pc4.screenshot()
+            pc4.get_by_role("button", name="I have kept them").click()
+            paste_picture(pc4, screenshot)
+            expect(pc4.locator("#s-home")).to_be_visible()
+            pc4.context.close()
 
             print("anyone: the public list holds the complete record")
             listing = pc.request.get(GARDEN + "endlessmind-list.json").json()

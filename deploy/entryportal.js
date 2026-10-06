@@ -13,9 +13,9 @@
 //
 // Improvements are welcome, as new versions: a published version is never edited in place, so a check
 // of it stays true. To change the EntryPortal after VERSION is published, copy its folder to the next
-// version (v0.1, v0.2, ... v1.0), set VERSION to it, and edit the copy.
+// version (after v0.4 come v0.61, v0.62, ... up to v1.0), set VERSION to it, and edit the copy.
 
-export const VERSION = "v0.4";
+export const VERSION = "v0.61";
 export const PORTAL_SITE = "https://portal.endlessmind.com/";
 const ROOT = new URL("../", import.meta.url);
 const SHARED = ["words-en.js", "keys.js", "signed.js", "names.js", "qrcodegen.js", "qr.js", "jsqr.js"];
