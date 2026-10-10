@@ -6,13 +6,15 @@
 
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { extname, join, sep } from "node:path";
-import { isId } from "../shared/keys.js";
-import { DEFAULT_PORTAL, openRealm } from "../realm/realm.js";
+import { isId, signerFromWords } from "../shared/keys.js";
+import { DEFAULT_PORTAL, openRealm, secretWords } from "../realm/realm.js";
+import { dial, relayedBase } from "./relay.js";
 
 const MEMORY_MB = 64; // a game server that needs more memory than this is stopped
 const PING_MS = 2000; // how often a game server is asked whether it is still answering
 const DEAF_MS = 6000; // one that has not answered for this long is stopped
 const RESTART_MS = 1000; // a stopped game server is not started again sooner than this
+const RELAY_MS = 5000; // how long starting waits for a relay before carrying on without it
 const MAX_MESSAGE = 64 * 1024; // the longest message a display or a game server may send, in characters
 const MAX_DATA = 4 * 1024 * 1024; // the most a game server may keep with save(), as JSON
 const SEAL = ["--no-prompt", "--no-remote", "--no-npm", "--no-config", "--no-lock"]; // and no --allow flags at all
@@ -45,6 +47,7 @@ const TYPES = {
  *   port?: number,
  *   hostname?: string,
  *   base?: string,
+ *   relay?: string,
  *   portal?: string,
  *   data?: string,
  *   memory?: number,
@@ -52,9 +55,12 @@ const TYPES = {
  *   log?: (text: string) => void,
  * }} RunOptions
  * `folder` holds the game: `game.js` (the game server), `card.json` (its name and description) and the
- * display's files, starting at `index.html`. `base` is the address players use, ending in "/". `data`
- * is where the realm's secret phrase and everything the game saves are kept: `.data/` in the folder
+ * display's files, starting at `index.html`. `base` is the address players use, ending in "/". `relay`
+ * is the address of a relay to be reached through instead: it gives the game an address of its own, so
+ * players anywhere can join a game on this computer. `data` is where the realm's secret phrase and everything the game saves are kept: `.data/` in the folder
  * unless given. `watch` restarts the game server when a file in the folder changes.
+ * @typedef {import("./relay.js").Line} Line
+ * @typedef {import("./relay.js").Seat} Seat
  */
 
 /** @param {string} path a name with a part that starts with a dot is never served and never loaded */
@@ -99,14 +105,21 @@ export async function runGame(options) {
   const data = options.data ?? join(folder, ".data");
   await Deno.mkdir(data, { recursive: true });
   const port = options.port ?? 8000;
-  const base = options.base ?? `http://localhost:${port}/`;
   const log = options.log ?? ((text) => console.log(text));
   const encoder = new TextEncoder();
+  const secretFile = join(data, "realm-secret.txt");
+  if (options.relay && options.base) throw new Error("A relay gives the game its address, so give a relay or a base, not both.");
+  // A relayed game's address holds its realm's ID, so the realm's secret is read before the realm opens.
+  const base = options.relay
+    ? relayedBase(options.relay, (await signerFromWords(await secretWords(secretFile))).id)
+    : (options.base ?? `http://localhost:${port}/`);
+
+  const basePath = new URL(base).pathname;
 
   const realm = await openRealm({
     base,
     portal: options.portal ?? DEFAULT_PORTAL,
-    secretFile: join(data, "realm-secret.txt"),
+    secretFile,
     dataFile: join(data, "realm-data.json"),
     card: JSON.parse(await Deno.readTextFile(join(folder, "card.json"))),
   });
@@ -130,8 +143,8 @@ export async function runGame(options) {
     await Deno.rename(dataFile + ".new", dataFile);
   }
 
-  /** The displays connected now. @type {Map<number, WebSocket>} */
-  const sockets = new Map();
+  /** The displays connected now. @type {Map<number, Line>} */
+  const seated = new Map();
   let connections = 0;
 
   /** The sealed process, while it runs. @type {{ child: Deno.ChildProcess, writer: WritableStreamDefaultWriter<Uint8Array>, heard: number } | null} */
@@ -149,9 +162,8 @@ export async function runGame(options) {
     if (!sealed) return;
     if (m.t === "pong") sealed.heard = Date.now();
     else if (m.t === "send") {
-      const socket = sockets.get(m.conn);
       const text = JSON.stringify(m.data);
-      if (socket?.readyState === WebSocket.OPEN && text.length <= MAX_MESSAGE) socket.send(text);
+      if (text.length <= MAX_MESSAGE) seated.get(m.conn)?.send(text);
     } else if (m.t === "save" && typeof m.key === "string") {
       if (m.value === undefined) delete kept[m.key];
       else kept[m.key] = m.value;
@@ -201,8 +213,8 @@ export async function runGame(options) {
       if (sealed !== mine) return;
       sealed = null;
       if (!stopped) log(`The game server stopped (${status.signal ?? "exit " + status.code}). ${said.join(" ")}`.trim());
-      for (const socket of sockets.values()) socket.close(1012, "the game server stopped");
-      sockets.clear();
+      for (const line of [...seated.values()]) line.close(1012, "the game server stopped");
+      seated.clear();
     });
     tell({ t: "start", data: kept });
   }
@@ -236,8 +248,14 @@ export async function runGame(options) {
     tell({ t: "ping", n: Date.now() });
   }, PING_MS);
 
-  /** @param {Request} request @param {URL} url */
-  async function connect(request, url) {
+  /**
+   * A display asks for its line to the game server: refuse it, or say what to do with the line.
+   * @param {Request} request
+   * @returns {Promise<Response | Seat>}
+   */
+  async function seat(request) {
+    const url = new URL(request.url);
+    if (url.pathname !== basePath + "endlessmind/play") return new Response("Not found", { status: 404 });
     const guest = url.searchParams.get("guest") ?? "";
     if (!/^[a-f0-9]{32}$/.test(guest)) return new Response("Bad guest name", { status: 400 });
     // Browsers send the player's session with a connection opened by any page, so only this game's own
@@ -247,29 +265,32 @@ export async function runGame(options) {
       return new Response("Not from this game's pages", { status: 403 });
     }
     const id = await realm.player(request);
-    const { socket, response } = Deno.upgradeWebSocket(request);
     const conn = ++connections;
     let open = true;
-    socket.onopen = async () => {
-      await awake();
-      if (!open || !sealed) return socket.close(1012, "the game server is not running");
-      sockets.set(conn, socket);
-      const records = id ? realm.records(id).map(({ text, data, time }) => ({ text, data, time })) : [];
-      tell({ t: "join", p: { conn, who: id ? "player:" + id : "guest:" + guest, id, name: id ? realm.playerName(id) : "Guest", guest: "guest:" + guest, records } });
+    /** @type {Line | null} */
+    let mine = null;
+    return {
+      async open(line) {
+        await awake();
+        if (!open) return;
+        if (!sealed) return line.close(1012, "the game server is not running");
+        seated.set(conn, (mine = line));
+        const records = id ? realm.records(id).map(({ text, data, time }) => ({ text, data, time })) : [];
+        tell({ t: "join", p: { conn, who: id ? "player:" + id : "guest:" + guest, id, name: id ? realm.playerName(id) : "Guest", guest: "guest:" + guest, records } });
+      },
+      message(text) {
+        if (text.length > MAX_MESSAGE || !seated.has(conn)) return;
+        try {
+          tell({ t: "message", conn, data: JSON.parse(text) });
+        } catch {
+          // Not JSON: nothing a game server could use.
+        }
+      },
+      close() {
+        open = false;
+        if (mine && seated.get(conn) === mine && seated.delete(conn)) tell({ t: "leave", conn });
+      },
     };
-    socket.onmessage = (event) => {
-      if (typeof event.data !== "string" || event.data.length > MAX_MESSAGE || !sockets.has(conn)) return;
-      try {
-        tell({ t: "message", conn, data: JSON.parse(event.data) });
-      } catch {
-        // Not JSON: nothing a game server could use.
-      }
-    };
-    socket.onclose = () => {
-      open = false;
-      if (sockets.get(conn) === socket && sockets.delete(conn)) tell({ t: "leave", conn });
-    };
-    return response;
   }
 
   /** One of the display's files. @param {string} name its path under the game's address */
@@ -287,20 +308,39 @@ export async function runGame(options) {
     }
   }
 
-  const basePath = new URL(base).pathname;
-  const server = Deno.serve({ port, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, async (request) => {
-    const answer = await realm.handle(request);
-    if (answer) return answer;
+  /** Answer a request that is not a display's line. @param {Request} request */
+  async function answer(request) {
+    const mine = await realm.handle(request);
+    if (mine) return mine;
     const url = new URL(request.url);
-    if (!url.pathname.startsWith(basePath)) return new Response("Not found", { status: 404 });
+    if (!url.pathname.startsWith(basePath) || (request.method !== "GET" && request.method !== "HEAD")) return new Response("Not found", { status: 404 });
     const name = decodeURIComponent(url.pathname.slice(basePath.length));
-    if (name === "endlessmind/play" && request.headers.get("upgrade")?.toLowerCase() === "websocket") return connect(request, url);
-    if (request.method !== "GET" && request.method !== "HEAD") return new Response("Not found", { status: 404 });
     if (name === "endlessmind/play.js") {
       return new Response(await Deno.readFile(PLAY_JS), { headers: { "content-type": TYPES[".js"], "cache-control": "no-cache" } });
     }
     return (await file(name)) ?? new Response("Not found", { status: 404 });
+  }
+
+  const server = Deno.serve({ port, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, async (request) => {
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return answer(request);
+    const place = await seat(request);
+    if (place instanceof Response) return place;
+    const { socket, response } = Deno.upgradeWebSocket(request);
+    socket.onopen = () => place.open({ send: (text) => socket.readyState === WebSocket.OPEN && socket.send(text), close: (code, reason) => socket.close(code, reason) });
+    socket.onmessage = (event) => typeof event.data === "string" && place.message(event.data);
+    socket.onclose = () => place.close();
+    return response;
   });
+
+  // Players who cannot connect to this computer reach the game through a relay.
+  const relayed = options.relay ? dial({ relay: options.relay, signer: realm.signer, answer, seat, log }) : null;
+  if (relayed) {
+    // Wait a little for the relay, so that the address is good by the time it is shown.
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let slow;
+    await Promise.race([relayed.ready, new Promise((later) => (slow = setTimeout(later, RELAY_MS)))]);
+    clearTimeout(slow);
+  }
 
   // While a game is being made, a changed file restarts its game server; displays reconnect by themselves.
   const watcher = options.watch ? Deno.watchFs(folder) : null;
@@ -329,7 +369,8 @@ export async function runGame(options) {
       stopped = true;
       clearInterval(pinging);
       watcher?.close();
-      for (const socket of sockets.values()) socket.close(1001, "the game is closing");
+      relayed?.stop();
+      for (const line of [...seated.values()]) line.close(1001, "the game is closing");
       await server.shutdown();
       const child = sealed?.child;
       await sealed?.writer.close().catch(() => {});

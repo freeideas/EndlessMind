@@ -12,7 +12,7 @@ Instructions for AI agents (and people) changing Endless Mind itself. The design
 | `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |
 | `realm/`    | The realm library for tied realms on Deno: sign-in, claims, realm card, public list |
-| `host/`     | The host program: runs a game, keeping its game server sealed                       |
+| `host/`     | The host program: runs a game with its game server sealed, and relays               |
 | `realm-py/` | The same library's server side for tied realms in Python (uv project, ASGI adapter) |
 | `examples/` | Example games for the host program; `maze/` is Endless Maze                         |
 | `tests/`    | Deno unit tests, and `browser/`: the whole loop in two browsers (Playwright, `uv`)  |

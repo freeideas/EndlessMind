@@ -564,7 +564,7 @@ export function memoryStore() {
 }
 
 /** The realm's secret phrase from a file, made on first run. @param {string} path */
-async function secretWords(path) {
+export async function secretWords(path) {
   try {
     return await checkWords(await Deno.readTextFile(path));
   } catch (e) {

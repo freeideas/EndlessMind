@@ -5,7 +5,8 @@
     "portal": "deno run --allow-read --allow-write deploy/entryportal.js",
     "browser": "uv run tests/browser/loop_test.py",
     "run": "deno run --allow-read --allow-write --allow-net --allow-run host/main.js run",
-    "maze": "deno task run examples/maze"
+    "maze": "deno task run examples/maze",
+    "relay": "deno run --allow-net host/main.js relay"
   },
   "compilerOptions": {
     "checkJs": true,

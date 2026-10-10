@@ -211,6 +211,42 @@ Everything passed in either direction is JSON. A game that keeps progress under 
 
 **The display's line.** The display opens a WebSocket to `endlessmind/play?guest=<32 random hex characters>` under the game's address and sends and receives JSON text messages. The host learns who is playing from the session the browser sends with that connection, so the display connects again after its player signs in or out. Hosts accept the connection only from the game's own pages, and serve a helper for all of this at `endlessmind/play.js`.
 
+## Relays
+
+A relay lets players reach a game that runs on a computer they cannot connect to, such as its maker's computer at home. A relay has an HTTPS address that is a site's root, such as `https://relay.example/`, and gives each game a site of its own under that name: `https://<realm ID>.relay.example/`. The realm uses that address as it would any other, in its sign-in codes and its realm card.
+
+**Asking to be relayed.** The game's host opens a WebSocket to `endlessmind/relay` under the relay's address. Every message on it is JSON text with a `t` field.
+
+1. The relay sends `{ "t": "hello", "nonce": "<32 hex characters>" }`.
+2. The host answers `{ "t": "note", "note": <signed JSON> }`. The note is signed by the realm and names the relay and the nonce:
+
+   ```json
+   { "v": 1, "type": "relay", "signers": ["<realm ID>"], "time": 1790000000000, "relay": "https://relay.example/", "nonce": "<the nonce>" }
+   ```
+
+3. The relay checks that the realm signed the note, that `relay` is its own address and that `nonce` is the one it just sent. It answers `{ "t": "ready", "base": "<the game's address>" }`, or `{ "t": "full" }` if it has no room, and then closes. A host that is offered any address but the one above stops using that relay.
+
+A realm that asks again takes the place of its earlier connection. The game is at its address for as long as the connection stays open.
+
+**Passing players through.** The relay gives each request and each display's line a number, `n`.
+
+| From   | Message                                           | Meaning                                              |
+| ------ | ------------------------------------------------- | ---------------------------------------------------- |
+| Relay  | `request`: `n`, `method`, `path`, `headers`, `body` | A player's request; `body` only if there is one    |
+| Host   | `response`: `n`, `status`, `headers`              | The answer begins                                    |
+| Host   | `body`: `n`, `data`                               | The next piece of the answer's body                  |
+| Host   | `end`: `n`                                        | The answer is complete                               |
+| Relay  | `open`: `n`, `path`, `headers`                    | A display asks for a line                            |
+| Host   | `response`: `n`, `status`                         | That line is refused                                 |
+| Either | `text`: `n`, `data`                               | One message on a line                                |
+| Either | `close`: `n`, `code`, `reason`                    | The line ended, or the player stopped waiting        |
+
+`path` starts with `/` and includes any query. `headers` is a list of `[name, value]` pairs. Bodies are base64, an answer's in pieces of any size. Headers that belong to one connection are not passed: `connection`, `keep-alive`, `transfer-encoding`, `upgrade`, `host`, `content-length`, `te`, `trailer`, and any starting with `sec-websocket-` or `proxy-`. A line needs no message to accept it: the host simply starts sending `text`.
+
+The reference relay passes a body of at most 1 MB from a player, a message of at most 64 KB on a line, at most 200 requests and lines at once for one game, and waits 60 seconds for an answer to begin.
+
+**What a relay can do.** Everything passes through it, so it can read and change what a game and its players say to each other. It cannot learn a secret phrase or make a record, because the realm's secret stays with the game's host and a player's proofs come from their EntryPortal.
+
 ## Burning an identity
 
 Revealing the secret phrase or the private key burns the identity; either has the same effect. The usual way is a burn notice:

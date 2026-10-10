@@ -17,11 +17,14 @@ The documents are brought up to date so that they describe only what is so now:
 
 ## Steps
 
-### 1. The relay
+### 1. A fast game through a relay
 
-Friends anywhere join a game running on its maker's computer. Direct connections between the players and that computer where possible, with the relay making the introduction.
+The host program can relay, and can run a game through a relay. Still to do:
 
-The game to prove it with is Monster Maze, a fast game for several players at once:
+- **A relay anyone can use.** One running on the web, which needs a name whose every sub-name leads to it and an HTTPS certificate that covers them all. Until then a maker's friends can join only through a relay somebody runs themselves.
+- **A fast game.** Everything passes through the relay. If that is too slow for a fast game, add direct connections between the players and the maker's computer, with the relay making the introduction.
+
+The game to find out with is Monster Maze, a fast game for several players at once:
 
 - It starts out looking just like Endless Maze.
 - As soon as the player makes one move, the screen vanishes and says "You just fell through a trap door!" Then the game is in 3D.
@@ -31,7 +34,7 @@ The game to prove it with is Monster Maze, a fast game for several players at on
 
 ### 2. Hosting many games
 
-The host program runs one game today. To host for others it needs: several games at once, each on a site of its own; a resident game at the main address; its own HTTPS certificates; a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; and stopping a game that nobody is playing, which needs the host to keep its timer. It also includes the relay.
+The host program runs one game today. To host for others it needs: several games at once, each on a site of its own; a resident game at the main address; relaying as a switch beside them, not a separate command; its own HTTPS certificates; a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; and stopping a game that nobody is playing, which needs the host to keep its timer.
 
 ### 3. Releases
 
@@ -47,7 +50,7 @@ One download for Mac, Windows and Linux, installable with brew, apt, winget and 
 
 ### 6. The EntryPortal's messages
 
-The reminder on the screen that takes a phrase, and the "being asked is rare" rule at setup. Published as a new version.
+The reminder on the screen that takes a phrase, and the "being asked is rare" rule at setup. It also accepts plain `http` for names under `localhost`, as it does for `localhost` itself, so that `tests/browser/` can run the whole loop through a relay. Published as a new version.
 
 ### 7. Other languages
 
@@ -59,7 +62,6 @@ Each is described under "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md).
 
 | Question                                          | Needed for |
 | ------------------------------------------------- | ---------- |
-| How far a relay must be trusted                   | Step 1     |
 | Whether a host needs a domain name                | Step 2     |
 | Which games a host loads                          | Step 3     |
 | How hosts and players find hosts                  | Step 3     |
