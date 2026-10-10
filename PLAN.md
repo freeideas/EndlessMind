@@ -19,10 +19,7 @@ The documents are brought up to date so that they describe only what is so now:
 
 ### 1. A fast game through a relay
 
-The host program can relay, and can run a game through a relay. Still to do:
-
-- **A relay anyone can use.** One running on the web, which needs a name whose every sub-name leads to it and an HTTPS certificate that covers them all. Until then a maker's friends can join only through a relay somebody runs themselves.
-- **A fast game.** Everything passes through the relay. If that is too slow for a fast game, add direct connections between the players and the maker's computer, with the relay making the introduction.
+Everything between a player and a game on its maker's computer passes through the relay, so each message crosses the internet twice. If that is too slow for a fast game, add direct connections between the players and the maker's computer, with the relay making the introduction.
 
 The game to find out with is Monster Maze, a fast game for several players at once:
 
