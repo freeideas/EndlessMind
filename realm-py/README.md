@@ -1,6 +1,6 @@
 # The realm library for Python
 
-What a realm written in Python includes to join Endless Mind: the same sign-in by QR code, claiming records, realm card, public list and refusing burned IDs as [realm/realm.js](../realm/realm.js), with the same addresses, formats and `.data/` files, so a realm can move between the two. The browser side is not copied: the realm serves [realm/signin.js](../realm/signin.js) unchanged. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md).
+What a tied realm (one that runs on its maker's own server) written in Python includes to join Endless Mind: the same sign-in by QR code, claiming records, realm card, public list and refusing burned IDs as [realm/realm.js](../realm/realm.js), with the same addresses, formats and `.data/` files, so a realm can move between the two. The browser side is not copied: the realm serves [realm/signin.js](../realm/signin.js) unchanged. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md).
 
 | File                         | What it is                                                                    |
 | ---------------------------- | ----------------------------------------------------------------------------- |

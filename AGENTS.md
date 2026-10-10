@@ -1,6 +1,6 @@
 # Working on this repository
 
-Instructions for AI agents (and people) changing Endless Mind itself. The project is being redesigned: identity, records and finding realms are settled, and hosting and making realms are still open (see "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md)).
+Instructions for AI agents (and people) changing Endless Mind itself. The design is in [specs/DESIGN.md](specs/DESIGN.md). The parts of it not built yet, and the order to build them in, are in [PLAN.md](PLAN.md).
 
 ## Layout
 
@@ -11,8 +11,8 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 | `specs/`    | The design and the protocol                                                         |
 | `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |
-| `realm/`    | The realm library: sign-in, claims, realm card and public list for realms on Deno   |
-| `realm-py/` | The realm library's server side for Python game servers (uv project, ASGI adapter)  |
+| `realm/`    | The realm library for tied realms on Deno: sign-in, claims, realm card, public list |
+| `realm-py/` | The same library's server side for tied realms in Python (uv project, ASGI adapter) |
 | `examples/` | Example realms built on the library; `maze/` is Endless Maze                        |
 | `tests/`    | Deno unit tests, and `browser/`: the whole loop in two browsers (Playwright, `uv`)  |
 | `site/`     | The endlessmind.com website, one subfolder per page                                 |
@@ -27,4 +27,5 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 - Design decisions go in [specs/DESIGN.md](specs/DESIGN.md), using the terms in its "Words used here" section (realm, player, ID, secret phrase, proof, EntryPortal, record).
 - Player-facing text uses plain words: secret phrase, player ID, proof, EntryPortal, record. Never key, signature or address of a key.
 - Docs: plain language, no em or en dashes as punctuation, no hard-wrapped paragraphs, tables under 120 characters wide.
+- Docs describe only what is so now: no history, no dropped alternatives, no "previously". Git keeps the history.
 - Examples and demos are original work only (see "Original work only" in DESIGN.md).

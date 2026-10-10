@@ -4,7 +4,7 @@ A free, open network for anything AI can make: games, places, shops, tools, whol
 
 AI coding agents now let anyone make a game just by describing it. Endless Mind connects all of them, the way the web connects websites, with no company in the middle. What ties it together is identity: you are the same player everywhere, and what you earn in one game you can show in another, with proof.
 
-**Status: being redesigned.** Identity, records and finding realms are settled and written down; hosting and making realms are still being worked out. A first EntryPortal, a library for realms and a small example realm are written and tested on one computer; nothing is running publicly yet.
+**Try it:** [Endless Maze](https://maze.endlessmind.com/) is a small example realm, and [portal.endlessmind.com](https://portal.endlessmind.com/) is an EntryPortal.
 
 ## Your secret phrase
 
@@ -44,7 +44,9 @@ You find realms on **boards**: realms whose purpose is listing other realms, run
 
 ## Making realms
 
-Being worked out. The idea: make a game any way you like (usually by describing it to your AI coding agent), then wrap it so it joins the network. A browser game will need nothing installed. Be original: do not make anything overly similar to someone else's game, and do not copy anyone's names, characters, art, music or logos.
+Describe your game to your AI coding agent and point it at this repository. Today a realm runs on a server of your own, using the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md); [Endless Maze](examples/maze/README.md) is a small example to start from. Making a game in your browser with no server at all, and releasing it for others to host, is being built: see [PLAN.md](PLAN.md).
+
+Be original: do not make anything overly similar to someone else's game, and do not copy anyone's names, characters, art, music or logos.
 
 ## Learn more
 
@@ -52,6 +54,7 @@ Being worked out. The idea: make a game any way you like (usually by describing 
 | -------------------------------- | ------------------------------------------------------- |
 | [DESIGN.md](specs/DESIGN.md)     | The design, the reasons behind it, and what is not decided yet |
 | [PROTOCOL.md](specs/PROTOCOL.md) | Exact formats: IDs, signing in, records, EntryPortal rules |
+| [PLAN.md](PLAN.md)               | What is being built next                                |
 
 ## License
 

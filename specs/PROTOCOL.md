@@ -1,6 +1,6 @@
 # Endless Mind protocol
 
-The exact formats: keys, signed JSON, signing in, records, finding realms, and burning an identity. Why things are this way is in [DESIGN.md](DESIGN.md). Hosting and making realms are not decided yet.
+The exact formats: keys, signed JSON, signing in, records, finding realms, and burning an identity. Why things are this way is in [DESIGN.md](DESIGN.md). The formats for making and hosting realms are added here as each is built.
 
 ## Keys and IDs
 
@@ -198,7 +198,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 8. **Records can leave.** The page saves and loads records files.
 9. **A site of its own.** The page is served from a site (scheme, host and port) that serves nothing but EntryPortal versions. A stored key cannot be read out, but any script on the same site can use it to sign, so a single other page there, or one broken into, could sign as every player.
 
-The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered v0.2, v0.3 and so on up to v1.0, each in [portal/](../portal/) and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. (v0.1 was published at `https://endlessmind.com/EntryPortal/v0.1/` before EntryPortals had sites of their own, and stays there unchanged; `https://endlessmind.com/EntryPortal/` now forwards to the new site.) It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
+The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered v0.2, v0.3 and so on up to v1.0, each in [portal/](../portal/) and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
 
 ## Versions
 
