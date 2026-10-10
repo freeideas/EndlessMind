@@ -7,6 +7,7 @@ Instructions for AI agents (and people) changing Endless Mind itself. The projec
 | Path        | What it is                                                                          |
 | ----------- | ----------------------------------------------------------------------------------- |
 | `README.md` | For end users: people who play and people who create                                |
+| `PLAN.md`   | What is being built next, in order; each step is deleted once it is done            |
 | `specs/`    | The design and the protocol                                                         |
 | `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |
