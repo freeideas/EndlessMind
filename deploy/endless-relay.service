@@ -1,0 +1,22 @@
+# systemd unit for the Endless Mind relay at https://relay.endlessmind.com/ on ordinarydata.
+# Install: sudo cp deploy/endless-relay.service /etc/systemd/system/ && sudo systemctl enable --now endless-relay
+# Caddy passes relay.endlessmind.com and every name under it to 127.0.0.1:8790; see deploy/README.md.
+# The relay keeps nothing on disk and needs only the network.
+
+[Unit]
+Description=Endless Mind relay: passes players to games on their makers' computers
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ace
+Group=ace
+WorkingDirectory=/home/ace/Desktop/prjx/EveryGame
+Environment=HOME=/home/ace
+ExecStart=/home/ace/.local/bin/deno run --allow-net host/main.js relay --base https://relay.endlessmind.com/ --port 8790
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
