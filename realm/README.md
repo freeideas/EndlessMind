@@ -1,6 +1,6 @@
 # The realm library
 
-What a tied realm (one that runs on its maker's own server) includes to join Endless Mind on Deno: sign-in by QR code, claiming records, its realm card, its public list and refusing burned IDs. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md); [examples/maze/](../examples/maze/) uses all of it. For game servers written in Python, [realm-py/](../realm-py/) does the same, on the same files.
+What a tied realm (one that runs on its maker's own server) includes to join Endless Mind on Deno: sign-in by QR code, claiming records, its realm card, its public list and refusing burned IDs. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md); [The host program](../host/README.md) uses all of it. For game servers written in Python, [realm-py/](../realm-py/) does the same, on the same files.
 
 | File                  | What it is                                                                  |
 | --------------------- | --------------------------------------------------------------------------- |

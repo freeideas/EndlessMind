@@ -44,10 +44,10 @@ def serve_portal() -> None:
 
 
 def start_maze(data: str) -> subprocess.Popen:
-    env = {**os.environ, "MAZE_PORT": str(MAZE_PORT), "MAZE_BASE": MAZE, "MAZE_PORTAL": PORTAL, "MAZE_DATA": data}
     game = subprocess.Popen(
-        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-env", "examples/maze/server.js"],
-        cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-run", "host/main.js", "run", "examples/maze",
+         "--port", str(MAZE_PORT), "--base", MAZE, "--portal", PORTAL, "--data", data, "--no-watch"],
+        cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     for _ in range(100):
         try:

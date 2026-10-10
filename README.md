@@ -44,7 +44,7 @@ You find realms on **boards**: realms whose purpose is listing other realms, run
 
 ## Making realms
 
-Describe your game to your AI coding agent and point it at this repository. Today a realm runs on a server of your own, using the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md); [Endless Maze](examples/maze/README.md) is a small example to start from. Making a game in your browser with no server at all, and releasing it for others to host, is being built: see [PLAN.md](PLAN.md).
+Describe your game to your AI coding agent and point it at this repository. The agent writes the game and starts it on your computer with [the host program](host/README.md), which gives you a link to play it; [Endless Maze](examples/maze/README.md) is a small example to start from. To put a game on the web today, run the same program on a server of your own. A game with private server code can instead use the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md). Letting friends join a game on your computer, and releasing a game for others to host while you sleep, are being built: see [PLAN.md](PLAN.md).
 
 Be original: do not make anything overly similar to someone else's game, and do not copy anyone's names, characters, art, music or logos.
 

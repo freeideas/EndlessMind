@@ -58,6 +58,7 @@ footer { margin-top: 1.5rem; color: #7d8ea8; font-size: .9rem; }
 </main>
 <script type="module">
 import { mountSignIn } from "./endlessmind/signin.js";
+import { play as connect } from "./endlessmind/play.js";
 import { DOWN, LEFT, makeMaze, RIGHT, step, UP } from "./maze.js";
 
 const board = document.getElementById("board");
@@ -69,7 +70,9 @@ let level = 1;
 let maze = makeMaze(1);
 let cell = 0;
 let moves = "";
-let run = null; // a promise of the run ID the server gives each attempt
+let run = null; // a promise of the run ID the game server gives each attempt
+let asked = 0; // each attempt's own number, so the answer for an earlier attempt is not mistaken for this one's
+const waiting = new Map(); // attempts still waiting for their run ID, by number
 let started = 0;
 let finished = false;
 
@@ -115,12 +118,7 @@ function drawBar() {
 
 const seconds = (ms) => (ms / 1000).toFixed(1) + " s";
 
-async function api(path, body) {
-  const response = await fetch(path, body ? { method: "POST", body: JSON.stringify(body) } : { cache: "no-store" });
-  return response.json();
-}
-
-async function play(n) {
+function play(n) {
   level = Math.max(1, Math.min(n, state.reached));
   maze = makeMaze(level);
   cell = maze.start;
@@ -131,11 +129,10 @@ async function play(n) {
   $("note").textContent = "";
   draw();
   drawBar();
-  // Moves count at once; finishing waits for the server to have started the run.
-  run = api("api/start", { level }).then((answer) => {
-    if (!answer.run) $("note").textContent = answer.error ?? "";
-    return answer.run;
-  });
+  // Moves count at once; finishing waits for the game server to have started the run.
+  const mine = ++asked;
+  run = new Promise((resolve) => waiting.set(mine, resolve));
+  server.send({ type: "start", n: mine, level });
 }
 
 async function move(letter) {
@@ -148,16 +145,30 @@ async function move(letter) {
   draw();
   if (cell !== maze.exit) return;
   finished = true;
-  const answer = await api("api/finish", { run: await run, moves });
-  if (answer.error) {
-    $("note").textContent = answer.error;
-    return;
-  }
-  state = answer;
-  $("note").textContent = `Level ${answer.level} done in ${seconds(answer.ms)}. Next one coming up...`;
-  drawBar();
-  signIn.refresh();
-  setTimeout(() => level === answer.level && play(answer.level + 1), 1500);
+  server.send({ type: "finish", run: await run, moves });
+}
+
+let shownFor;
+/** @param {any} answer what the game server says */
+function hear(answer) {
+  if (answer.type === "state") {
+    state = answer;
+    // On first load, and whenever someone signs in or out, start at the first unfinished level.
+    if (shownFor !== state.player) {
+      shownFor = state.player;
+      play(state.reached);
+    } else drawBar();
+  } else if (answer.type === "run") {
+    if (!answer.run) $("note").textContent = answer.error ?? "";
+    waiting.get(answer.n)?.(answer.run);
+    waiting.delete(answer.n);
+  } else if (answer.type === "done") {
+    state = { ...state, reached: answer.reached, best: answer.best };
+    $("note").textContent = `Level ${answer.level} done in ${seconds(answer.ms)}. Next one coming up...`;
+    drawBar();
+    signIn.refresh();
+    setTimeout(() => level === answer.level && play(answer.level + 1), 1500);
+  } else if (answer.type === "error") $("note").textContent = answer.error;
 }
 
 const KEYS = { ArrowUp: "U", ArrowRight: "R", ArrowDown: "D", ArrowLeft: "L", w: "U", d: "R", s: "D", a: "L", W: "U", D: "R", S: "D", A: "L" };
@@ -200,17 +211,9 @@ $("prev").onclick = () => play(level - 1);
 $("next").onclick = () => play(level + 1);
 setInterval(drawBar, 100);
 
-let shownFor;
-async function load() {
-  state = await api("api/state");
-  // On first load, and whenever someone signs in or out, start at the first unfinished level.
-  if (shownFor !== state.player) {
-    shownFor = state.player;
-    play(state.reached);
-  } else drawBar();
-}
-
-const signIn = mountSignIn($("signin"), { onChange: load });
+const server = connect({ onMessage: hear });
+// The game server learns who is playing when a display connects, so connect again after signing in or out.
+const signIn = mountSignIn($("signin"), { onChange: (me) => shownFor !== undefined && (me?.player ?? null) !== state.player && server.reconnect() });
 </script>
 </body>
 </html>

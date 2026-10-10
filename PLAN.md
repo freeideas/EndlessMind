@@ -17,15 +17,9 @@ The documents are brought up to date so that they describe only what is so now:
 
 ## Steps
 
-### 1. The server calls, in a browser tab
+### 1. The relay
 
-Define the game server's calls in `specs/PROTOCOL.md`. Move Endless Maze's server onto them and run it in a browser tab, with a page that shows how it is doing and a "Play" link that opens the game in another tab.
-
-Suggested: shape the calls like Durable Objects (a small named server with its own storage, live connections and a timer, that sleeps when nobody is connected). AI coding agents already know that shape well, and a sleeping game costs a host almost nothing. The project depends on no Durable Objects product: celld, the open one, says plainly that it is not safe for running strangers' code, and serves one owner's machines sharing one store.
-
-### 2. The relay
-
-Friends anywhere join a game running in its maker's tab. Direct browser-to-browser connections where possible, with the relay making the introduction.
+Friends anywhere join a game running on its maker's computer. Direct connections between the players and that computer where possible, with the relay making the introduction.
 
 The game to prove it with is Monster Maze, a fast game for several players at once:
 
@@ -35,25 +29,29 @@ The game to prove it with is Monster Maze, a fast game for several players at on
 - When the monster eats a player, the player starts again in another part of the maze, with the clock still ticking.
 - The monster sees through walls and moves straight toward players, but it is not smart.
 
-### 3. The host program
+### 2. Hosting many games
 
-Runs the same game server file sealed off, with a site of its own for each game and a resident game at the main address. Fetches its own HTTPS certificates. Includes the relay.
+The host program runs one game today. To host for others it needs: several games at once, each on a site of its own; a resident game at the main address; its own HTTPS certificates; a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; and stopping a game that nobody is playing, which needs the host to keep its timer. It also includes the relay.
 
-### 4. Releases
+### 3. Releases
 
-Signing a release, making the torrent, fetching and checking it on a host, and loading games by the admin's rules.
+Signing a release, making the torrent, fetching and checking it on a host, and loading games by the admin's rules. A release names the version of the calls its game server was written for.
 
-### 5. Records, notes and boards
+### 4. Records, notes and boards
 
 Records signed by hosts, players' notes on them, then a board that adds up play per release across hosts and shows which hosts run a game.
 
-### 6. The package
+### 5. The package
 
-Installable with brew, apt, winget and pacman. Asks three questions: the web address, the resident game, the rules for loading. Serves the spare EntryPortal.
+One download for Mac, Windows and Linux, installable with brew, apt, winget and pacman, so that nobody needs Deno installed first. For a host it asks three questions: the web address, the resident game, the rules for loading. Serves the spare EntryPortal.
 
-### 7. The EntryPortal's messages
+### 6. The EntryPortal's messages
 
 The reminder on the screen that takes a phrase, and the "being asked is rare" rule at setup. Published as a new version.
+
+### 7. Other languages
+
+Game servers compiled to WebAssembly, under the same seal and the same calls.
 
 ## Questions to settle first
 
@@ -61,7 +59,7 @@ Each is described under "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md).
 
 | Question                                          | Needed for |
 | ------------------------------------------------- | ---------- |
-| The web address of a game in its maker's tab      | Step 2     |
-| Whether a host needs a domain name                | Step 3     |
-| Which games a host loads                          | Step 4     |
-| How hosts and players find hosts                  | Step 4     |
+| How far a relay must be trusted                   | Step 1     |
+| Whether a host needs a domain name                | Step 2     |
+| Which games a host loads                          | Step 3     |
+| How hosts and players find hosts                  | Step 3     |

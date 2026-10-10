@@ -23,11 +23,12 @@ What makes it one network rather than many separate games is identity: a player 
 - **Board:** an everyday word, like game, for a realm that lists other realms. It has no technical meaning of its own.
 - **Maker:** whoever makes a realm, usually by describing it to an AI coding agent.
 - **Game server:** the part of a realm that all its players connect to. The **display** is the part each player sees: ordinary web pages.
-- **Open realm:** a realm whose game server is one sealed file, so anyone can run it.
+- **Open realm:** a realm whose game server is sealed, so anyone can safely run it.
 - **Tied realm:** a realm run only by whoever controls its server, because its server code is private or its world is too valuable to lose.
 - **Release:** one exact version of an open realm, packed so that anyone can fetch it and run it.
 - **Host:** whoever runs releases so that others can play. A host is a key pair too.
-- **Relay:** a go-between that passes messages to a game server that players cannot reach directly. Anyone can run one.
+- **Host program:** the one program that makers and hosts both use to run games.
+- **Relay:** a go-between that lets players reach a game running on a computer they cannot connect to directly. Anyone can run one.
 
 ## Decisions
 
@@ -90,9 +91,10 @@ What makes it one network rather than many separate games is identity: a player 
 **Making realms**
 
 - **Anyone with an AI coding agent can make one.** The maker describes the game, and the agent writes the display and the game server. The maker never rents a server and never has to read code.
-- **A game server is one sealed file.** It can do nothing except through a small fixed set of calls: a player joined, a player left, a message came in, send a message, a timer went off, save, load. It is JavaScript, or another language compiled to WebAssembly (a compact program format that every browser runs). It can reach nothing else, which is what makes a stranger's game safe to run, and the same file runs unchanged in a browser tab and on any host.
-- **Making happens in the browser.** One tab runs the game server and shows how it is doing, with a link that opens the game in another tab, so the maker plays exactly as everyone else will. Friends anywhere join by the same link, through a relay. This lasts while the maker's computer is on; for that time the maker is the host, and the realm signs its own records.
-- **Phones play anything; making and hosting need a computer.** A phone pauses a page as soon as its owner looks away, so a game server in a phone's tab would stop. For the same reason every game lets a player whose connection dropped rejoin smoothly.
+- **A game server is sealed.** It can do nothing except through a small fixed set of calls: it started, a player joined, a player left, a message came in, a timer went off; and send a message, save, load, set the timer, offer a record. It is JavaScript, or another language compiled to WebAssembly (a compact program format that the same engine runs). It can reach nothing else, which is what makes a stranger's game safe to run.
+- **The seal is borrowed, not built.** It is the engine browsers use to contain web pages, which is attacked every day and fixed quickly. Each game server gets a process of its own with every permission switched off, a cap on its memory, and a host that stops it if it stops answering. A container such as Docker shares far more with the machine it runs on and is far heavier, so it suits tied realms, not strangers' games.
+- **Makers and hosts run the same program.** The maker's AI agent starts the host program on the maker's own computer and hands them a link, so the maker plays exactly as everyone else will, and a game that works at home works on every host. Friends anywhere join by a link too, through a relay. This lasts while the maker's computer is on; for that time the maker is the host, and the realm signs its own records.
+- **Phones play anything; making and hosting need a computer.** A phone pauses a page as soon as its owner looks away, so every game lets a player whose connection dropped rejoin smoothly.
 - **A release is a torrent.** It holds the game server, the display and the realm card, and any BitTorrent program can fetch and share it. The realm signs the release's fingerprint once, and its secret can then stay on paper. A change to the game is a new release.
 - **Open or tied.** An open realm can be run by anyone, so it lives on while its maker sleeps with every device switched off. A tied realm is run by its maker alone and signs its own records with the realm's secret. Both are realms like any other to players and boards.
 - **What lasts is what players carry.** An open realm that keeps lasting progress in its players' records moves between hosts freely: a player shows their records and carries on. An open realm with a world of its own has a separate world on each host, each starting from the beginning. A realm that cannot accept that is a tied realm.
@@ -105,7 +107,7 @@ What makes it one network rather than many separate games is identity: a player 
 - **A reason to host.** The host program is installed in minutes and keeps one resident game of the admin's own at the main address, which the admin can advertise. In return it loads other people's games. The resident game earns the host its reputation, and that reputation gives weight to the records it signs for everyone else's games.
 - **The admin sets the rules once.** The host program then loads and removes games without asking. The admin can remove or block anything.
 - **The seal protects the machine, not its owner.** A host is responsible for what it serves, like anyone who runs a website, and the host program says so plainly before it loads strangers' games.
-- **One program does every job.** A host is also a relay for games still running in their makers' tabs, and carries a spare EntryPortal on a site of its own: an exact published version, so checking it means comparing a fingerprint. Games on the host keep naming a widely used EntryPortal on their sign-in screens.
+- **One program does every job.** A host is also a relay for games still running on their makers' computers, and carries a spare EntryPortal on a site of its own: an exact published version, so checking it means comparing a fingerprint. Games on the host keep naming a widely used EntryPortal on their sign-in screens.
 
 **Finding realms**
 
@@ -129,7 +131,7 @@ What makes it one network rather than many separate games is identity: a player 
 
 - **Which games does a host load?** Suggested: the one with the most wishes per host already running it, so a wanted game with no host comes first. A wish is a record signed by a player ("I want to play release X"), one at a time per player, lasting a week. Hosts pass wishes to each other and count only those from players with play on record in realms they trust, so a crowd of made-up players counts for nothing. A game leaves when another has more wishes per host.
 - **How do hosts and players find hosts?** A realm card travels in the torrent, so it cannot list hosts that load the game later. Suggested: a host running a release already shares its torrent, so the torrent network's own lookup answers "who has release X?". Each machine found that way is asked for its host card (its ID, web address and what it runs, signed by the host), since the lookup itself proves nothing. Hosts also announce themselves under one agreed fingerprint, so a new host finds the others, and each host publishes the list of hosts it knows. Browsers cannot use the torrent lookup, so a player asks any host or board.
-- **What web address does a game in its maker's tab have, and where is the realm's secret kept meanwhile?** Friends need an HTTPS address to load the display from and to name in their sign-in notes, and the tab has none. If it is the relay's address, the relay could act as that game toward its players, so the answer decides how far a relay must be trusted.
+- **How far must a relay be trusted?** Friends need an HTTPS address to load the display from and to name in their sign-in notes, and a game on its maker's computer has none. If the address is the relay's, the relay could act as that game toward its players.
 - **Does a host need a domain name?** Free names made from a server's number need no setup. To be tested: whether certificates can be had reliably for such names when many hosts share one naming service, and whether games on one host stay fully apart.
 - **iPhone storage.** iPhone browsers erase what a page's scripts stored, such as the EntryPortal's key, after seven days of browser use without a tap or click on that site. Every sign-in taps the EntryPortal, so only a player who goes that long without signing in anywhere is at risk, and their screenshot brings the identity back. Suggested: game sign-ins that last about five days, so regular play keeps tapping the EntryPortal.
 

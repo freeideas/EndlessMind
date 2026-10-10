@@ -1,6 +1,6 @@
 # Endless Mind protocol
 
-The exact formats: keys, signed JSON, signing in, records, finding realms, and burning an identity. Why things are this way is in [DESIGN.md](DESIGN.md). The formats for making and hosting realms are added here as each is built.
+The exact formats: keys, signed JSON, signing in, records, finding realms, game servers, and burning an identity. Why things are this way is in [DESIGN.md](DESIGN.md). The formats for releases and hosts are added here as each is built.
 
 ## Keys and IDs
 
@@ -168,6 +168,48 @@ A realm serves its newest card at `endlessmind-card.json` under each address in 
 It holds the realm's complete records marked `public`, signed by the realm and by every player they name. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
 
 **Boards** are realms that read cards and lists and rank other realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
+
+## Game servers
+
+A game is a folder: `game.js` (the game server), `card.json` (the realm card's `name`, `description` and optional `tags` and `picture`) and the display's files, starting at `index.html`. A file or folder whose name starts with a dot is never served to players and never loaded.
+
+**The calls.** `game.js` is a JavaScript module whose default export is an object with any of these functions. The host calls them one at a time, in order, and waits for each to finish:
+
+| Function                      | When                                                        |
+| ----------------------------- | ----------------------------------------------------------- |
+| `start(game)`                 | The game server has started                                 |
+| `join(game, player)`          | A display connected                                         |
+| `leave(game, player)`         | That display's connection ended                             |
+| `message(game, player, data)` | That display sent `data`                                    |
+| `timer(game)`                 | The time set with `game.timer` has passed                   |
+
+`game` is what the game server may ask of its host:
+
+| Function                      | What it does                                                           |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `game.send(player, data)`     | Sends `data` to that display                                           |
+| `game.save(key, value)`       | Keeps `value` under `key`; `undefined` removes it                      |
+| `game.load(key)`              | What was last saved under `key`, or `undefined`                        |
+| `game.timer(ms)`              | Sets the one timer, replacing any earlier time; `null` clears it       |
+| `game.offer(player, records)` | Offers a signed-in player records to claim, each `{ text, data? }`     |
+| `game.players()`              | Everyone connected now                                                 |
+
+`player` describes one connection; a person with two pages open is two of them:
+
+| Field     | Meaning                                                                               |
+| --------- | ------------------------------------------------------------------------------------- |
+| `conn`    | A number for this connection                                                          |
+| `who`     | Who is playing: `player:<ID>` once signed in, otherwise the same as `guest`           |
+| `id`      | The player's ID, or `null` for a guest                                                |
+| `name`    | The name to show; `Guest` for a guest                                                 |
+| `guest`   | `guest:<32 hex characters>`: this browser's name before anyone signed in              |
+| `records` | The records this realm has signed with the player, each `{ text, data?, time }`       |
+
+Everything passed in either direction is JSON. A game that keeps progress under `who` can carry a guest's progress over at sign-in, since `guest` stays the same.
+
+**The seal.** A game server runs where it cannot open files, use the network, start other programs or learn anything about the computer it is on. It may import other files from its own folder, all named in the code so the host can check them before it starts; nothing from the web, and no built-in modules. A host stops a game server that needs more memory than the host allows (64 MB in the reference host) or that goes six seconds without answering, and starts it again when the next display connects. A game server may therefore start at any moment knowing only what it saved, and what it saved may be at most 4 MB as JSON. A message may be at most 64 KB as JSON.
+
+**The display's line.** The display opens a WebSocket to `endlessmind/play?guest=<32 random hex characters>` under the game's address and sends and receives JSON text messages. The host learns who is playing from the session the browser sends with that connection, so the display connects again after its player signs in or out. Hosts accept the connection only from the game's own pages, and serve a helper for all of this at `endlessmind/play.js`.
 
 ## Burning an identity
 

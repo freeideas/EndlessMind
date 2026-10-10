@@ -1,0 +1,5 @@
+{
+  "name": "Endless Maze",
+  "description": "Run mazes that grow with every level. Finishing levels 3, 10, 20 and every tenth after earns a record. An example realm for Endless Mind.",
+  "tags": ["maze", "puzzle", "example"]
+}

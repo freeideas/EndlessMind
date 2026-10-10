@@ -15,9 +15,7 @@ User=ace
 Group=ace
 WorkingDirectory=/home/ace/Desktop/prjx/EveryGame
 Environment=HOME=/home/ace
-Environment=MAZE_PORT=8760
-Environment=MAZE_BASE=https://maze.endlessmind.com/
-ExecStart=/home/ace/.local/bin/deno run --allow-read --allow-write --allow-net --allow-env examples/maze/server.js
+ExecStart=/home/ace/.local/bin/deno run --allow-read --allow-write --allow-net --allow-run host/main.js run examples/maze --port 8760 --base https://maze.endlessmind.com/ --no-watch
 Restart=always
 RestartSec=5
 
