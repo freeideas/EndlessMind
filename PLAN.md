@@ -48,6 +48,8 @@ The specs describe the whole design from the start. The README describes only wh
 
 Define the calls in `specs/PROTOCOL.md`. Move Endless Maze's server onto them and run it in a browser tab, with the status page and the "Play" link. This proves the core idea at the lowest cost.
 
+Suggested: shape the calls like Durable Objects (a small named server with its own storage, live connections and a timer, that sleeps when nobody is connected). AI coding agents already know that shape well, and a sleeping game costs a host almost nothing. The project depends on no Durable Objects product: celld, the open one, says plainly that it is not safe for running strangers' code, and serves one owner's machines sharing one store.
+
 ### 3. The relay
 
 Friends anywhere join a game running in the maker's tab. Direct browser-to-browser connections where possible, with the relay making the introduction.
@@ -79,3 +81,4 @@ Each needs an answer before the step that depends on it.
 1. **Which games does a host load?** Suggested: the one with the most wishes per host already running it, so a wanted game with no host comes first. A wish is a record signed by a player ("I want to play release X"), one at a time per player, lasting a week. Hosts pass wishes to each other and count only those from players with play on record in realms they trust, so a crowd of made-up players counts for nothing. The admin sets the number of places and the caps, and can remove or block anything. A game leaves when another has more wishes per host. Needed for step 5.
 2. **How do hosts and players find hosts?** Suggested: a host running a release already shares its torrent, so the torrent network's own lookup answers "who has release X?". Each host found that way is asked for its host card (its ID, web address and what it runs, signed by the host), since the lookup itself proves nothing. Hosts also announce themselves under one agreed fingerprint, so a new host finds the others, and each host publishes the list of hosts it knows. Browsers cannot use the torrent lookup, so a player asks any host or board. Needed for step 5.
 3. **Do free names made from a server's number work well enough?** To test: whether certificates can be had reliably for such names when many hosts share one naming service, and whether games on one host stay fully apart. Needed for step 4.
+4. **What web address does a game in the maker's tab have?** Friends need an HTTPS address to load the pages from and to name in their sign-in notes, and the tab has none. If it is the relay's address, the relay could act as that game toward its players, so the answer decides how far a relay must be trusted. Needed for step 3.
