@@ -9,15 +9,17 @@ Someone who cannot code, but has an AI coding agent, has an idea for a game. The
 ## The design in short
 
 - **A game server is one sealed file.** It can do nothing except through a small fixed set of calls: player joined, player left, message in, message out, tick, save, load. It is JavaScript, or another language compiled to WebAssembly.
+- **Two kinds of realm.** An open realm is a sealed file that any host can run. A tied realm has private server code, or a world too large to lose, and is run by whoever controls its server; it signs its own records with the realm's secret. `realm/` and `realm-py/` are the libraries for tied realms.
 - **The same file runs everywhere.** In a tab of the maker's browser, and on any host, unchanged.
 - **Making happens in the browser.** One tab runs the server and shows its status, with a link that opens the game in another tab. Friends join by the same link, through a relay. This works while the maker's computer is on.
 - **A release is a torrent.** It holds the server file, the display files and the realm card. The maker's realm signs the release's fingerprint once, and the realm's secret can then stay offline.
 - **Hosts run releases.** A host fetches the torrent, checks the fingerprint and the maker's proof, and runs the server file with no network, no files, and capped memory and time. Each game gets its own subdomain. The host shares the torrent onward.
-- **Hosts sign play records under their own ID,** naming the release. Boards add up play across every host of a release, so the realm earns reputation without its secret being present.
+- **Hosts sign play records under their own ID,** naming the release. Boards add up play across every host of a release, so the realm earns reputation without its secret being present. A record says who signed and for which realm, so a later version can let a maker permit a trusted host to sign as the realm itself without changing old records.
+- **What lasts is what players carry.** An open realm that keeps its lasting progress in players' records moves between hosts freely: a player shows their records and carries on. An open realm with a world of its own (save and load) has a separate world on each host, starting from the beginning. A realm that cannot accept that is a tied realm.
 - **The host package gives people a reason to host.** It installs with a package manager, keeps one resident game of the admin's own at the main address, and loads other games on request under rules the admin sets once. It is also a relay, and carries a spare copy of the EntryPortal on a subdomain of its own.
 - **A loading request is a record signed by a player.** Hosts accept requests only from players with enough play on record in realms they trust, with limits per player and per game. Games nobody plays are removed.
 - **Friends are a new game's first evidence.** Records from play in the maker's browser are what lead others to find the game and ask a host to load it.
-- **Reviews are records signed by the player alone,** weighed by the reviewer's own play in that game. The maker's description is the realm card, which travels in the torrent.
+- **A review is a note on a play record.** When a player approves a record, they may add any words they like. The note is covered by the player's proof only, so a host cannot change it, and it sits on proof that the player really played. The maker's description is the realm card, which travels in the torrent.
 - **Players pick one EntryPortal and stay with it.** The screen that asks for a secret phrase tells the player to check the page with their AI helper first. Setup teaches the rule that matters: being asked for the phrase is rare, and a player who did not start it themselves should stop.
 - **Phones play anything; making and hosting need a computer.** Phones pause background tabs, so a server in a phone's tab would stop.
 
@@ -33,7 +35,7 @@ Rewrite every document so the design above is the only design it mentions, in as
 | `specs/PROTOCOL.md`           | Add the server calls, releases, host-signed records, loading requests, reviews  |
 | `README.md`                   | "Making realms" tells the story in "The goal"; add a short part for hosts       |
 | `AGENTS.md`                   | Layout and conventions match the new folders                                    |
-| `realm/`, `realm-py/` READMEs | Rewrite or remove, depending on open question 1                                 |
+| `realm/`, `realm-py/` READMEs | Say plainly that these are for tied realms                                      |
 | `examples/maze/README.md`     | Endless Maze as a sealed server file                                            |
 | `portal/README.md`            | The phrase screen's message and the setup rule                                  |
 | `deploy/`, `site/` READMEs    | Match whatever is published after the steps below                               |
@@ -60,11 +62,11 @@ Signing a release, making the torrent, fetching and checking it on a host, loadi
 
 ### 6. Records, reviews and boards
 
-Host-signed records and player-signed reviews, then a board that counts play per release across hosts and shows which hosts run a game.
+Host-signed records and players' notes on them, then a board that counts play per release across hosts and shows which hosts run a game.
 
 ### 7. The package
 
-Installable with brew, apt, winget and pacman. Asks three questions: the web address, the resident game, the loading rules. Serves the spare EntryPortal.
+Installable with brew, apt, winget and pacman. Asks three questions: the web address (the admin's own domain, or a free name made from the server's number, such as sslip.io gives), the resident game, the loading rules. Serves the spare EntryPortal.
 
 ### 8. The EntryPortal's messages
 
@@ -74,10 +76,6 @@ The check-first message on the phrase screen, and the "being asked is rare" rule
 
 Each needs an answer before the step that depends on it.
 
-1. **Do realms that run their own server stay in the design?** (`realm/` on Deno, `realm-py/` for Python.) Suggested: yes, in one sentence, because any program that follows the protocol takes part. All guidance for makers leads with the sealed file. Needed for step 1.
-2. **May a maker permit a trusted host to sign as the realm itself?** Suggested: not at first. Needed for step 6.
-3. **How does a player find which hosts run a game?** Suggested: hosts publish what they run, and boards join it up. Needed for step 6.
-4. **Can a saved world move between hosts?** Suggested: an export file at first, nothing automatic. Needed for step 4.
-5. **Are reviews that speak against a realm allowed?** Suggested: yes, since anyone can sign a statement anyway and boards decide what counts. Needed for step 6.
-6. **What are the default loading rules?** Needed for step 5.
-7. **A domain name is the one thing the package cannot set up.** Should the project, or anyone, offer free subdomains to hosts? Needed for step 7.
+1. **What are the default loading rules?** These are the settings that decide which requests a host accepts without asking its admin. A starting point to argue with: only a player with some hours on record in the host's resident game may ask; one loaded game per asking player; a fixed number of places, each with capped memory and time; a new game stays a week and longer only if it is played; when the host is full, the least played game leaves; the admin can remove or block anything. Needed for step 5.
+2. **How does a player find which hosts run a game?** The maker cannot keep a list while asleep. Suggested: each host publishes what it runs, and boards join the lists up. Needed for step 6.
+3. **Do free names made from a server's number work well enough?** To test: whether certificates can be had reliably for such names when many hosts share one naming service, and whether games on one host stay fully apart. Needed for step 4.
