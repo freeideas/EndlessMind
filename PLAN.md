@@ -17,17 +17,9 @@ The documents are brought up to date so that they describe only what is so now:
 
 ## Steps
 
-### 1. A fast game through a relay
+### 1. Is a relay fast enough?
 
-Everything between a player and a game on its maker's computer passes through the relay, so each message crosses the internet twice. If that is too slow for a fast game, add direct connections between the players and the maker's computer, with the relay making the introduction.
-
-The game to find out with is Monster Maze, a fast game for several players at once:
-
-- It starts out looking just like Endless Maze.
-- As soon as the player makes one move, the screen vanishes and says "You just fell through a trap door!" Then the game is in 3D.
-- Each level holds several players and a monster.
-- When the monster eats a player, the player starts again in another part of the maze, with the clock still ticking.
-- The monster sees through walls and moves straight toward players, but it is not smart.
+Everything between a player and a game on its maker's computer passes through the relay, so each message crosses the internet twice. [Monster Maze](examples/monster/README.md) is the game to judge that with: it shows the round trip to the game server while it is played. People playing it through a relay decide whether it feels good enough. If it does not, add direct connections between the players and the maker's computer, with the relay making the introduction.
 
 ### 2. Hosting many games
 

@@ -6,6 +6,7 @@
     "browser": "uv run tests/browser/loop_test.py",
     "run": "deno run --allow-read --allow-write --allow-net --allow-run host/main.js run",
     "maze": "deno task run examples/maze",
+    "monster": "deno task run examples/monster",
     "relay": "deno run --allow-net host/main.js relay"
   },
   "compilerOptions": {

@@ -1,0 +1,5 @@
+{
+  "name": "Monster Maze",
+  "description": "A maze that looks harmless, until you take your first step. A fast game for several players at once: find the exit while a monster that sees through walls hunts the nearest of you. Finishing levels 3, 10, 20 and every tenth after earns a record. An example realm for Endless Mind.",
+  "tags": ["maze", "action", "multiplayer", "example"]
+}

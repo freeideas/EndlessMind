@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monster Maze</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; touch-action: manipulation; color: #e9f1ff; background: #0d1420; font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 40rem; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
+h1 { margin: 0; font-size: 1.9rem; }
+.lead { color: #9fb2cc; margin: .2rem 0 .8rem; }
+#signin { margin: .8rem 0 1rem; padding: .8rem 1rem; border-radius: 12px; background: #ffffff0d; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: .6rem 0; }
+#level { font-size: 1.2rem; font-weight: 700; }
+#clock { font-variant-numeric: tabular-nums; color: #9fb2cc; }
+#ping { margin-left: auto; font-size: .8rem; font-variant-numeric: tabular-nums; color: #7d8ea8; }
+#stage { position: relative; max-width: 560px; margin: .4rem auto; }
+canvas { display: block; width: 100%; touch-action: none; border-radius: 8px; background: #111b2b; }
+#board { aspect-ratio: 1; }
+#view { aspect-ratio: 4 / 3; display: none; }
+#flash { position: absolute; inset: 0; border-radius: 8px; background: #e0202080; opacity: 0; pointer-events: none; transition: opacity .6s; }
+#flash.on { opacity: 1; transition: none; }
+#note { min-height: 1.6em; text-align: center; color: #ffd76a; font-weight: 600; }
+/* Taps on the arrows are for moving: no double-tap zoom, no text selection, no long-press menu. */
+.pad, .hold { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.pad { display: grid; grid-template-columns: repeat(3, 4.6rem); grid-template-rows: repeat(2, 4rem); gap: .5rem; justify-content: center; margin: .6rem 0; }
+.pad button, .hold button { font-size: 1.6rem; border-radius: 12px; border: 1px solid #ffffff30; background: #ffffff12; color: inherit; cursor: pointer; }
+.pad button:active, .hold button:active, .hold button.down { background: #ffffff30; }
+.pad .up { grid-column: 2; grid-row: 1; }
+.pad .left { grid-column: 1; grid-row: 2; }
+.pad .down { grid-column: 2; grid-row: 2; }
+.pad .right { grid-column: 3; grid-row: 2; }
+/* In the dark, the controls sit over the bottom corners of the view, under the thumbs. */
+.hold { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: .5rem; justify-content: space-between; pointer-events: none; }
+.hold div { display: flex; gap: .5rem; pointer-events: auto; }
+.hold button { width: 3.8rem; height: 3.8rem; background: #0d142099; backdrop-filter: blur(2px); }
+a { color: #8fc3ff; }
+footer { margin-top: 1.5rem; color: #7d8ea8; font-size: .9rem; }
+/* After the fall, the maze is gone: only the view and its controls stay. */
+body.deep #board, body.deep .pad, body.deep .lead, body.deep footer { display: none; }
+body.deep #view { display: block; }
+body.deep .hold { display: flex; }
+body.deep main { padding-top: .6rem; }
+body.deep h1 { font-size: 1.3rem; }
+body.deep #signin { margin: .4rem 0; padding: .4rem .8rem; font-size: .9rem; }
+#fall { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; padding: 2rem; background: #000; text-align: center;
+  font-size: clamp(1.6rem, 6vw, 3rem); font-weight: 800; color: #ff6b5e; }
+#fall.on { display: flex; }
+#fall span { display: block; animation: plunge 2.4s cubic-bezier(.3, 0, .8, .4) both; }
+#fall.out { opacity: 0; transition: opacity .6s; }
+@keyframes plunge { from { transform: translateY(-40vh) scale(.6); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(0) scale(1); } }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Endless Maze</h1>
+  <p class="lead">Run from the top left to the glowing square. Each level is bigger.</p>
+  <div id="signin"></div>
+  <div class="bar">
+    <span id="level"></span>
+    <span id="clock"></span>
+    <span id="ping" title="Round trip to the game server"></span>
+  </div>
+  <div id="stage">
+    <canvas id="board" width="560" height="560" aria-label="The maze"></canvas>
+    <canvas id="view" width="480" height="360" aria-label="First person view of the maze"></canvas>
+    <div id="flash"></div>
+    <div class="hold" aria-label="Controls">
+      <div><button data-hold="left" aria-label="Turn left">&larr;</button><button data-hold="right" aria-label="Turn right">&rarr;</button></div>
+      <div><button data-hold="fwd" aria-label="Forward">&uarr;</button><button data-hold="back" aria-label="Back">&darr;</button></div>
+    </div>
+  </div>
+  <p id="note"></p>
+  <div class="pad" aria-label="Arrow buttons">
+    <button class="up" data-move="U" aria-label="Up">&uarr;</button>
+    <button class="left" data-move="L" aria-label="Left">&larr;</button>
+    <button class="down" data-move="D" aria-label="Down">&darr;</button>
+    <button class="right" data-move="R" aria-label="Right">&rarr;</button>
+  </div>
+  <footer>
+    Arrow keys or W, A, S, D work too, and you can swipe on the maze. An example realm for
+    <a href="https://endlessmind.com/">Endless Mind</a>; a guest's progress belongs to this browser, so sign in to keep yours on any device.
+  </footer>
+</main>
+<div id="fall" aria-live="assertive"><span>You just fell through a trap door!</span></div>
+<script type="module">
+import { mountSignIn } from "./endlessmind/signin.js";
+import { play as connect } from "./endlessmind/play.js";
+import { DOWN, LEFT, makeMaze, RIGHT, UP } from "./maze.js";
+import { BACK, makeGrid, PLAYER_R, slide, TURN, WALK } from "./world.js";
+
+const $ = (id) => document.getElementById(id);
+const board = $("board"), view = $("view");
+const ctx = board.getContext("2d"), vx = view.getContext("2d");
+
+let state = { reached: 1, best: {}, player: null };
+let phase = "map"; // "map": the maze seen from above; "falling": the trap door; "deep": the first person view
+let level = 1;
+let maze = makeMaze(1);
+let grid = null; // the tile grid of the level being played
+let me = null; // where this player is: { x, y, a }
+let clockStart = 0;
+let fallEnds = 0; // when the trap door message is gone and play can begin
+let monster = null; // { x, y, tx, ty }: drawn position, and the position last heard
+const others = new Map(); // other players on the level, by connection: { x, y, a, tx, ty, ta }
+let flashUntil = 0;
+let eaten = 0;
+let shownFor;
+let sent = { x: 0, y: 0, a: 0 };
+let place = 0; // the number of the latest placing the game server told this display of
+let ping = null;
+
+const seconds = (ms) => (ms / 1000).toFixed(1) + " s";
+
+// ---- the maze seen from above, just like Endless Maze ----
+
+function drawMap() {
+  const px = board.width;
+  const unit = px / maze.size;
+  ctx.fillStyle = "#111b2b";
+  ctx.fillRect(0, 0, px, px);
+  const ex = (maze.exit % maze.size) * unit, ey = Math.floor(maze.exit / maze.size) * unit;
+  ctx.fillStyle = "#ffd76a";
+  ctx.shadowColor = "#ffd76a";
+  ctx.shadowBlur = unit;
+  ctx.fillRect(ex + unit * .2, ey + unit * .2, unit * .6, unit * .6);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#c9d8ee";
+  ctx.lineWidth = Math.max(2, unit / 8);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let c = 0; c < maze.size * maze.size; c++) {
+    const x = (c % maze.size) * unit, y = Math.floor(c / maze.size) * unit;
+    const open = maze.open[c];
+    if (!(open & UP)) { ctx.moveTo(x, y); ctx.lineTo(x + unit, y); }
+    if (!(open & LEFT)) { ctx.moveTo(x, y); ctx.lineTo(x, y + unit); }
+    if (!(open & DOWN) && Math.floor(c / maze.size) === maze.size - 1) { ctx.moveTo(x, y + unit); ctx.lineTo(x + unit, y + unit); }
+    if (!(open & RIGHT) && c % maze.size === maze.size - 1) { ctx.moveTo(x + unit, y); ctx.lineTo(x + unit, y + unit); }
+  }
+  ctx.stroke();
+  ctx.fillStyle = "#6ee7ff";
+  ctx.beginPath();
+  ctx.arc(unit * .5, unit * .5, unit * .3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function showMap(n) {
+  phase = "map";
+  document.body.classList.remove("deep");
+  $("title").textContent = "Endless Maze";
+  level = Math.max(1, n);
+  maze = makeMaze(level);
+  grid = me = monster = null;
+  others.clear();
+  $("note").textContent = "";
+  drawMap();
+  drawBar();
+}
+
+function drawBar() {
+  $("level").textContent = `Level ${level}`;
+  const best = state.best[level];
+  const clock = phase === "deep" && grid ? seconds(performance.now() - clockStart) : "";
+  $("clock").textContent = clock + (best ? `  best ${seconds(best)}` : "") + (phase === "deep" && eaten ? `  eaten ${eaten}` : "");
+  $("ping").textContent = ping === null ? "" : `${Math.round(ping)} ms`;
+}
+
+// ---- the fall ----
+
+/** The first move of any kind: the maze vanishes and the player drops into the level. */
+function fall() {
+  if (phase !== "map" || !ready) return;
+  phase = "falling";
+  held.clear();
+  const message = $("fall");
+  message.classList.remove("out");
+  message.classList.add("on");
+  fallEnds = performance.now() + 2400;
+  document.body.classList.add("deep");
+  $("title").textContent = "Monster Maze";
+  server.send({ type: "enter", level });
+  setTimeout(() => message.classList.add("out"), 2400);
+  setTimeout(() => {
+    message.classList.remove("on", "out");
+    if (phase === "falling") phase = "deep";
+  }, 3000);
+}
+
+// ---- what the game server says ----
+
+let ready = false;
+function hear(m) {
+  if (m.type === "state") {
+    state = m;
+    ready = true;
+    if (shownFor !== state.player) {
+      // On first load, and whenever someone signs in or out, start at the first unfinished level.
+      shownFor = state.player;
+      showMap(state.reached);
+    } else if (phase === "map") showMap(state.reached);
+    else if (phase !== "map") server.send({ type: "enter", level }); // a dropped line is back: rejoin the level
+    drawBar();
+  } else if (m.type === "level") {
+    level = m.level;
+    grid = makeGrid(level);
+    me = { x: m.x, y: m.y, a: m.a };
+    sent = { ...me };
+    place = m.p;
+    clockStart = performance.now() - m.elapsed;
+    eaten = m.eaten;
+    state.best[level] = m.best ?? state.best[level];
+    if (!state.best[level]) delete state.best[level];
+    monster = null;
+    others.clear();
+    if (phase === "map") { phase = "deep"; document.body.classList.add("deep"); }
+    drawBar();
+  } else if (m.type === "t") {
+    if (!grid) return;
+    if (!monster) monster = { x: m.m[0], y: m.m[1], tx: m.m[0], ty: m.m[1] };
+    else Object.assign(monster, { tx: m.m[0], ty: m.m[1] });
+    const present = new Set();
+    for (const [conn, x, y, a] of m.o) {
+      present.add(conn);
+      const other = others.get(conn);
+      if (other) Object.assign(other, { tx: x, ty: y, ta: a });
+      else others.set(conn, { x, y, a, tx: x, ty: y, ta: a });
+    }
+    for (const conn of [...others.keys()]) if (!present.has(conn)) others.delete(conn);
+  } else if (m.type === "fix") {
+    if (me) Object.assign(me, { x: m.x, y: m.y });
+    sent = { ...me };
+    place = m.p;
+  } else if (m.type === "eaten") {
+    Object.assign(me, { x: m.x, y: m.y, a: m.a });
+    sent = { ...me };
+    place = m.p;
+    eaten++;
+    flashUntil = performance.now() + 700;
+    $("flash").classList.add("on");
+    setTimeout(() => $("flash").classList.remove("on"), 50);
+    $("note").textContent = "The monster got you! You wake up somewhere else.";
+    setTimeout(() => ($("note").textContent = ""), 3000);
+  } else if (m.type === "done") {
+    state = { ...state, reached: m.reached, best: m.best };
+    $("note").textContent = `Level ${m.level} done in ${seconds(m.ms)}. A bigger one starts now.`;
+    setTimeout(() => ($("note").textContent = ""), 3500);
+    signIn.refresh();
+  } else if (m.type === "pong") {
+    ping = performance.now() - m.t;
+  } else if (m.type === "error") {
+    $("note").textContent = m.error;
+    if (m.where === "enter") {
+      $("fall").classList.remove("on", "out");
+      showMap(state.reached);
+    }
+  }
+}
+
+// ---- controls ----
+
+const held = new Set(); // "left", "right", "fwd", "back"
+const KEYS = { ArrowUp: "fwd", ArrowDown: "back", ArrowLeft: "left", ArrowRight: "right", w: "fwd", s: "back", a: "left", d: "right" };
+const MAP_MOVES = { ArrowUp: "U", ArrowRight: "R", ArrowDown: "D", ArrowLeft: "L", w: "U", d: "R", s: "D", a: "L" };
+addEventListener("keydown", (event) => {
+  if (event.target instanceof HTMLInputElement) return;
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (!KEYS[key]) return;
+  event.preventDefault();
+  if (phase === "map") fall();
+  else held.add(KEYS[key]);
+});
+addEventListener("keyup", (event) => {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  held.delete(KEYS[key]);
+});
+addEventListener("blur", () => held.clear());
+
+// The arrows under the maze: any press is a first move.
+for (const button of document.querySelectorAll(".pad button")) {
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    fall();
+  });
+}
+// Swiping on the maze is a move too.
+let touchStart = null;
+board.addEventListener("pointerdown", (event) => (touchStart = { x: event.clientX, y: event.clientY }));
+board.addEventListener("pointerup", (event) => {
+  if (!touchStart) return;
+  const dx = event.clientX - touchStart.x, dy = event.clientY - touchStart.y;
+  touchStart = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) >= 20) fall();
+});
+
+// The controls over the view: held down for as long as they are pressed.
+for (const button of document.querySelectorAll(".hold button")) {
+  const name = button.dataset.hold;
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    button.setPointerCapture(event.pointerId);
+    button.classList.add("down");
+    held.add(name);
+  });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    button.addEventListener(type, () => {
+      button.classList.remove("down");
+      held.delete(name);
+    });
+  }
+}
+
+// ---- drawing the view: one ray per two columns of pixels ----
+
+const FOV = 1.15; // the width of what is seen, in radians (about 66 degrees)
+const COL = 2;
+const RAYS = view.width / COL;
+const depth = new Float32Array(RAYS);
+const sky = vx.createLinearGradient(0, 0, 0, view.height / 2);
+sky.addColorStop(0, "#0a0f1c");
+sky.addColorStop(1, "#1c2a44");
+const ground = vx.createLinearGradient(0, view.height / 2, 0, view.height);
+ground.addColorStop(0, "#1a2233");
+ground.addColorStop(1, "#2b3447");
+
+function drawView(now) {
+  const W = view.width, H = view.height;
+  vx.fillStyle = sky;
+  vx.fillRect(0, 0, W, H / 2);
+  vx.fillStyle = ground;
+  vx.fillRect(0, H / 2, W, H / 2);
+  if (!grid || !me) return;
+  const dirX = Math.cos(me.a), dirY = Math.sin(me.a);
+  const reach = Math.tan(FOV / 2);
+  const planeX = -dirY * reach, planeY = dirX * reach; // to the right of where we face
+  for (let i = 0; i < RAYS; i++) {
+    const cam = (2 * (i + .5)) / RAYS - 1;
+    const rx = dirX + planeX * cam, ry = dirY + planeY * cam;
+    let tx = Math.floor(me.x), ty = Math.floor(me.y);
+    const ddx = Math.abs(1 / (rx || 1e-9)), ddy = Math.abs(1 / (ry || 1e-9));
+    const stepX = rx < 0 ? -1 : 1, stepY = ry < 0 ? -1 : 1;
+    let sideX = (rx < 0 ? me.x - tx : tx + 1 - me.x) * ddx;
+    let sideY = (ry < 0 ? me.y - ty : ty + 1 - me.y) * ddy;
+    let side = 0;
+    for (let n = 0; n < 200; n++) {
+      if (sideX < sideY) { sideX += ddx; tx += stepX; side = 0; } else { sideY += ddy; ty += stepY; side = 1; }
+      if (tx < 0 || ty < 0 || tx >= grid.size || ty >= grid.size || grid.tiles[ty * grid.size + tx]) break;
+    }
+    const dist = Math.max(.05, side === 0 ? sideX - ddx : sideY - ddy);
+    depth[i] = dist;
+    const h = H / dist;
+    const shade = Math.max(.12, 1 - dist / 11) * (side ? .72 : 1);
+    vx.fillStyle = `rgb(${Math.round(201 * shade)},${Math.round(216 * shade)},${Math.round(238 * shade)})`;
+    vx.fillRect(i * COL, (H - h) / 2, COL, h);
+  }
+
+  // Things drawn into the view: the exit's glowing pillar, other players, the monster; far ones first.
+  const things = [{ x: grid.exit.x, y: grid.exit.y, kind: "exit" }];
+  for (const [conn, other] of others) things.push({ x: other.x, y: other.y, kind: "player", conn });
+  if (monster) things.push({ x: monster.x, y: monster.y, kind: "monster" });
+  for (const thing of things) thing.f = (thing.x - me.x) * dirX + (thing.y - me.y) * dirY;
+  things.sort((p, q) => q.f - p.f);
+  for (const thing of things) {
+    if (thing.f < .1) continue;
+    const side = (thing.x - me.x) * -dirY + (thing.y - me.y) * dirX;
+    const centre = (W / 2) * (1 + side / (thing.f * reach));
+    const wall = H / thing.f; // how tall a wall is at this distance, in pixels
+    const floor = H / 2 + wall / 2;
+    const tall = wall * (thing.kind === "monster" ? .9 : thing.kind === "exit" ? 1 : .45);
+    const half = wall * (thing.kind === "monster" ? .42 : thing.kind === "exit" ? .12 : .22);
+    const fog = Math.max(.25, 1 - thing.f / 14);
+    for (let px = Math.max(0, Math.floor(centre - half)); px < Math.min(W, centre + half); px += COL) {
+      if (thing.f >= depth[Math.floor(px / COL)]) continue;
+      const u = (px + COL / 2 - centre) / half;
+      if (Math.abs(u) > 1) continue;
+      if (thing.kind === "exit") drawPillar(px, floor, tall, u, now);
+      else if (thing.kind === "monster") drawMonster(px, floor, tall, u, fog, now);
+      else drawPlayer(px, floor, tall, u, fog, thing.conn);
+    }
+  }
+  if (now < flashUntil) {
+    vx.fillStyle = `rgba(224,32,32,${.5 * (flashUntil - now) / 700})`;
+    vx.fillRect(0, 0, W, H);
+  }
+}
+
+/** The exit: a column of gold light that pulses. */
+function drawPillar(px, floor, tall, u, now) {
+  const pulse = .75 + .25 * Math.sin(now / 200);
+  vx.fillStyle = `rgba(255,215,106,${(1 - Math.abs(u) * .6) * pulse})`;
+  vx.fillRect(px, floor - tall, COL, tall);
+}
+
+/** The monster: a big dome of purple with a ragged edge, yellow eyes and teeth. */
+function drawMonster(px, floor, tall, u, fog, now) {
+  const top = floor - tall * (.25 + .75 * Math.sqrt(1 - u * u));
+  const ragged = (Math.floor((u + 1) * 5) % 2) * tall * .08;
+  const bottom = floor - ragged;
+  vx.fillStyle = `rgb(${Math.round(120 * fog)},${Math.round(30 * fog)},${Math.round(150 * fog)})`;
+  vx.fillRect(px, top, COL, bottom - top);
+  vx.fillStyle = `rgb(${Math.round(70 * fog)},${Math.round(15 * fog)},${Math.round(90 * fog)})`;
+  vx.fillRect(px, top, COL, Math.max(1, tall * .04));
+  if (Math.abs(Math.abs(u) - .4) < .14) {
+    vx.fillStyle = "#ffe14d";
+    vx.fillRect(px, floor - tall * .72, COL, tall * .14);
+    if (Math.abs(Math.abs(u) - .4) < .05) { vx.fillStyle = "#300"; vx.fillRect(px, floor - tall * .68, COL, tall * .06); }
+  }
+  if (Math.abs(u) < .6) {
+    vx.fillStyle = "#1a0525";
+    vx.fillRect(px, floor - tall * .42, COL, tall * .2);
+    if (Math.floor((u + 1) * 7) % 2) { vx.fillStyle = "#fff"; vx.fillRect(px, floor - tall * .42, COL, tall * .07); }
+  }
+}
+
+/** Another player: a ball in a colour of its own, with two eyes. */
+function drawPlayer(px, floor, tall, u, fog, conn) {
+  const round = Math.sqrt(1 - u * u);
+  const centre = floor - tall / 2;
+  vx.fillStyle = `hsl(${(conn * 67) % 360} 75% ${Math.round(58 * fog)}%)`;
+  vx.fillRect(px, centre - (tall / 2) * round, COL, tall * round);
+  if (u > -.55 && u < -.25) {
+    vx.fillStyle = "#ffffff55";
+    vx.fillRect(px, centre - (tall / 2) * round * .8, COL, tall * round * .25);
+  }
+  if (Math.abs(Math.abs(u) - .35) < .1) {
+    vx.fillStyle = "#101820";
+    vx.fillRect(px, centre - tall * .15, COL, tall * .16);
+  }
+}
+
+// ---- the game loop ----
+
+let previous = performance.now();
+let lastSent = 0;
+function frame(now) {
+  const dt = Math.min((now - previous) / 1000, .1);
+  previous = now;
+  if (phase === "deep" && me && now >= fallEnds) {
+    const turn = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
+    const walk = (held.has("fwd") ? WALK : 0) - (held.has("back") ? BACK : 0);
+    me.a += turn * TURN * dt;
+    if (walk) slide(grid, me, Math.cos(me.a) * walk * dt, Math.sin(me.a) * walk * dt, PLAYER_R);
+    // Tell the game server where we are about ten times a second, while that changes.
+    if (now - lastSent >= 100 && (me.x !== sent.x || me.y !== sent.y || me.a !== sent.a)) {
+      lastSent = now;
+      sent = { ...me };
+      server.send({ type: "pos", x: Math.round(me.x * 100) / 100, y: Math.round(me.y * 100) / 100, a: Math.round(me.a * 100) / 100, p: place });
+    }
+  }
+  // What others do arrives about twelve times a second; between, draw them gliding toward it.
+  const ease = 1 - Math.exp(-dt * 14);
+  if (monster) { monster.x += (monster.tx - monster.x) * ease; monster.y += (monster.ty - monster.y) * ease; }
+  for (const other of others.values()) {
+    other.x += (other.tx - other.x) * ease;
+    other.y += (other.ty - other.y) * ease;
+  }
+  if (phase !== "map") drawView(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setInterval(drawBar, 100);
+setInterval(() => server.send({ type: "ping", t: performance.now() }), 2000);
+
+const server = connect({
+  onMessage: hear,
+  onOpen: () => {
+    server.send({ type: "ping", t: performance.now() });
+    $("note").textContent === "Connection lost. Coming back..." && ($("note").textContent = "");
+  },
+  onClose: () => {
+    ready = false;
+    ping = null;
+    $("note").textContent = "Connection lost. Coming back...";
+  },
+});
+// The game server learns who is playing when a display connects, so connect again after signing in or out.
+const signIn = mountSignIn($("signin"), { onChange: (who) => shownFor !== undefined && (who?.player ?? null) !== state.player && server.reconnect() });
+</script>
+</body>
+</html>
