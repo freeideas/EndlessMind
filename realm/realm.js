@@ -36,10 +36,13 @@ const COOKIE = "endlessmind"; // the session cookie's name; see cookieName
  *   now?: () => number,
  *   isBurned?: (id: string) => boolean | Promise<boolean>,
  *   onRecord?: (record: any) => void,
+ *   runs?: { realm: string, release: string },
  * }} RealmOptions
  * `base` is the realm's public address, ending in "/"; the realm answers under it. `portal` is the
  * EntryPortal its sign-in codes name. The realm's secret phrase is `words`, or is kept in `secretFile`
- * (made on first run). What it must remember is kept in `dataFile`, or in `store`.
+ * (made on first run). What it must remember is kept in `dataFile`, or in `store`. A host that runs
+ * a release of someone else's realm signs under its own ID and gives `runs`: its card and every record
+ * it signs then name that realm and release.
  */
 
 export const DEFAULT_PORTAL = "https://portal.endlessmind.com/"; // forwards to the newest version
@@ -99,6 +102,7 @@ export class Realm {
       v: 1,
       type: "card",
       signers: [this.id],
+      ...(this.options.runs ?? {}),
       time: this.now(),
       name,
       description,
@@ -168,7 +172,7 @@ export class Realm {
     const offers = (this.data.offers[player] ??= []);
     for (const { text, data } of items) {
       if (typeof text !== "string" || text.length > 1000) throw new Error("a record's text must be at most 1000 characters");
-      offers.push({ v: 1, type: "record", signers: [this.id, player], time: this.now(), text, ...(data ? { data } : {}) });
+      offers.push({ v: 1, type: "record", signers: [this.id, player], ...(this.options.runs ?? {}), time: this.now(), text, ...(data ? { data } : {}) });
     }
     await this.#save();
   }

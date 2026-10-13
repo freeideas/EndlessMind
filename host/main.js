@@ -3,19 +3,26 @@
 //   deno run -A host/main.js run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>]
 //                                         [--relay <address>] [--portal <address>] [--data <folder>]
 //                                         [--no-watch]
-//   deno run -A host/main.js host --base <address> [--game <folder>] [--port 8000] [--hostname 127.0.0.1]
-//                                 [--data <folder>] [--portal <address>] [--games 20] [--no-relay]
-//                                 [--no-portal]
+//   deno run -A host/main.js run <release ID> --relay <address> [--from <address>,...] [--store <folder>]
+//   deno run -A host/main.js pack <folder> [--store <folder>]
+//   deno run -A host/main.js host --base <address> [--game <folder>] [--load <release ID>,...]
+//                                 [--from <address>,...] [--store <folder>] [--port 8000]
+//                                 [--hostname 127.0.0.1] [--data <folder>] [--portal <address>]
+//                                 [--games 20] [--no-relay] [--no-portal]
 //   deno run -A host/main.js relay --base <address> [--port 8100] [--hostname 127.0.0.1] [--games 20]
 //
 // `run` plays one game on this computer: it prints the address to open, and starts the game server
-// again whenever a file in the folder changes. With `--relay`, players anywhere can join it. `host`
-// is for a computer everyone can reach: it keeps a resident game, relays for games on other computers
-// and serves a spare EntryPortal. `relay` only relays. See host/README.md.
+// again whenever a file in the folder changes. With `--relay`, players anywhere can join it. Given a
+// release's ID instead of a folder, it runs someone else's game. `pack` makes a release from a game's
+// folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
+// releases, relays for games on other computers and serves a spare EntryPortal. `relay` only relays.
+// See host/README.md.
 
 import { runGame } from "./host.js";
 import { runRelay } from "./relay.js";
 import { runHost } from "./hosting.js";
+import { findRelease, isReleaseId, pack } from "./release.js";
+import { join } from "node:path";
 
 const [command, ...rest] = Deno.args;
 /** @type {Record<string, string>} */
@@ -31,8 +38,27 @@ for (let i = 0; i < rest.length; i++) {
   flags[rest[i].slice(2)] = next === undefined || next.startsWith("--") ? "" : rest[++i];
 }
 const port = flags.port ? Number(flags.port) : undefined;
+const store = flags.store || ".endlessmind";
+/** @param {string | undefined} list */
+const listed = (list) => (list ? list.split(",").filter(Boolean) : []);
 
-if (command === "run" && names.length === 1) {
+if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
+  const release = await findRelease({ store, id: names[0], from: listed(flags.from) });
+  const running = await runGame({
+    release,
+    secretFile: join(store, "host-secret.txt"),
+    data: join(store, "games", release.realm),
+    port,
+    hostname: flags.hostname || undefined,
+    base: flags.base || undefined,
+    relay: flags.relay || undefined,
+    portal: flags.portal || undefined,
+  });
+  console.log(`Play ${release.note.card.name} at ${running.base} (release ${release.id} of realm ${release.realm}, hosted under ID ${running.realm.id})`);
+} else if (command === "pack" && names.length === 1) {
+  const release = await pack({ folder: names[0], store, data: flags.data || undefined });
+  console.log(`Release ${release.id} of ${release.note.card.name} (realm ID ${release.realm})`);
+} else if (command === "run" && names.length === 1) {
   const running = await runGame({
     folder: names[0],
     port,
@@ -53,11 +79,15 @@ if (command === "run" && names.length === 1) {
     data: flags.data || undefined,
     portal: flags.portal || undefined,
     games: flags.games ? Number(flags.games) : undefined,
+    store,
+    load: listed(flags.load),
+    from: listed(flags.from),
     relay: !("no-relay" in flags),
     entryPortal: !("no-portal" in flags),
   });
   console.log(`Hosting at ${host.base}`);
-  if (host.realm) console.log(`  The game here: ${host.realm.card.name} (realm ID ${host.realm.id})`);
+  if (host.realm) console.log(`  The game here: ${host.realm.card.name} (realm ID ${host.realm.id}); others can host it as release ${host.release?.id}`);
+  for (const game of host.hosted()) console.log(`  ${game.name}: ${game.base} (release ${game.id})`);
   if (!("no-relay" in flags)) console.log(`  Relaying: a game on another computer joins with --relay ${host.base}`);
   if (host.entryPortal) console.log(`  EntryPortal: ${host.entryPortal}`);
 } else if (command === "relay" && names.length === 0 && flags.base) {
@@ -65,7 +95,9 @@ if (command === "run" && names.length === 1) {
   console.log(`Relaying for games at ${relay.base}`);
 } else {
   console.error("Usage: run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay <address>] [--portal <address>] [--data <folder>] [--no-watch]");
-  console.error("       host --base <address> [--game <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]");
+  console.error("       run <release ID> --relay <address> [--from <address>,...] [--store <folder>]");
+  console.error("       pack <folder> [--store <folder>]");
+  console.error("       host --base <address> [--game <folder>] [--load <release ID>,...] [--from <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]");
   console.error("       relay --base <address> [--port 8100] [--hostname 127.0.0.1] [--games 20]");
   Deno.exit(2);
 }

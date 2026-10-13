@@ -62,8 +62,9 @@ export function relayedBase(relay, id) {
 /**
  * A relay without a web server of its own: give `handle` each request that arrives. The relay must be
  * reachable at `base` and at every name under it, with HTTPS in front of both.
- * @param {{ base: string, games?: number, log?: (text: string) => void }} options
- * `games` is how many games it passes at once.
+ * @param {{ base: string, games?: number, taken?: (id: string) => boolean, log?: (text: string) => void }} options
+ * `games` is how many games it passes at once. `taken` says whether a name is already in use for
+ * something else, so that no game is relayed there.
  */
 export function openRelay(options) {
   const own = new URL(options.base);
@@ -116,7 +117,8 @@ export function openRelay(options) {
       const signer = note?.signers?.[0];
       const good = m.t === "note" && note.v === 1 && note.type === "relay" && note.signers.length === 1 && isId(signer) &&
         note.relay === own.href && note.nonce === nonce && (await isComplete(note));
-      if (!good) return socket.close(1008, "that note does not prove a realm");
+      if (!good) return socket.close(1008, "that note does not prove an ID");
+      if (options.taken?.(signer)) return socket.close(1008, "that name is in use here");
       const before = games.get(signer);
       if (!before && games.size >= most) {
         tell(game, { t: "full" });

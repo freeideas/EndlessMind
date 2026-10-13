@@ -1,3 +1,5 @@
 .DS_Store
 # A game keeps its data (its secret phrase, progress, records) in .data/ inside its own folder.
 .data/
+# The host program keeps releases, their data and its own secret phrase here.
+.endlessmind/

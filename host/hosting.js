@@ -6,10 +6,14 @@
 //
 //   https://myvps.example/              the resident game
 //   https://eportal.myvps.example/      the EntryPortal
-//   https://<realm ID>.myvps.example/   each relayed game
+//   https://<realm ID>.myvps.example/   each release it runs, and each relayed game
+//
+// It also hands the releases it runs, its resident game's among them, to any host that asks.
 
+import { join } from "node:path";
 import { openGame } from "./host.js";
 import { openRelay, page } from "./relay.js";
+import { findRelease, pack, serveRelease } from "./release.js";
 
 const PORTAL_NAME = "eportal"; // the EntryPortal's name under the host's own
 const PORTAL_FILES = new URL("../portal/", import.meta.url);
@@ -53,11 +57,16 @@ async function portalFile(request) {
  *   relay?: boolean,
  *   entryPortal?: boolean,
  *   games?: number,
+ *   store?: string,
+ *   load?: string[],
+ *   from?: string[],
  *   log?: (text: string) => void,
  * }} options
  * `base` is the host's main address, a site's root; every name under it must lead here too. `game` is
  * the resident game's folder, and `data` and `portal` are that game's, as in runGame. `relay` and
- * `entryPortal` are on unless false. `games` is how many games are relayed at once.
+ * `entryPortal` are on unless false. `games` is how many games are relayed at once. `load` lists the
+ * IDs of releases to run, each fetched from the hosts at the addresses in `from` unless it is already
+ * in `store`, the folder where this host keeps releases, their data and its own secret phrase.
  */
 export async function runHost(options) {
   const own = new URL(options.base);
@@ -65,8 +74,30 @@ export async function runHost(options) {
   const log = options.log ?? ((text) => console.log(text));
   const portalHost = `${PORTAL_NAME}.${own.host}`;
   const entryPortal = options.entryPortal === false ? null : `${own.protocol}//${portalHost}/`;
-  const relay = options.relay === false ? null : openRelay({ base: own.href, games: options.games, log });
+  const store = options.store ?? ".endlessmind";
+  await Deno.mkdir(store, { recursive: true });
+
+  /** The releases run here, by the ID of each one's realm. @type {Map<string, { release: import("./release.js").Release, game: Awaited<ReturnType<typeof openGame>> }>} */
+  const hosted = new Map();
+  for (const id of options.load ?? []) {
+    const release = await findRelease({ store, id, from: options.from });
+    const game = await openGame({
+      release,
+      base: `${own.protocol}//${release.realm}.${own.host}/`,
+      data: join(store, "games", release.realm),
+      secretFile: join(store, "host-secret.txt"),
+      portal: options.portal,
+      log,
+    });
+    (await hosted.get(release.realm)?.game.stop());
+    hosted.set(release.realm, { release, game });
+  }
+
+  const relay = options.relay === false ? null : openRelay({ base: own.href, games: options.games, taken: (id) => hosted.has(id), log });
   const resident = options.game ? await openGame({ folder: options.game, base: own.href, data: options.data, portal: options.portal, log }) : null;
+  // The resident game is packed too, so that others can host it from its ID.
+  const residentRelease = options.game ? await pack({ folder: options.game, store, data: options.data }) : null;
+  const shared = () => [...(residentRelease ? [residentRelease.id] : []), ...[...hosted.values()].map(({ release }) => release.id)];
 
   const games = () => relay?.games() ?? [];
 
@@ -78,15 +109,20 @@ export async function runHost(options) {
       const url = new URL(request.url);
       if (url.pathname !== "/endlessmind/known") return new Response("Not found", { status: 404 });
       const name = (url.searchParams.get("domain") ?? "").toLowerCase();
-      const known = name === own.hostname || (entryPortal && name === `${PORTAL_NAME}.${own.hostname}`) ||
-        (name.endsWith("." + own.hostname) && games().includes(name.slice(0, -own.hostname.length - 1)));
+      const under = name.endsWith("." + own.hostname) ? name.slice(0, -own.hostname.length - 1) : "";
+      const known = name === own.hostname || (entryPortal && under === PORTAL_NAME) || hosted.has(under) || games().includes(under);
       return new Response(known ? "yes" : "no", { status: known ? 200 : 404 });
     }
     // The EntryPortal's name comes first, so that nothing else can ever answer there.
     if (host === portalHost) return entryPortal ? portalFile(request) : new Response("Not found", { status: 404 });
+    const game = host === own.host ? null : hosted.get(host.slice(0, -own.host.length - 1));
+    if (game) return game.game.handle(request);
     const relayed = relay?.handle(request);
     if (relayed) return relayed;
     if (host !== own.host) return page("Nothing is at this name", "This host has no game here.", 404);
+    if (new URL(request.url).pathname.startsWith("/endlessmind/release/")) {
+      return serveRelease(store, shared(), request).then((answer) => answer ?? new Response("Not found", { status: 404 }));
+    }
     if (resident) return resident.handle(request);
     if (new URL(request.url).pathname !== "/") return new Response("Not found", { status: 404 });
     return page("An Endless Mind host", "This computer runs games for anyone to play.", 200);
@@ -96,6 +132,10 @@ export async function runHost(options) {
     base: own.href,
     /** The resident game's realm, if there is one. */
     realm: resident?.realm ?? null,
+    /** The resident game's release, which others can host from its ID. */
+    release: residentRelease,
+    /** The releases run here: each one's ID, its realm, and where it is played. */
+    hosted: () => [...hosted.values()].map(({ release, game }) => ({ id: release.id, realm: release.realm, name: release.note.card.name, base: game.base })),
     /** The address of the EntryPortal served here, or null. */
     entryPortal,
     /** The IDs of the realms relayed now. */
@@ -103,6 +143,7 @@ export async function runHost(options) {
     async stop() {
       relay?.stop();
       await resident?.stop();
+      for (const { game } of hosted.values()) await game.stop();
       await server.shutdown();
     },
   };

@@ -14,7 +14,7 @@ async function hosting(options = {}) {
   const temp = await Deno.makeTempDir();
   /** @type {string[]} */
   const said = [];
-  const host = await runHost({ base: `http://localhost:${port}/`, port, game: "examples/maze", data: join(temp, "host"), log: (text) => said.push(text), ...options });
+  const host = await runHost({ base: `http://localhost:${port}/`, port, game: "examples/maze", data: join(temp, "host"), store: join(temp, "store"), log: (text) => said.push(text), ...options });
   return {
     host,
     said,

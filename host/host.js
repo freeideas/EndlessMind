@@ -46,7 +46,9 @@ const TYPES = {
 
 /**
  * @typedef {{
- *   folder: string,
+ *   folder?: string,
+ *   release?: import("./release.js").Release,
+ *   secretFile?: string,
  *   base?: string,
  *   relay?: string,
  *   portal?: string,
@@ -58,8 +60,12 @@ const TYPES = {
  * `folder` holds the game: `game.js` (the game server), `card.json` (its name and description) and the
  * display's files, starting at `index.html`. `base` is the address players use, ending in "/". `relay`
  * is the address of a relay to be reached through instead: it gives the game an address of its own, so
- * players anywhere can join a game on this computer. `data` is where the realm's secret phrase and everything the game saves are kept: `.data/` in the folder
- * unless given. `watch` restarts the game server when a file in the folder changes.
+ * players anywhere can join a game on this computer. `data` is where the realm's secret phrase and
+ * everything the game saves are kept: `.data/` in the folder unless given. `watch` restarts the game
+ * server when a file in the folder changes.
+ *
+ * Instead of `folder`, `release` runs a checked release of someone else's game. Its realm's secret is
+ * not here, so the host signs under an ID of its own, kept in `secretFile`, and `data` must be given.
  * @typedef {GameOptions & { port?: number, hostname?: string }} RunOptions
  * @typedef {import("./relay.js").Line} Line
  * @typedef {import("./relay.js").Seat} Seat
@@ -122,14 +128,17 @@ export async function runGame(options) {
 
 /** @param {GameOptions} options */
 export async function openGame(options) {
-  const folder = await Deno.realPath(options.folder);
+  const { release } = options;
+  if (!release === !options.folder) throw new Error("A game is a folder or a release: give one of them.");
+  if (release && !(options.data && options.secretFile)) throw new Error("A release needs somewhere to keep its data, and its host's secret phrase.");
+  const folder = await Deno.realPath(release?.folder ?? /** @type {string} */ (options.folder));
   const data = options.data ?? join(folder, ".data");
   await Deno.mkdir(data, { recursive: true });
   const log = options.log ?? ((text) => console.log(text));
   const encoder = new TextEncoder();
-  const secretFile = join(data, "realm-secret.txt");
+  const secretFile = options.secretFile ?? join(data, "realm-secret.txt");
   if (options.relay && options.base) throw new Error("A relay gives the game its address, so give a relay or a base, not both.");
-  // A relayed game's address holds its realm's ID, so the realm's secret is read before the realm opens.
+  // A relayed game's address holds the ID it signs under, so the secret is read before the realm opens.
   if (!options.relay && !options.base) throw new Error("A game needs an address: give a base or a relay.");
   const base = options.relay ? relayedBase(options.relay, (await signerFromWords(await secretWords(secretFile))).id) : /** @type {string} */ (options.base);
 
@@ -140,7 +149,8 @@ export async function openGame(options) {
     portal: options.portal ?? DEFAULT_PORTAL,
     secretFile,
     dataFile: join(data, "realm-data.json"),
-    card: JSON.parse(await Deno.readTextFile(join(folder, "card.json"))),
+    card: release ? release.note.card : JSON.parse(await Deno.readTextFile(join(folder, "card.json"))),
+    ...(release ? { runs: { realm: release.realm, release: release.id } } : {}),
   });
 
   // What the game server keeps with save(): one JSON file, written a moment after each change.
