@@ -113,7 +113,7 @@ deno task host --base https://myvps.example/ --game <folder>
 
 **Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID and this host's address to their own: `deno task host --base https://other.example/ --load <release ID> --from https://myvps.example/`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
 
-To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer.
+To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer, and an EntryPortal accepts plain `http` at those names. The host's own EntryPortal is then at `http://eportal.localhost:8000/`; a game relayed through the host names it with `--portal http://eportal.localhost:8000/`.
 
 ## The seal
 

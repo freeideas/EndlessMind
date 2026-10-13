@@ -26,7 +26,7 @@ from urllib.parse import parse_qsl, quote, urlsplit
 from .keys import check_words, from_base64url, is_id, new_words, signer_from_private_key, signer_from_words
 from .names import default_name, tidy_name
 from .qr import qr_svg
-from .signed import MAX_SAFE, add_signature, canonical, is_complete, parse_json, signed_bytes, to_json, valid_signers
+from .signed import MAX_SAFE, add_signature, canonical, is_complete, parse_json, signed_bytes, to_json, u16len, valid_notes, valid_signers
 
 JOIN_MS = 2 * 60 * 1000  # a join code works once, for two minutes
 CLOCK_MS = 2 * 60 * 1000  # how far a sign-in note's time may be from this realm's clock
@@ -203,7 +203,7 @@ class Realm:
         offers = self.data["offers"].setdefault(player, [])
         for item in items:
             text, data = item.get("text"), item.get("data")
-            if not isinstance(text, str) or _u16len(text) > 1000:
+            if not isinstance(text, str) or u16len(text) > 1000:
                 raise ValueError("a record's text must be at most 1000 characters")
             offers.append(
                 {"v": 1, "type": "record", "signers": [self.id, player], "time": self.now(), "text": text, **({"data": data} if data else {})}
@@ -291,7 +291,7 @@ class Realm:
     async def _check_note(self, code: str, text: str) -> str:
         """Check a sign-in note for a join code, and let in the screen waiting on it. Returns a problem, or ""."""
         now = self.now()
-        if _u16len(text) > MAX_SIGNED:
+        if u16len(text) > MAX_SIGNED:
             return "The sign-in note is too large."
         try:
             note = parse_json(text)
@@ -309,7 +309,7 @@ class Realm:
         if not _safe_int(t) or abs(t - now) > CLOCK_MS:
             return "The time on your device and on this realm differ by more than two minutes."
         nonce = note.get("nonce")
-        if not isinstance(nonce, str) or _u16len(nonce) < 16 or _u16len(nonce) > 64:
+        if not isinstance(nonce, str) or u16len(nonce) < 16 or u16len(nonce) > 64:
             return "The sign-in note is not readable."
         if nonce in self._nonces:
             return "This sign-in note was already used."
@@ -433,8 +433,9 @@ class Realm:
         return _redirect(portal + "#sign=" + _encode(to_json({"records": completed, "back": self.base})))
 
     def _countersign(self, claim: dict, record: Any) -> dict | None:
-        """Sign a record the player sent back, if it is one of the claim's proposals with only `public`
-        and `sigs` changed and the player's proof checks out. Returns the complete record, or None."""
+        """Sign a record the player sent back, if it is one of the claim's proposals with only `public`,
+        `sigs` and `notes` changed and the player's proof checks out. Notes that check out are kept and
+        the rest dropped. Returns the complete record, or None."""
         if not isinstance(record, dict):
             return None
         if "public" in record and not isinstance(record["public"], bool):
@@ -449,8 +450,10 @@ class Realm:
             return None
         if claim["player"] not in valid_signers(record):
             return None
-        body = {k: v for k, v in record.items() if k != "sigs"}
-        done = add_signature({**body, "sigs": {claim["player"]: record["sigs"][claim["player"]]}}, self.signer)
+        body = {k: v for k, v in record.items() if k not in ("sigs", "notes")}
+        notes = valid_notes(record)
+        proposal = {**body, "sigs": {claim["player"]: record["sigs"][claim["player"]]}, **({"notes": notes} if notes else {})}
+        done = add_signature(proposal, self.signer)
         if not is_complete(done):
             return None
         self.data["records"].append(done)
@@ -592,8 +595,8 @@ def _secret_words(path: str | os.PathLike) -> str:
 
 
 def _proposal_key(record: dict) -> str:
-    """What identifies a proposal: everything except `public` and `sigs`."""
-    return canonical({k: v for k, v in record.items() if k not in ("public", "sigs")})
+    """What identifies a proposal: everything except `public`, `sigs` and `notes`."""
+    return canonical({k: v for k, v in record.items() if k not in ("public", "sigs", "notes")})
 
 
 def _read_form(headers: Headers, body: bytes) -> dict[str, Any] | None:
@@ -668,11 +671,6 @@ def _typed(address: str) -> str:
 def _encode(text: str) -> str:
     """encodeURIComponent."""
     return quote(text, safe="!'()*")
-
-
-def _u16len(text: str) -> int:
-    """A string's length as JavaScript counts it."""
-    return len(text.encode("utf-16-le", "surrogatepass")) // 2
 
 
 def _safe_int(value: Any) -> bool:

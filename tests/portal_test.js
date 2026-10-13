@@ -16,7 +16,10 @@ Deno.test("the EntryPortal's security policy forbids connections and outside cod
   const head = page.slice(0, page.indexOf("</head>"));
   assert.ok(/^<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport"[^>]*>\n<meta http-equiv="Content-Security-Policy"/.test(head), "the policy must sit at the top of the head, or browsers ignore it");
   assert.match(policy, /^default-src 'none'; /);
-  assert.doesNotMatch(policy, /connect-src|unsafe-inline|unsafe-eval|\*\.|https:\/\//);
+  // Forms may go to https, or to plain http only at this computer's own names.
+  const forms = "; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*;";
+  assert.ok(policy.includes(forms), "the policy's form-action");
+  assert.doesNotMatch(policy.replace(forms, ";"), /connect-src|unsafe-inline|unsafe-eval|\*|https?:/);
   assert.equal(page.match(/<script/g)?.length, 1, "one script only");
   assert.doesNotMatch(page, /<script[^>]+src=|<link |<img |<iframe|style="| on[a-z]+="/, "nothing loaded from elsewhere, no inline handlers");
 });

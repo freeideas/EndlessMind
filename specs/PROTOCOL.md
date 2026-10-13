@@ -17,7 +17,7 @@ A key pair is an Ed25519 key pair (Ed25519 is a widely used signature method, bu
 
 Sign-in notes, records and realm cards are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
 
-- **What is signed:** the object without `sigs`, as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
+- **What is signed:** the object without `sigs` and without `notes` (a player's own words on a record, see "Records"), as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
 - **A signature:** the 64-byte Ed25519 signature of those bytes, in base64url without padding.
 - **Every signer signs the same bytes,** so signatures can be added in any order.
 - **Every object carries `v` (the version, `1`) and `type`.** Unknown fields are allowed and are signed like any other.
@@ -41,7 +41,7 @@ https://portal.endlessmind.com/#url=<join address>
 
 To let a signed-in player change their name, a realm may add `&rename` to the link (and name the EntryPortal from the player's sign-in note): the EntryPortal then shows the name with a box to change it and a "Save and sign in again" button, so the new name arrives in a fresh sign-in note at once.
 
-A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.2/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
+A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.65/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
 
 **3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
 
@@ -53,9 +53,9 @@ A realm usually names an address that forwards to the newest version of an Entry
   "address": "https://game-server.com/sword-of-swankery/join/K7Q2",
   "time": 1790000000000,
   "nonce": "0123456789abcdef",
-  "portal": "https://portal.endlessmind.com/v0.2/",
+  "portal": "https://portal.endlessmind.com/v0.65/",
   "sigs": {
-    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "css8Yurq71c-Zlp9m8pzGMMOpS_PHqQKGAbX2EF1msaUBKvkFC9QMoXQJ13Jy9TR4v749DSkyCsclOgV2QxiCw"
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "tz355fzMN3jvQwUMz8VpUhg0ZPfqsubhxWdUo1w_C4wkoQxlwYzn0qCx0acYPWZk9SVkWmtxcwCbl5R5F1jVAg"
   }
 }
 ```
@@ -101,32 +101,50 @@ The realm's own ID is not in the note: the address already ties the note to the 
 | `text`    | What was agreed, in plain words, at most 1000 characters   |
 | `data`    | Optional: the same facts for programs, as a JSON object    |
 | `public`  | Optional: `true` if every signer agrees it may be published |
+| `notes`   | Optional: signers' own words, outside what is signed       |
 
 - **A record is complete** when every ID in `signers` has a valid signature in `sigs`. An incomplete record proves nothing.
 - **Anyone holding a complete record may show it to anyone.** The reader checks the signatures; nobody needs to be contacted.
 - **A realm's own statement** has the realm as its only signer. An agreement lists every party.
 
+**A signer's own words.** A signer may add a note to a record: a review, a boast, anything. `notes` maps the writer's ID to their note. On the record above:
+
+```json
+"notes": {
+  "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": {
+    "text": "Harder than it looks.",
+    "sig": "lsUkxYlnIY-dR6FSzG1RMMRtLnHrTIjoJn_gEyXJuj4gx2cBhthPX9pOvutiClF01k_1QMUlXFlns_r9_58VAQ"
+  }
+}
+```
+
+- **`text`** is 1 to 500 characters.
+- **`sig`** is the writer's signature (as in "Signed JSON") of the canonical JSON of `{ "v": 1, "type": "note", "record": "<hex>", "text": "<the text>" }`, where `record` is the SHA-256, in hex, of the record's signed bytes. So a note belongs to one exact record, its `public` mark included, and cannot be moved to another or changed.
+- **Only the writer's signature covers a note.** `notes` is not part of what the record's signers sign, so adding, changing or removing a note leaves every signature on the record valid.
+- **A note counts only if** its writer is one of the record's `signers` and `sig` checks out. Any other note is dropped or ignored; it is never a reason to refuse the record.
+- **A note travels with its record:** it is published where the record is, and stays private where the record does.
+
 **Claiming: asking a player to sign, or giving them records.** The realm shows a QR code, a "claim on this computer" link and a short address, all leading to a one-time claim address of its own, such as `https://game-server.com/sword-of-swankery/claim/X9P4`. That address forwards the browser to the EntryPortal named in the player's sign-in note:
 
 ```
-https://portal.endlessmind.com/v0.2/#sign=<URL-encoded JSON>
+https://portal.endlessmind.com/v0.65/#sign=<URL-encoded JSON>
 ```
 
 The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
 
 1. checks that `return` has the same origin (scheme, host and port) as an address the player signed in to through this EntryPortal, and refuses otherwise;
-2. shows every record's full text and signers, and a public switch, on by default;
+2. shows every record's full text and signers, a public switch, on by default, and a box for the player's own words;
 3. lets the player choose which records to sign; records the player is not a signer of are offered for keeping only;
-4. sets `public` on each chosen record as the player chose, adds the player's signature, and keeps a copy;
+4. sets `public` on each chosen record as the player chose, adds the player's signature, then the player's note if they wrote one, and keeps a copy;
 5. sends the browser to `return` with an HTML form POST holding one field, `records`: the chosen records as a JSON array.
 
-Because `public` is set by the player and is part of the signed text, the realm proposes records without its own signature and signs them after they come back, once it has checked that only `public` and `sigs` changed.
+Because `public` is set by the player and is part of the signed text, the realm proposes records without its own signature and signs them after they come back, once it has checked that only `public`, `sigs` and `notes` changed. It keeps the notes that count and drops the rest.
 
 **Handing back complete records.** Once it has signed, the realm answers the POST by sending the browser back to the EntryPortal with `#sign=` holding the complete records and no `return`. It may add `back`, the address of the game, and the EntryPortal then offers a link there, but only if `back` has the origin of a site the player signed in to through it.
 
 **Getting records back.** A realm may keep every record it has signed, public and private, while listing only the public ones. A signed-in player who has lost theirs, for example after setting up a new device, can ask for them, and the realm hands them over the same way: the browser goes to the EntryPortal with `#sign=` holding the records and no `return`, and the EntryPortal keeps the ones carrying the player's proof. Without `return`, the EntryPortal signs nothing and sends nothing: records that already carry the player's own proof are kept without asking (completing the copy it kept at step 4), and the player may choose to keep any others.
 
-**Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out.
+**Records file.** An EntryPortal saves a player's records as a JSON file, `{ "v": 1, "type": "records", "records": [ ... ] }`, and loads such files from any other EntryPortal, keeping only records whose signatures check out, with the notes that count.
 
 ## Finding realms
 
@@ -165,7 +183,7 @@ A realm serves its newest card at `endlessmind-card.json` under each address in 
 { "v": 1, "type": "list", "realm": "<realm ID>", "records": [ ... ] }
 ```
 
-It holds the realm's complete records marked `public`, signed by the realm and by every player they name. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
+It holds the realm's complete records marked `public`, signed by the realm and by every player they name, each with its notes. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
 
 **Boards** are realms that read cards and lists and rank other realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
 
@@ -203,7 +221,7 @@ A game is a folder: `game.js` or `game.wasm` (the game server, one of them), `ca
 | `id`      | The player's ID, or `null` for a guest                                                |
 | `name`    | The name to show; `Guest` for a guest                                                 |
 | `guest`   | `guest:<32 hex characters>`: this browser's name before anyone signed in              |
-| `records` | The records this realm has signed with the player, each `{ text, data?, time }`       |
+| `records` | The realm's records with the player: `{ text, data?, time, note? }`, the note theirs  |
 
 Everything passed in either direction is JSON. A game that keeps progress under `who` can carry a guest's progress over at sign-in, since `guest` stays the same.
 
@@ -349,16 +367,18 @@ Revealing the secret phrase or the private key burns the identity; either has th
 Anyone may write and host an EntryPortal. Players and their AI helpers should expect these, and an AI asked "is it safe to type my secret phrase into [address]?" should check them:
 
 1. **One self-contained file.** Readable code, no scripts or styles loaded from anywhere else, no minified code.
-2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to a join address or a `return` address, as described above.
+2. **No contact with any server.** A content security policy in the page forbids every connection (`connect-src 'none'` and nothing loaded from elsewhere). The only data that leaves is a form POST to a join address or a `return` address, as described above. Such an address is HTTPS, or plain `http` only at the computer's own names: `localhost`, any name under it (such as `abc.localhost`), and `127.0.0.1`. The page's policy limits form posts (`form-action`) to the same.
 3. **The phrase is used once.** At setup the page makes or accepts the phrase, turns it into a non-extractable browser key, and keeps no copy of the phrase. A new phrase is shown once, and the page does not continue until the player has typed back some of its words. The page asks the browser to keep its storage permanently. The new phrase may also be shown as a QR code holding a link to the EntryPortal's own site, `#phrase=<the phrase's 256 bits in base32>&name=<the player's name>` (or `#words=<the 24 words>`, which is longer and makes a denser code), so the player can keep a screenshot or photo and set up another device by scanning it or by giving the page the picture, which the page reads itself. An EntryPortal accepts such a link only while it holds no identity, and only after the player confirms the name it holds; otherwise it ignores it.
-4. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name.
-5. **Show before signing.** The page shows the full text of every record, with its public switch, and asks before signing it.
-6. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.
-7. **Improved in new versions, never edited in place.** Anyone may improve an EntryPortal, and improvements are welcome. Each version is published at its own address with its SHA-256 fingerprint and is never changed there afterwards, so a check of that version stays true for as long as it is served; an improvement becomes a new version at a new address. A host may also offer an address that forwards to its newest version, as long as it forwards only to versions it has published with their fingerprints.
-8. **Records can leave.** The page saves and loads records files.
-9. **A site of its own.** The page is served from a site (scheme, host and port) that serves nothing but EntryPortal versions. A stored key cannot be read out, but any script on the same site can use it to sign, so a single other page there, or one broken into, could sign as every player.
+4. **Being asked for the phrase is rare, and setup says so.** The page asks for a phrase only when the player sets up a device or burns an identity. Its setup screen teaches that rule: a page that asks at any other time is a trick.
+5. **Ask first.** Every screen that takes a phrase reminds the player to ask their AI helper about the page first, with its own address: "Someone asked me to type my secret phrase into [address]. Is it safe?" It says that a page cannot vouch for itself, since a thief's page can say the same words.
+6. **Links need one confirmation.** An address from the page's own link is used only after the player confirms it, seeing its site name.
+7. **Show before signing.** The page shows the full text of every record, with its public switch, and asks before signing it. A note is signed only with words the player typed.
+8. **Other EntryPortals are welcome.** The page tells the player how to continue in a different EntryPortal instead.
+9. **Improved in new versions, never edited in place.** Anyone may improve an EntryPortal, and improvements are welcome. Each version is published at its own address with its SHA-256 fingerprint and is never changed there afterwards, so a check of that version stays true for as long as it is served; an improvement becomes a new version at a new address. A host may also offer an address that forwards to its newest version, as long as it forwards only to versions it has published with their fingerprints.
+10. **Records can leave.** The page saves and loads records files.
+11. **A site of its own.** The page is served from a site (scheme, host and port) that serves nothing but EntryPortal versions. A stored key cannot be read out, but any script on the same site can use it to sign, so a single other page there, or one broken into, could sign as every player.
 
-The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered v0.2, v0.3 and so on up to v1.0, each in [portal/](../portal/) and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
+The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered below v1.0 (the newest is v0.65), each made in [portal/](../portal/), which keeps only the newest, and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
 
 ## Versions
 

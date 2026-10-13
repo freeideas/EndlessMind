@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-i4VuGqBpuJFmfyd+2YDMaTjq0F8MvP4cVa9BW1TFmPU='; style-src 'sha256-lBykGGh6bEj98HBNtPuFYiU8nRRtFfyyNoNMVdBSWy4='; form-action https: http://localhost:* http://127.0.0.1:*; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0RtjiFzMDa0R9oUu3xpwq+Ai3h8hs3UJU+VCJXGXHH4='; style-src 'sha256-XjNND44bUcscYtcgPgMDAhCG/7hv7ukXhZLFt1moHDg='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <title>EntryPortal | Endless Mind</title>
 <!--
-  Endless Mind EntryPortal, version 0.64. https://github.com/freeideas/EndlessMind
+  Endless Mind EntryPortal, version 0.65. https://github.com/freeideas/EndlessMind
   Served at https://portal.endlessmind.com/, a site that serves nothing else: any script on the same
   site could use the stored key, so nothing else may ever run there.
 
@@ -16,7 +16,8 @@
   - Everything is in this one file. The security policy above forbids every connection to any server
     (no connect-src at all) and runs only the script and style below, matched by their SHA-256 hashes.
   - The only thing that ever leaves is a form POST to a sign-in or claim address the player confirmed,
-    holding a sign-in note or records, or a burn notice the player asked to send.
+    holding a sign-in note or records, or a burn notice the player asked to send. Such an address is
+    https, or plain http only at this computer's own names (localhost, names under it, 127.0.0.1).
   - The phrase is turned into a browser key that cannot be read back out ("non-extractable"), stored in
     this browser's IndexedDB, and the phrase itself is not kept.
   - The setup screen also shows the new phrase as a QR code: a link to this site with the phrase after
@@ -52,6 +53,10 @@ ol.words { columns: 3; column-gap: .4rem; padding-left: 2.1rem; font: .85rem/1.6
 .record .text { white-space: pre-wrap; font-weight: 600; }
 .record .meta { color: var(--muted); font-size: .85rem; word-break: break-all; }
 .record label { display: flex; gap: .5rem; align-items: center; margin: .3rem 0; }
+.record label.words { display: block; }
+.record textarea { min-height: 3.5rem; }
+.record .note { white-space: pre-wrap; margin: .3rem 0; }
+.ask { border-left: 3px solid var(--accent); padding-left: .7rem; }
 details { margin: 1.5rem 0; border-top: 1px solid var(--line); padding-top: .8rem; }
 summary { cursor: pointer; font-weight: 600; }
 .qr { width: 230px; max-width: 100%; margin: .6rem 0; }
@@ -62,7 +67,7 @@ summary { cursor: pointer; font-weight: 600; }
 </head>
 <body>
 <main>
-<div class="brand">Endless Mind EntryPortal, version 0.64</div>
+<div class="brand">Endless Mind EntryPortal, version 0.65</div>
 <p class="warn" id="in-app" hidden>This page is open inside another app, whose browser may forget your identity. Open it in your usual browser instead: look in this app's menu for "Open in browser" or "Open in Safari".</p>
 
 <input type="file" id="picture-input" accept="image/*" hidden>
@@ -81,10 +86,12 @@ summary { cursor: pointer; font-weight: 600; }
   <p>This is a web page, not an app: there is nothing to install. It keeps your identity on this device, so games can recognize you.</p>
   <p>Your <strong>secret phrase</strong> is 24 ordinary words. It is your identity in every realm: no account, password or email.</p>
   <p>This page turns your phrase into a key kept inside this browser, which can prove you have your phrase but cannot show it to anyone, not even to this page. Then it forgets the phrase.</p>
+  <p><strong>Being asked for your secret phrase is rare.</strong> It happens only when you set up a device, as now, or burn an identity. A page that asks at any other time is a trick.</p>
   <button id="setup-new">Make a new secret phrase</button>
   <button id="setup-picture" class="plain">I have a picture of my setup code</button>
   <button id="setup-have" class="plain">I already have a secret phrase</button>
   <p class="muted">You can also paste a picture of your setup code, or your 24 words, anywhere on this page.</p>
+  <p class="ask">Before you give this page a phrase you already have, ask your AI helper: "Someone asked me to type my secret phrase into <span class="here"></span>. Is it safe?" Ask that about any page that wants your phrase. A page cannot vouch for itself: a thief's page can say these same words.</p>
   <p id="picture-error" class="warn" hidden></p>
   <details>
     <summary>Use a different EntryPortal</summary>
@@ -95,7 +102,7 @@ summary { cursor: pointer; font-weight: 600; }
 <section id="s-new" hidden>
   <h1>Keep your secret phrase</h1>
   <p>Games will call you <strong id="new-name"></strong>. <button id="new-rename" class="plain small">Change name</button></p>
-  <p>These 24 words are your identity. <strong>Take a screenshot or a photo of this screen now</strong>, because you will see it only once. Keep the picture to yourself: anyone who has it can impersonate you.</p>
+  <p>These 24 words are your identity. <strong>Take a screenshot or a photo of this screen now</strong>, because you will see it only once. Keep the picture to yourself: anyone who has it can impersonate you. You will need it only to set up another device or to burn this identity; a page that asks for your phrase at any other time is a trick.</p>
   <div class="qr" id="new-qr"></div>
   <ol class="words" id="new-words"></ol>
   <p class="muted">To use your identity on another device later, scan this code with it, or choose "I have a picture of my setup code" there. You can also write the words on paper. Nobody can get them back for you if they are lost.</p>
@@ -116,6 +123,7 @@ summary { cursor: pointer; font-weight: 600; }
 <section id="s-have" hidden>
   <h1>Type your secret phrase</h1>
   <p>All 24 words, in order. You can also paste them, numbers and all. If you kept the code from setup, scan it instead.</p>
+  <p class="ask">Before you give this page a phrase you already have, ask your AI helper: "Someone asked me to type my secret phrase into <span class="here"></span>. Is it safe?" Ask that about any page that wants your phrase. A page cannot vouch for itself: a thief's page can say these same words.</p>
   <p><button id="have-picture" class="plain small">Use a picture of my setup code instead</button></p>
   <textarea id="have-words" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
   <p id="have-error" class="warn" hidden></p>
@@ -165,6 +173,7 @@ summary { cursor: pointer; font-weight: 600; }
     <summary>Burn this identity</summary>
     <p>Burning reveals your secret so that anyone can use it. From then on, everyone treats this player ID as gone, and anything signed with it, old or new, counts for nothing. Do this if your phrase was stolen, or to retire this identity for good. <strong>It cannot be undone.</strong> You will start over with a new phrase and no history.</p>
     <p>This page keeps no copy of your phrase, so type it again:</p>
+    <p class="ask">Before you give this page a phrase you already have, ask your AI helper: "Someone asked me to type my secret phrase into <span class="here"></span>. Is it safe?" Ask that about any page that wants your phrase. A page cannot vouch for itself: a thief's page can say these same words.</p>
     <textarea id="burn-words" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     <label>Type <strong>burn this identity</strong> to confirm:
       <input type="text" id="burn-confirm" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
@@ -407,8 +416,11 @@ async function verify(id, signature, data) {
 }
 // ---- end shared/keys.js ----
 // ---- begin shared/signed.js ----
-// Signed JSON: notes and records. See "Signed JSON" in specs/PROTOCOL.md.
+// Signed JSON: sign-in notes and records, and the words a player adds to a record. See "Signed JSON"
+// and "Records" in specs/PROTOCOL.md.
 
+
+const NOTE_MAX = 500; // the most characters a player's own words on a record may have
 
 /** JSON with object keys sorted at every level and no spaces; numbers must be integers. @param {unknown} value @returns {string} */
 function canonical(value) {
@@ -421,9 +433,9 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
-/** The bytes every signer signs: the canonical JSON of everything except `sigs`. @param {Record<string, unknown>} object */
+/** The bytes every signer signs: the canonical JSON of everything except `sigs` and `notes`. @param {Record<string, unknown>} object */
 function signedBytes(object) {
-  const { sigs: _, ...body } = object;
+  const { sigs: _, notes: _n, ...body } = object;
   return new TextEncoder().encode(canonical(body));
 }
 
@@ -455,6 +467,52 @@ async function isComplete(record) {
   if (!Array.isArray(record.signers) || record.signers.length === 0) return false;
   const ok = await validSigners(record);
   return record.signers.every((/** @type {string} */ id) => ok.includes(id));
+}
+
+/**
+ * The bytes a note's writer signs: they name the record by the SHA-256 of its signed bytes, so a note
+ * belongs to one exact record.
+ * @param {Record<string, any>} record
+ * @param {string} text
+ */
+async function noteBytes(record, text) {
+  const note = { v: 1, type: "note", record: hex(await digest("SHA-256", signedBytes(record))), text };
+  return new TextEncoder().encode(canonical(note));
+}
+
+/**
+ * Add a signer's own words to a record, in place of any they added before. Only their proof covers
+ * them, and the record's proofs stay valid.
+ * @param {Record<string, any>} record
+ * @param {import("./keys.js").Signer} signer
+ * @param {string} text at most 500 characters
+ */
+async function addNote(record, signer, text) {
+  if (typeof text !== "string" || !text || text.length > NOTE_MAX) throw new Error(`a note is 1 to ${NOTE_MAX} characters`);
+  const sig = base64url(await sign(signer, await noteBytes(record, text)));
+  return { ...record, notes: { ...(record.notes ?? {}), [signer.id]: { text, sig } } };
+}
+
+/**
+ * The notes on a record that check out, by their writers' IDs: each written by one of the record's
+ * signers, for this exact record. Any other note is left out.
+ * @param {Record<string, any>} record
+ * @returns {Promise<Record<string, { text: string, sig: string }>>}
+ */
+async function validNotes(record) {
+  /** @type {Record<string, { text: string, sig: string }>} */
+  const ok = {};
+  const notes = record.notes && typeof record.notes === "object" && !Array.isArray(record.notes) ? record.notes : {};
+  for (const id of Array.isArray(record.signers) ? record.signers : []) {
+    const note = Object.hasOwn(notes, id) ? notes[id] : null;
+    if (!note || typeof note.text !== "string" || !note.text || note.text.length > NOTE_MAX || typeof note.sig !== "string") continue;
+    try {
+      if (await verify(id, fromBase64url(note.sig), await noteBytes(record, note.text))) ok[id] = { text: note.text, sig: note.sig };
+    } catch {
+      // Not readable, so not a note.
+    }
+  }
+  return ok;
 }
 // ---- end shared/signed.js ----
 // ---- begin shared/names.js ----
@@ -5885,6 +5943,7 @@ jsQR.default = jsQR;
 
 const HERE = location.origin + location.pathname;
 const MAX_SIGNED = 16 * 1024;
+const NOTE_LENGTH = 500; // the most characters a player's own words on a record may have
 
 /** @param {string} id */
 const $ = (id) => /** @type {any} */ (document.getElementById(id));
@@ -5958,6 +6017,8 @@ async function start() {
     document.body.textContent = "This EntryPortal does not work inside another page. Open it directly.";
     return;
   }
+  // The question to ask an AI helper names this page's own address.
+  for (const here of document.querySelectorAll(".here")) here.textContent = HERE;
   // Apps such as Instagram, Facebook or TikTok open links in a browser of their own, which keeps
   // its storage apart and may wipe it; an identity set up there can vanish.
   $("in-app").hidden = !/FBAN|FBAV|Instagram|Line\/|TikTok|musical_ly|BytedanceWebview|Snapchat|LinkedInApp|Pinterest|GSA\/|MicroMessenger|Twitter/.test(navigator.userAgent);
@@ -6320,13 +6381,14 @@ $("typed-form").onsubmit = (/** @type {Event} */ event) => {
 };
 
 /**
- * Tidy a sign-in or return address and refuse anything but https (or a computer's own address, for
- * people testing a realm). An address without "https://" is taken to mean it.
+ * Tidy a sign-in or return address and refuse anything but https, or plain http at this computer's
+ * own names (localhost, names under it such as abc.localhost, and 127.0.0.1), for people running a
+ * realm on their own computer. An address without "https://" is taken to mean it.
  * @param {string} text
  */
 function checkAddress(text) {
   let t = text.trim();
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) t = (/^(localhost|127\.0\.0\.1)([:/]|$)/i.test(t) ? "http://" : "https://") + t;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) t = (/^(([a-z0-9-]+\.)*localhost|127\.0\.0\.1)([:/]|$)/i.test(t) ? "http://" : "https://") + t;
   /** @type {URL} */
   let url;
   try {
@@ -6334,7 +6396,7 @@ function checkAddress(text) {
   } catch {
     throw new Error("That is not a web address.");
   }
-  const local = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname);
+  const local = url.protocol === "http:" && (["localhost", "127.0.0.1"].includes(url.hostname) || url.hostname.endsWith(".localhost"));
   if (url.protocol !== "https:" && !local) throw new Error("Only https addresses can be used.");
   return url.href;
 }
@@ -6426,14 +6488,15 @@ function size(r) {
   }
 }
 
-/** The text that identifies a record whatever proofs it carries. @param {any} r */
+/** The text that identifies a record whatever proofs and notes it carries. @param {any} r */
 const bodyKey = (r) => {
-  const { sigs: _, ...body } = r;
+  const { sigs: _, notes: _n, ...body } = r;
   return canonical(body);
 };
 
 /**
- * Keep records, merging the proofs of ones already kept. Every proof must check out. `site` is the
+ * Keep records, merging the proofs and notes of ones already kept. Every proof must check out, and a
+ * note that does not is left out. `site` is the
  * site the player signed them for, remembered so records can name it instead of showing IDs.
  * @param {any[]} records
  * @param {string} [site]
@@ -6447,8 +6510,11 @@ async function keep(records, site) {
     const valid = await validSigners(record);
     const sigs = Object.fromEntries(Object.entries(record.sigs ?? {}).filter(([id]) => valid.includes(id) && record.signers.includes(id)));
     const at = kept.findIndex((k) => bodyKey(k) === bodyKey(record));
-    if (at >= 0) kept[at] = { ...kept[at], sigs: { ...kept[at].sigs, ...sigs } };
-    else kept.push({ ...record, sigs });
+    const { notes: _, ...body } = at >= 0 ? kept[at] : record;
+    const notes = { ...(at >= 0 ? kept[at].notes : {}), ...(await validNotes(record)) };
+    const merged = { ...body, sigs: { ...(at >= 0 ? kept[at].sigs : {}), ...sigs }, ...(Object.keys(notes).length ? { notes } : {}) };
+    if (at >= 0) kept[at] = merged;
+    else kept.push(merged);
     if (site) sites[bodyKey(record)] ??= site;
   }
   await save("records", kept);
@@ -6478,6 +6544,13 @@ function technical(r) {
   return el("details", { className: "meta" }, [el("summary", { textContent: "Technical details" }), el("div", { className: "id", textContent: lines.join("\n") })]);
 }
 
+/** The words signers added to a record, one line each; a note that does not check out is not shown. @param {any} r */
+async function noteLines(r) {
+  return Object.entries(await validNotes(r)).map(([id, note]) =>
+    el("div", { className: "note", textContent: `${id === identity?.id ? "You wrote" : "A signer wrote"}: ${note.text}` })
+  );
+}
+
 async function drawRecords() {
   /** @type {any[]} */
   const kept = (await load("records")) ?? [];
@@ -6500,6 +6573,7 @@ async function drawRecords() {
     cards.push(el("div", { className: "record" }, [
       el("div", { className: "text", textContent: r.text }),
       el("div", { className: "meta", textContent: `${new Date(r.time).toLocaleDateString()} | ${r.public ? "public" : "private"} | ${complete ? "complete" : "waiting for others to sign"}` }),
+      ...(await noteLines(r)),
       el("div", { className: "meta", textContent: "Signed by " + signersLine(r, sites[bodyKey(r)]) }),
       technical(r),
       drop,
@@ -6627,18 +6701,22 @@ async function showSign(payload) {
   $("sign-skipped").textContent = skipped ? `${skipped} records were left out because they were not readable or their proofs did not check out.` : "";
   $("sign-skipped").hidden = !skipped;
 
-  const controls = items.map(({ record, mine, locked }) => {
+  const controls = await Promise.all(items.map(async ({ record, mine, locked }) => {
     const choose = el("input", { type: "checkbox", checked: true });
     const pub = el("input", { type: "checkbox", checked: locked ? record.public === true : true, disabled: locked });
+    // The player's own words: a review, a boast. Only the player's proof covers them.
+    const words = el("textarea", { maxLength: NOTE_LENGTH });
     const card = el("div", { className: "record" }, [
       el("div", { className: "text", textContent: record.text }),
+      ...(await noteLines(record)),
       el("div", { className: "meta", textContent: `${new Date(record.time).toLocaleDateString()} | Signed by ${signersLine(record, site || undefined)}` }),
       technical(record),
       el("label", {}, [choose, mine ? "Sign this record" : "Keep a copy"]),
       ...(mine ? [el("label", {}, [pub, locked ? "Public (already decided by its other signers)" : "Public: anyone may see this record"])] : []),
+      ...(mine ? [el("label", { className: "words" }, ["Add words of your own, if you like. Whoever sees this record sees them too:", words])] : []),
     ]);
-    return { record, mine, locked, choose, pub, card };
-  });
+    return { record, mine, locked, choose, pub, words, card };
+  }));
   $("sign-records").replaceChildren(...controls.map((c) => c.card));
   $("sign-ok").textContent = back ? "Sign and save" : "Keep";
   $("sign-ok").onclick = async () => {
@@ -6654,6 +6732,8 @@ async function showSign(payload) {
           if (!c.pub.checked) delete record.public;
         }
         record = await addSignature(record, identity);
+        const text = c.words.value.trim().slice(0, NOTE_LENGTH);
+        if (text) record = await addNote(record, identity, text);
       }
       chosen.push(record);
     }

@@ -5,12 +5,14 @@
 # ///
 """The whole loop in real browsers: a PC playing Endless Maze and a phone holding the EntryPortal.
 
-Guest play, sign-in by QR code (read from the screen), claiming a record, the public list, "sign in on
-this computer", a typed address, and burning an identity. The EntryPortal and the realm run on
-different local addresses, like two sites. Run: uv run tests/browser/loop_test.py [--headed]
+Guest play, sign-in by QR code (read from the screen), claiming a record with words of the player's
+own, the public list, "sign in on this computer", a typed address, and burning an identity. The
+EntryPortal and the realm run on different local addresses, like two sites. Then the heart of the loop
+again through a host: a game on "another computer" relayed by `deno task host`, played at a name of its
+own under the host's, with the host's EntryPortal. Run: uv run tests/browser/loop_test.py [--headed]
 (the first run may need: uv run --with playwright playwright install chromium)
 """
-import base64, functools, http.server, json, os, socket, subprocess, sys, tempfile, threading, time
+import base64, functools, http.client, http.server, json, os, re, socket, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
 import cv2
@@ -43,19 +45,51 @@ def serve_portal() -> None:
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
-def start_maze(data: str) -> subprocess.Popen:
-    game = subprocess.Popen(
-        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-run", "host/main.js", "run", "examples/maze",
-         "--port", str(MAZE_PORT), "--base", MAZE, "--portal", PORTAL, "--data", data, "--no-watch"],
+def host_program(*args: str) -> subprocess.Popen:
+    """Start the host program (host/main.js), as `deno task run` and `deno task host` do."""
+    return subprocess.Popen(
+        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "--allow-run", "host/main.js", *args],
         cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
-    for _ in range(100):
+
+
+def wait_for(port: int, name: str = "localhost") -> None:
+    """Wait until the site called `name` answers on this computer's `port`."""
+    for _ in range(150):
         try:
-            socket.create_connection(("localhost", MAZE_PORT), timeout=0.2).close()
-            return game
+            asked = http.client.HTTPConnection("127.0.0.1", port, timeout=1)
+            asked.request("GET", "/", headers={"Host": f"{name}:{port}"})
+            if asked.getresponse().status == 200:
+                return
         except OSError:
-            time.sleep(0.1)
-    raise RuntimeError("the maze did not start")
+            pass
+        time.sleep(0.1)
+    raise RuntimeError(f"nothing answered at {name}:{port}")
+
+
+def start_maze(data: str) -> subprocess.Popen:
+    game = host_program("run", "examples/maze", "--port", str(MAZE_PORT), "--base", MAZE, "--portal", PORTAL, "--data", data, "--no-watch")
+    wait_for(MAZE_PORT)
+    return game
+
+
+def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str]:
+    """A host with no game of its own, and Endless Maze on "another computer" relayed through it.
+    Returns the two programs, the maze's address under the host's name, and the host's EntryPortal."""
+    port = free_port()
+    host = host_program("host", "--base", f"http://localhost:{port}/", "--port", str(port), "--store", os.path.join(folder, "host"))
+    wait_for(port)
+    portal = f"http://eportal.localhost:{port}/"
+    game = host_program("run", "examples/maze", "--relay", f"http://localhost:{port}/", "--portal", portal,
+                        "--port", str(free_port()), "--data", os.path.join(folder, "relayed"), "--no-watch")
+    said = ""
+    while "Play at " not in said:
+        line = game.stdout.readline()
+        assert line, "the relayed maze did not start:\n" + said
+        said += line
+    maze = re.search(r"Play at (http://[a-z2-7]{52}\.localhost:\d+/)", said).group(1)
+    wait_for(port, maze.split("/")[2].rsplit(":", 1)[0])
+    return [host, game], maze, portal
 
 
 def read_qr(page, selector: str = ".em-qr") -> str:
@@ -96,15 +130,21 @@ def photo_of_screen(png: bytes, tilt: float = 0.1) -> bytes:
     return cv2.imencode(".jpg", photo, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
 
 
-def set_up_new_phrase(phone) -> tuple[str, str, str, str, bytes]:
+def set_up_new_phrase(phone, portal: str) -> tuple[str, str, str, str, bytes]:
     """Returns the words, the player ID, the starting name, the link in the setup code, and a screenshot."""
-    phone.goto(PORTAL)
+    phone.goto(portal)
+    # Setup teaches the rule, and the screen that takes a phrase says to ask about this very page first.
+    expect(phone.locator("#s-setup")).to_contain_text("A page that asks at any other time is a trick.")
+    phone.get_by_role("button", name="I already have a secret phrase").click()
+    expect(phone.locator("#s-have .ask")).to_contain_text(f'"Someone asked me to type my secret phrase into {phone.url}. Is it safe?"')
+    expect(phone.locator("#s-have .ask")).to_contain_text("A page cannot vouch for itself")
+    phone.get_by_role("button", name="Back", exact=True).click()
     phone.get_by_role("button", name="Make a new secret phrase").click()
+    expect(phone.locator("#new-words li")).to_have_count(24)
     words = phone.locator("#new-words li").all_text_contents()
-    assert len(words) == 24
     name = phone.locator("#new-name").text_content()
     setup_link = read_qr(phone, "#new-qr")
-    assert setup_link.startswith(PORTAL + "#phrase=")
+    assert setup_link.startswith(portal + "#phrase=")
     picture = phone.screenshot()
     phone.get_by_role("button", name="I have kept them").click()
     for label in phone.locator("#check-fields label").all():
@@ -141,6 +181,87 @@ def run_level(page, level: int) -> None:
     expect(page.locator("#level")).to_have_text(f"Level {level + 1}")
 
 
+def no_shot(page, name: str) -> None:
+    pass
+
+
+def sign_in_by_code(pc, phone, portal: str, site: str, shot=no_shot) -> None:
+    """The screen shows a sign-in code; the phone scans it and confirms."""
+    pc.get_by_role("button", name="Sign in").click()
+    link = read_qr(pc)
+    shot(pc, "1-pc-sign-in-code")
+    assert link.startswith(portal + "#url=")
+    phone.goto(link)
+    expect(phone.locator("#enter-site")).to_have_text(site)
+    shot(phone, "2-phone-confirm-sign-in")
+    phone.locator("#enter-ok").click()
+    expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+    expect(pc.locator(".em-name")).to_be_visible()
+
+
+def claim_with_words(pc, phone, maze: str, site: str, words: str, shot=no_shot) -> None:
+    """Run levels 2 and 3, then claim the record with the phone, adding words of the player's own."""
+    run_level(pc, 2)
+    run_level(pc, 3)
+    expect(pc.get_by_text("1 record is waiting for you to claim.")).to_be_visible()
+    shot(pc, "3-pc-maze")
+    pc.get_by_role("button", name="Claim").click()
+    claim = read_qr(pc)
+    assert claim.startswith(maze + "claim/")
+    phone.goto(claim)
+    expect(phone.locator("#sign-records")).to_contain_text("Finished the first 3 mazes in Endless Maze.")
+    expect(phone.get_by_label("Public: anyone may see this record")).to_be_checked()
+    phone.get_by_label("Add words of your own").fill(words)
+    shot(phone, "4-phone-sign-record")
+    phone.locator("#sign-ok").click()
+    expect(phone.locator("#message-title")).to_have_text("Records kept")
+    expect(pc.get_by_text("Signed in as")).to_be_visible()
+    expect(pc.get_by_role("button", name="Claim")).to_have_count(0)
+    phone.locator("#message-home").click()
+    expect(phone.locator("#home-records")).to_contain_text("complete")
+    expect(phone.locator("#home-records")).to_contain_text(f"Signed by you and {site}")
+    expect(phone.locator("#home-records")).to_contain_text(f"You wrote: {words}")
+
+
+def public_record(pc, maze: str, player: str, words: str) -> dict:
+    """The one record in the realm's public list, read from the game's own page, with the player's words."""
+    listing, card = (pc.evaluate("address => fetch(address).then(answer => answer.json())", maze + name)
+                     for name in ("endlessmind-list.json", "endlessmind-card.json"))
+    assert card["name"] == "Endless Maze" and listing["realm"] == card["signers"][0]
+    [record] = listing["records"]
+    assert record["public"] is True and set(record["sigs"]) == {player, listing["realm"]}
+    assert record["notes"][player]["text"] == words and set(record["notes"]) == {player}
+    return record
+
+
+def relayed_loop(browser, watch, maze: str, portal: str) -> None:
+    """The heart of the loop where every address is plain http at a name under localhost."""
+    site = maze.split("/")[2]
+    phone = watch(browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2).new_page())
+    pc = watch(browser.new_context(viewport={"width": 1280, "height": 900}, device_scale_factor=2).new_page())
+    _, player, name, _, _ = set_up_new_phrase(phone, portal)
+    assert phone.url.startswith(portal + "v")
+    pc.goto(maze)
+    expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
+    run_level(pc, 1)
+    sign_in_by_code(pc, phone, portal, site)
+    expect(pc.locator(".em-name")).to_have_text(name)
+    claim_with_words(pc, phone, maze, site, "Relayed, and still mine.")
+    public_record(pc, maze, player, "Relayed, and still mine.")
+
+    # A typed address without "http://" is taken as plain http for a name under localhost.
+    pc.get_by_role("button", name="Sign out").click()
+    pc.get_by_role("button", name="Sign in").click()
+    typed = pc.locator(".em-typed").text_content()
+    assert typed.startswith("http://" + site)
+    phone.locator("#typed-address").fill(typed.removeprefix("http://"))
+    phone.get_by_role("button", name="Sign in").click()
+    expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+    expect(pc.locator(".em-name")).to_have_text(name)
+    phone.context.close()
+    pc.context.close()
+
+
 def main() -> None:
     headed = "--headed" in sys.argv
     shots = Path(sys.argv[sys.argv.index("--screenshots") + 1]) if "--screenshots" in sys.argv else None
@@ -152,7 +273,7 @@ def main() -> None:
 
     serve_portal()
     with tempfile.TemporaryDirectory() as data, sync_playwright() as pw:
-        game = start_maze(data)
+        programs = [start_maze(data)]
         try:
             browser = pw.chromium.launch(headless=not headed)
             errors: list[str] = []
@@ -169,7 +290,7 @@ def main() -> None:
             pc = watch(browser.new_context(viewport={"width": 1280, "height": 900}, device_scale_factor=2).new_page())
 
             print("phone: set up an EntryPortal with a new secret phrase")
-            words, player, start_name, setup_link, picture = set_up_new_phrase(phone)
+            words, player, start_name, setup_link, picture = set_up_new_phrase(phone, PORTAL)
             assert len(player) == 52
             phone.get_by_role("button", name="Change name").click()
             phone.locator(".name-input").fill("Moon Pie")
@@ -182,15 +303,7 @@ def main() -> None:
             pc.goto(MAZE)
             expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
             run_level(pc, 1)
-            pc.get_by_role("button", name="Sign in").click()
-            link = read_qr(pc)
-            shot(pc, "1-pc-sign-in-code")
-            assert link.startswith(PORTAL + "#url=")
-            phone.goto(link)
-            expect(phone.locator("#enter-site")).to_have_text(f"localhost:{MAZE_PORT}")
-            shot(phone, "2-phone-confirm-sign-in")
-            phone.locator("#enter-ok").click()
-            expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+            sign_in_by_code(pc, phone, PORTAL, f"localhost:{MAZE_PORT}", shot)
             expect(pc.locator(".em-name")).to_have_text("Moon Pie")
             assert player in pc.locator(".em-name").get_attribute("title")
             phone.get_by_role("link", name="Play Endless Maze here").click()
@@ -209,25 +322,8 @@ def main() -> None:
             expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
             expect(pc.locator(".em-name")).to_have_text("Star Fish")
 
-            print("pc: run levels 2 and 3 and claim the record with the phone")
-            run_level(pc, 2)
-            run_level(pc, 3)
-            expect(pc.get_by_text("1 record is waiting for you to claim.")).to_be_visible()
-            shot(pc, "3-pc-maze")
-            pc.get_by_role("button", name="Claim").click()
-            claim = read_qr(pc)
-            assert claim.startswith(MAZE + "claim/")
-            phone.goto(claim)
-            expect(phone.locator("#sign-records")).to_contain_text("Finished the first 3 mazes in Endless Maze.")
-            expect(phone.get_by_label("Public: anyone may see this record")).to_be_checked()
-            shot(phone, "4-phone-sign-record")
-            phone.locator("#sign-ok").click()
-            expect(phone.locator("#message-title")).to_have_text("Records kept")
-            expect(pc.get_by_text("Signed in as")).to_be_visible()
-            expect(pc.get_by_role("button", name="Claim")).to_have_count(0)
-            phone.locator("#message-home").click()
-            expect(phone.locator("#home-records")).to_contain_text("complete")
-            expect(phone.locator("#home-records")).to_contain_text(f"Signed by you and localhost:{MAZE_PORT}")
+            print("pc: run levels 2 and 3 and claim the record with the phone, adding words of the player's own")
+            claim_with_words(pc, phone, MAZE, f"localhost:{MAZE_PORT}", "Three mazes before breakfast.", shot)
             shot(phone, "5-phone-home")
 
             print("pc3: set up an EntryPortal from a camera photo of the setup screen")
@@ -251,12 +347,8 @@ def main() -> None:
             expect(pc4.locator("#s-home")).to_be_visible()
             pc4.context.close()
 
-            print("anyone: the public list holds the complete record")
-            listing = pc.request.get(MAZE + "endlessmind-list.json").json()
-            card = pc.request.get(MAZE + "endlessmind-card.json").json()
-            assert card["name"] == "Endless Maze" and listing["realm"] == card["signers"][0]
-            [record] = listing["records"]
-            assert record["public"] is True and set(record["sigs"]) == {player, listing["realm"]}
+            print("anyone: the public list holds the complete record, with the player's words")
+            public_record(pc, MAZE, player, "Three mazes before breakfast.")
 
             print("pc2: set up its own EntryPortal from the setup code, then sign in on this computer")
             pc2 = watch(browser.new_context(viewport={"width": 1280, "height": 900}).new_page())
@@ -330,6 +422,7 @@ def main() -> None:
             run_level(solo, 3)
             solo.get_by_role("button", name="Claim").click()
             expect(solo.locator("#sign-records")).to_contain_text("Finished the first 3 mazes in Endless Maze.")
+            solo.get_by_label("Add words of your own").fill("Mine again.")
             solo.get_by_role("button", name="Sign and save").click()
             solo.get_by_role("link", name=f"Back to localhost:{MAZE_PORT}").click()
             expect(solo.locator("#level")).to_have_text("Level 4")
@@ -349,6 +442,7 @@ def main() -> None:
             expect(new_phone.locator("#message-title")).to_have_text("Records kept")
             new_phone.get_by_role("button", name="Back to your EntryPortal").click()
             expect(new_phone.locator("#home-records")).to_contain_text("Finished the first 3 mazes in Endless Maze.")
+            expect(new_phone.locator("#home-records")).to_contain_text("You wrote: Mine again.")
 
             print("in another app's browser, the EntryPortal says to open it in the usual browser")
             agent = pw.devices["iPhone 13"]["user_agent"] + " Instagram 300.0.0.0"
@@ -358,14 +452,21 @@ def main() -> None:
             new_phone.goto(PORTAL)
             expect(new_phone.locator("#in-app")).to_be_hidden()  # an ordinary browser gets no warning
 
+            print("again through a host: a relayed game at a name under localhost, with the host's EntryPortal")
+            relayed, relayed_maze, host_portal = start_relayed_maze(data)
+            programs += relayed
+            relayed_loop(browser, watch, relayed_maze, host_portal)
+
             browser.close()
             assert not errors, "errors in the browsers:\n" + "\n".join(errors)
             print("ok: the whole loop works")
         finally:
-            game.terminate()
-            out, _ = game.communicate(timeout=5)
-            if headed or "--verbose" in sys.argv:
-                print(out)
+            for program in programs:
+                program.terminate()
+            for program in programs:
+                out, _ = program.communicate(timeout=5)
+                if headed or "--verbose" in sys.argv:
+                    print(out)
 
 
 if __name__ == "__main__":

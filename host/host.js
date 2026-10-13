@@ -420,7 +420,7 @@ export async function openGame(options) {
         if (!sealed) return line.close(1012, "the game server is not running");
         seated.set(conn, (mine = line));
         emptySince = 0;
-        const records = id ? realm.records(id).map(({ text, data, time }) => ({ text, data, time })) : [];
+        const records = id ? realm.records(id).map(({ text, data, time, notes }) => ({ text, data, time, note: notes?.[id]?.text })) : [];
         tell({ t: "join", p: { conn, who: id ? "player:" + id : "guest:" + guest, id, name: id ? realm.playerName(id) : "Guest", guest: "guest:" + guest, records } });
       },
       message(text) {

@@ -6,11 +6,12 @@
 // checks every line it reads and measures the process from outside. See "Game servers" in specs/PROTOCOL.md.
 
 /**
- * @typedef {{ text: string, data?: Record<string, unknown>, time?: number }} RecordText
+ * @typedef {{ text: string, data?: Record<string, unknown>, time?: number, note?: string }} RecordText
  * @typedef {{ conn: number, who: string, id: string | null, name: string, guest: string, records: RecordText[] }} Player
  * `who` names the person: "player:<ID>" once signed in, otherwise the same as `guest`. `guest` is the
  * name this browser had before anyone signed in, so a game can carry a guest's progress over.
- * `records` are the records this realm has signed with the player.
+ * `records` are the records this realm has signed with the player, each with the `note` the player
+ * added to it, if any.
  * @typedef {{
  *   send(player: Player, data: unknown): void,
  *   load(key: string): any,

@@ -7,3 +7,5 @@
 target/
 # Python leaves these behind.
 __pycache__/
+# Checkouts that AI agents work in.
+.claude/worktrees/

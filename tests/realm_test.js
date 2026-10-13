@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { base64url, hex, masterKey, seedFromWords, signerFromWords, wordsFromEntropy } from "../shared/keys.js";
-import { addSignature, isComplete, validSigners } from "../shared/signed.js";
+import { addNote, addSignature, isComplete, validNotes, validSigners } from "../shared/signed.js";
 import { memoryStore, openRealm } from "../realm/realm.js";
 
 const BASE = "https://garden.example/";
@@ -144,6 +144,34 @@ Deno.test("claiming: the player signs first, choosing public, then the realm sig
   assert.deepEqual(wait, { state: "claimed", count: 1 });
   assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie } })).json()).claims, 0);
   assert.equal((await call(realm, `claim/${claim.code}`)).status, 410, "a claim code works once");
+});
+
+Deno.test("a player's own words on a record are kept and listed; a note that does not check out is dropped", async () => {
+  const { realm, clock } = await setup();
+  const cookie = await signIn(realm, clock.now);
+  await realm.offer(player.id, [{ text: "Planted ten seeds." }, { text: "Watered a seed." }, { text: "Picked a pear." }]);
+  const claim = await (await call(realm, "endlessmind/claim", { method: "POST", headers: { cookie } })).json();
+  const proposals = signPayload(await call(realm, `claim/${claim.code}`)).records;
+  const stranger = await signerFromWords(await wordsFor(9));
+
+  const signed = await Promise.all(proposals.map((/** @type {any} */ p) => addSignature({ ...p, public: true }, player)));
+  const noted = await addNote(signed[0], player, "My best garden yet.");
+  assert.deepEqual(await validSigners(noted), [player.id], "a note leaves the record's proofs valid");
+  // A note moved from another record, and a note by someone who is not a signer, do not check out.
+  const moved = { ...signed[1], notes: noted.notes };
+  const outsider = await addNote(signed[2], stranger, "I was never there.");
+  assert.deepEqual(await validNotes(moved), {});
+  assert.deepEqual(await validNotes(outsider), {});
+  assert.deepEqual(await validNotes({ ...noted, notes: { [player.id]: { ...noted.notes[player.id], text: "Changed." } } }), {});
+  await assert.rejects(addNote(signed[0], player, "x".repeat(501)));
+
+  const done = signPayload(await call(realm, `claim/${claim.code}`, form({ records: JSON.stringify([noted, moved, outsider]) })));
+  assert.equal(done.records.length, 3, "a bad note is never a reason to refuse the record");
+  assert.deepEqual(done.records.map((/** @type {any} */ r) => r.notes), [noted.notes, undefined, undefined]);
+  for (const record of done.records) assert.ok(await isComplete(record));
+  assert.deepEqual(await validNotes(done.records[0]), noted.notes, "the realm's proof did not disturb the note");
+  assert.deepEqual(realm.list().records[0].notes[player.id].text, "My best garden yet.");
+  assert.deepEqual(realm.records(player.id), done.records);
 });
 
 Deno.test("private records are signed but not published", async () => {

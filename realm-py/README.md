@@ -1,13 +1,13 @@
 # The realm library for Python
 
-What a tied realm (one that runs on its maker's own server) written in Python includes to join Endless Mind: the same sign-in by QR code, claiming records, realm card, public list and refusing burned IDs as [realm/realm.js](../realm/realm.js), with the same addresses, formats and `.data/` files, so a realm can move between the two. The browser side is not copied: the realm serves [realm/signin.js](../realm/signin.js) unchanged. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md).
+What a tied realm (one that runs on its maker's own server) written in Python includes to join Endless Mind: the same sign-in by QR code, claiming records (with the words a player adds to one), realm card, public list and refusing burned IDs as [realm/realm.js](../realm/realm.js), with the same addresses, formats and `.data/` files, so a realm can move between the two. The browser side is not copied: the realm serves [realm/signin.js](../realm/signin.js) unchanged. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md).
 
 | File                         | What it is                                                                    |
 | ---------------------------- | ----------------------------------------------------------------------------- |
 | `src/endlessmind/realm.py`   | The server side: `open_realm`, then `realm.handle(...)` for each request      |
 | `src/endlessmind/asgi.py`    | `RealmMiddleware`: puts the realm in front of any ASGI app, such as FastAPI   |
 | `src/endlessmind/keys.py`    | Secret phrases, keys and IDs, as `shared/keys.js`                             |
-| `src/endlessmind/signed.py`  | Signed JSON, as `shared/signed.js`                                            |
+| `src/endlessmind/signed.py`  | Signed JSON and a player's notes on records, as `shared/signed.js`            |
 | `src/endlessmind/names.py`   | Starting names and tidying chosen names, as `shared/names.js`                 |
 | `src/endlessmind/qr.py`      | QR codes as SVG, as `shared/qr.js`                                            |
 | `tests/`                     | pytest; `test_cross.py` runs the JavaScript with Deno and compares            |
@@ -72,4 +72,4 @@ The addresses it answers are the ones listed in [realm/README.md](../realm/READM
 
 ## Tests
 
-`uv run pytest` in this folder. `tests/test_cross.py` runs [tests/js_helper.js](tests/js_helper.js) with Deno and checks that the two versions give the same IDs, canonical JSON, signatures, names, QR codes and realm card, and that a realm moves between them on its data file. It is skipped when Deno is not installed.
+`uv run pytest` in this folder. `tests/test_cross.py` runs [tests/js_helper.js](tests/js_helper.js) with Deno and checks that the two versions give the same IDs, canonical JSON, signatures, notes, names, QR codes and realm card, and that a realm moves between them on its data file. It is skipped when Deno is not installed.

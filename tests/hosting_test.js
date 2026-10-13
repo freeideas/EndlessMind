@@ -76,7 +76,7 @@ Deno.test("nothing but the EntryPortal is ever served at its name, and it is ser
   const here = await hosting();
   try {
     // The game's pages, its sign-in and its line do not answer at the EntryPortal's name.
-    for (const path of ["maze.js", "endlessmind-card.json", "endlessmind/play.js", "endlessmind/signin.js", "README.md", "v0.64/index.htm", "%2e%2e/host/main.js", "v0.64", "endlessmind/known?domain=localhost"]) {
+    for (const path of ["maze.js", "endlessmind-card.json", "endlessmind/play.js", "endlessmind/signin.js", "README.md", "v0.65/index.htm", "%2e%2e/host/main.js", "v0.65", "endlessmind/known?domain=localhost"]) {
       assert.equal(await status(here.at("eportal", path)), 404, path);
     }
     assert.equal(await status(here.at("eportal", "endlessmind/start"), { method: "POST" }), 404);
@@ -91,7 +91,7 @@ Deno.test("nothing but the EntryPortal is ever served at its name, and it is ser
 
     // The EntryPortal's page is not at the game's address, or at any other name.
     assert.doesNotMatch(await (await fetch(here.at(""))).text(), /EntryPortal \| Endless Mind/);
-    assert.equal(await status(here.at("", "v0.64/")), 404);
+    assert.equal(await status(here.at("", "v0.65/")), 404);
     assert.equal(await status(here.at("other")), 503);
     assert.equal(await status(here.at("eportal.eportal")), 503);
   } finally {

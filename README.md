@@ -32,6 +32,7 @@ Only scan a sign-in code right after you pressed "Sign in" in a game yourself. I
 A realm can give you signed **records**: "in good standing as of 1 December", "finished the Glass Maze in 4 minutes 12 seconds", or a trade, "P gives the helmet to Q, and Q gives 95 diamonds to P".
 
 - Your EntryPortal shows you every record before you sign it.
+- When you sign a record you can add words of your own: a review, a boast. They travel with the record, and nobody else can change them.
 - Records are signed by everyone involved, so anyone you show them to can check them, and nobody can fake them.
 - You keep the records you want and drop the rest. Your reputation can only grow.
 - Your EntryPortal can save your records as a file, which any other EntryPortal can load.
