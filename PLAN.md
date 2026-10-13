@@ -26,7 +26,7 @@ Steps do not wait on each other unless they say so.
 
 ### 1. Running strangers' games safely
 
-Taken by:
+Taken by: the session that wrote this plan (started 2026-10-13).
 
 A host that runs games it did not write needs: a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; stopping a game that nobody is playing, which needs the host to keep its timer; and the plain statement to the admin, before the first stranger's game loads, that a host is responsible for what it serves.
 
@@ -74,7 +74,7 @@ Game servers compiled to WebAssembly, under the same seal and the same calls.
 
 ### 8. Tidying
 
-Taken by:
+Taken by: the session that wrote this plan (started 2026-10-13).
 
 Each of these removes something; none waits on another step.
 
