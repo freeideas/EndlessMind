@@ -12,13 +12,16 @@
 //                                 [--hostname 127.0.0.1] [--data <folder>] [--portal <address>]
 //                                 [--games 20] [--no-relay] [--no-portal]
 //
+//   deno run -A host/main.js setup [--base <address>] [--game <folder>] [--yes]
+//
 // `run` plays one game on this computer: it prints the address to open, and starts the game server
 // again whenever a file in the folder changes. With `--relay`, players anywhere can join it, through
 // the relay named or one found among the known hosts. Given a release's ID instead of a folder, it runs
 // someone else's game, fetched from whichever known host runs it. `pack` makes a release from a game's
 // folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
 // releases, relays for games on other computers and serves a spare EntryPortal. `--hosts` lists where
-// finding other hosts starts; `--hosts ""` means nowhere. See host/README.md.
+// finding other hosts starts; `--hosts ""` means nowhere. `setup` turns a Linux server
+// into such a host. See host/README.md.
 
 import { runGame } from "./host.js";
 import { runHost } from "./hosting.js";
@@ -106,10 +109,13 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
   if (!("no-relay" in flags)) console.log("  Relaying: a game on another computer joins with --relay");
   if (host.entryPortal) console.log(`  EntryPortal: ${host.entryPortal}`);
   console.log(`  Host ID ${host.hosts.id}; it knows ${host.hosts.known().length} other hosts`);
+} else if (command === "setup" && names.length === 0) {
+  await (await import("./setup.js")).setup(flags);
 } else {
   console.error("Usage: run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay [<address>]] [--hosts <address>,...] [--portal <address>] [--data <folder>] [--store <folder>] [--no-watch]");
   console.error("       run <release ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--portal <address>]");
   console.error("       pack <folder> [--store <folder>] [--data <folder>]");
   console.error("       host --base <address> [--game <folder>] [--load <release ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]");
+  console.error("       setup [--base <address>] [--game <folder>] [--yes]    (a Linux server, as root)");
   Deno.exit(2);
 }
