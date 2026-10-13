@@ -10,6 +10,7 @@ Jane, who cannot code, describes a game to her AI coding agent and points it at 
 
 - `deno task run <folder>` runs a game on its maker's computer with its game server sealed; with `--relay <address>` friends anywhere join by a link.
 - `deno task host --base <address> --game <folder>` on a server keeps that game at the main address, relays for games on other computers, and serves an EntryPortal at `eportal.<name>`. It needs no domain name.
+- That host prints its game's release ID. `deno task host --load <ID> --from <address>` on another server, or `deno task run <ID> --relay <address> --from <address>` at home, runs the same game, checked against the ID.
 - Identity, signing in, records and the EntryPortal, as in [specs/PROTOCOL.md](specs/PROTOCOL.md).
 
 ## Working rules
@@ -21,50 +22,37 @@ Jane, who cannot code, describes a game to her AI coding agent and points it at 
 
 ## Steps
 
-Steps 1 and 2 are in order. The others do not wait on each other unless they say so.
+Steps do not wait on each other unless they say so.
 
-### 1. Releases
-
-Taken by: the session that wrote this plan (started 2026-10-13).
-
-A game is packed into a release with an ID, and the host program runs a game given only that ID.
-
-- **Packing.** `deno task pack <folder>` makes a release from a game's folder: every file that is not hidden, plus a release note signed by the realm that names each file with its size and fingerprint, the version of the game server's calls, and the realm card's words. The release is described by a torrent file, and its ID is that torrent's ID, so any torrent program can fetch and share it.
-- **Fetching.** A host that runs a release serves its files to other hosts, who check every piece against the ID. Fetching from the torrent network itself belongs to step 3.
-- **Hosting by ID.** `deno task host` takes release IDs from its admin and runs each at `<realm ID>.<the host's name>`; `deno task run <ID> --relay <address>` does the same at home. The admin gives the IDs; nothing is loaded without being asked.
-- **Records.** A host does not have the realm's secret, so it signs under an ID of its own, and its records and the card it shows name the release and the realm (see "Hosts" in the design).
-
-Files: `host/`, `realm/realm.js` (and its copy in `realm-py/`), `specs/`, tests.
-
-### 2. Running strangers' games safely
+### 1. Running strangers' games safely
 
 Taken by:
 
-Needs step 1. A host that runs games it did not write needs: a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; stopping a game that nobody is playing, which needs the host to keep its timer; and the plain statement to the admin, before the first stranger's game loads, that a host is responsible for what it serves.
+A host that runs games it did not write needs: a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; stopping a game that nobody is playing, which needs the host to keep its timer; and the plain statement to the admin, before the first stranger's game loads, that a host is responsible for what it serves.
 
 Files: `host/host.js`, `host/sealed.js`.
 
-### 3. Finding each other
+### 2. Finding each other
 
 Taken by:
 
-Needs step 1. Hosts find other hosts, a maker at home finds a relay, and a host fetches a release, all without being told an address, in the way torrent programs find each other. Each host publishes a signed card of its own (its ID, its address, what it runs) and the list of hosts it knows. Players in browsers ask any host they know. The suggested design is under "Not decided yet" in the design.
+Hosts find other hosts, a maker at home finds a relay, and a host fetches a release, all without being told an address (today `--relay` and `--from` name one), in the way torrent programs find each other. Each host publishes a signed card of its own (its ID, its address, what it runs) and the list of hosts it knows. Players in browsers ask any host they know. The suggested design is under "Not decided yet" in the design.
 
-### 4. Loading by demand
-
-Taken by:
-
-Needs step 3. A host loads the most wanted games that too few hosts run, by rules its admin sets once, and removes them when others are wanted more. The suggested design, wishes signed by players, is under "Not decided yet" in the design.
-
-### 5. Notes and boards
+### 3. Loading by demand
 
 Taken by:
 
-A player's own words on a record (a review, a boast), covered only by the player's proof. Then a board that adds up play per release across hosts and shows which hosts run a game. The board needs steps 1 and 3; notes need neither.
+Needs step 2. A host loads the most wanted games that too few hosts run, by rules its admin sets once, and removes them when others are wanted more. The suggested design, wishes signed by players, is under "Not decided yet" in the design.
+
+### 4. Notes and boards
+
+Taken by:
+
+A player's own words on a record (a review, a boast), covered only by the player's proof. Then a board that adds up play per release across hosts and shows which hosts run a game. The board needs step 2; notes do not.
 
 Files for notes: the EntryPortal (`deploy/entryportal.js`, a new version in `portal/`), `realm/realm.js` and its copy in `realm-py/`.
 
-### 6. The EntryPortal's messages
+### 5. The EntryPortal's messages
 
 Taken by:
 
@@ -72,19 +60,19 @@ The reminder on the screen that takes a phrase, and the "being asked is rare" ru
 
 Files: `deploy/entryportal.js`, `portal/`, `tests/browser/`.
 
-### 7. The package
+### 6. The package
 
 Taken by:
 
 One download for Mac, Windows and Linux, installable with brew, apt, winget and pacman, so that nobody needs Deno installed first. On a server it asks for the web address and the resident game, and sets up HTTPS, which today means installing Caddy and giving it `host/Caddyfile`. Try it from nothing on a freshly rented server.
 
-### 8. Other languages
+### 7. Other languages
 
 Taken by:
 
 Game servers compiled to WebAssembly, under the same seal and the same calls.
 
-### 9. Tidying
+### 8. Tidying
 
 Taken by:
 
@@ -101,5 +89,5 @@ Each is described under "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md).
 
 | Question                           | Needed for |
 | ---------------------------------- | ---------- |
-| How hosts and players find hosts   | Step 3     |
-| Which games a host loads by itself | Step 4     |
+| How hosts and players find hosts   | Step 2     |
+| Which games a host loads by itself | Step 3     |

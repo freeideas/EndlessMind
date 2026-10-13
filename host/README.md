@@ -9,7 +9,8 @@ Runs a game: serves its display, keeps its game server sealed, and passes messag
 | `sealed.js`  | Runs inside the seal: turns the host's messages into the calls a game server answers |
 | `play.js`    | For the display: its line to the game server, served at `<base>endlessmind/play.js`  |
 | `relay.js`   | `runRelay`: a relay. `dial`: how a game reaches players through one                  |
-| `hosting.js` | `runHost`: one web server for a resident game, a relay and an EntryPortal            |
+| `hosting.js` | `runHost`: one web server for a resident game, releases, a relay and an EntryPortal  |
+| `release.js` | Releases: packing a game under an ID, checking one, fetching one from a host         |
 | `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it                   |
 
 ## Use
@@ -42,6 +43,26 @@ It prints the address to open, and starts the game server again whenever a file 
 A file or folder whose name starts with a dot is never served and never loaded.
 
 The display imports two files the host serves: `./endlessmind/play.js` for its line to the game server, and `./endlessmind/signin.js` for the sign-in box (see [realm/README.md](../realm/README.md)).
+
+## Releases
+
+A release is one exact version of a game that anyone can host. Its ID is all another host needs.
+
+```
+deno task pack <folder>
+```
+
+It prints the release's ID. The release is signed with the realm's secret phrase from the folder's `.data/`, and packing the same files again gives the same ID. A host packs its resident game by itself, so `pack` is only for seeing the ID beforehand.
+
+To run someone else's game at home, give its ID in place of a folder, a relay for players to come through, and a host to fetch it from:
+
+```
+deno task run <release ID> --relay https://relay.example/ --from https://myvps.example/
+```
+
+Everything fetched is checked against the ID, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
+
+The host program keeps releases, the data of the games it runs from them and its own secret phrase in `.endlessmind/` in the folder it is started from; `--store` names another place.
 
 ## Relaying
 
@@ -80,12 +101,16 @@ deno task host --base https://myvps.example/ --game <folder>
 | ---------------------------- | ----------------------------------------------------------------- |
 | `myvps.example`              | The game in `<folder>`, the resident game                         |
 | `eportal.myvps.example`      | An EntryPortal: the published versions in `portal/`, nothing else |
-| `<realm ID>.myvps.example`   | Each game on another computer that was run with `--relay`         |
+| `<realm ID>.myvps.example`   | Each release given with `--load`                                  |
+| `<ID>.myvps.example`         | Each game on another computer that was run with `--relay`         |
 
 | Option        | Default                           | What it sets                                            |
 | ------------- | --------------------------------- | ------------------------------------------------------- |
 | `--base`      |                                   | The host's main address: a site's root                  |
 | `--game`      |                                   | The resident game's folder; without it, a plain page    |
+| `--load`      |                                   | IDs of releases to run, with commas between them        |
+| `--from`      |                                   | Addresses of hosts to fetch those releases from         |
+| `--store`     | `.endlessmind/`                   | Where releases, their data and the host's secret are    |
 | `--port`      | `8000`                            | The port to listen on                                   |
 | `--hostname`  | `127.0.0.1`                       | Who can reach it; the default is this computer only     |
 | `--data`      | `.data/` in the game's folder     | Where the resident game's secret phrase and data are    |
@@ -97,6 +122,8 @@ deno task host --base https://myvps.example/ --game <folder>
 **Names.** The main name and every name under it must lead to the server. With a domain, that is two DNS records: `myvps.example` and `*.myvps.example`. Without one, a free name made from the server's number works with no setup at all: for the server at `203.0.113.7`, use `--base https://203-0-113-7.sslip.io/`.
 
 **HTTPS.** The host program speaks plain HTTP on this computer only, and [Caddy](Caddyfile) in front of it provides HTTPS: it gets a certificate for each name the first time someone asks for it, after checking with the host program that the name is one of its own. Certificate authorities ration certificates by parent name. For a free name that ration is shared with everyone who uses the naming service; with a domain of one's own, a single certificate for `*.myvps.example` avoids it (see [deploy/README.md](../deploy/README.md) for how the relay at relay.endlessmind.com does that).
+
+**Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID and this host's address to their own: `deno task host --base https://other.example/ --load <release ID> --from https://myvps.example/`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
 
 To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer.
 

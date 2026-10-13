@@ -213,20 +213,20 @@ Everything passed in either direction is JSON. A game that keeps progress under 
 
 ## Relays
 
-A relay lets players reach a game that runs on a computer they cannot connect to, such as its maker's computer at home. A relay has an HTTPS address that is a site's root, such as `https://relay.example/`, and gives each game a site of its own under that name: `https://<realm ID>.relay.example/`. The realm uses that address as it would any other, in its sign-in codes and its realm card.
+A relay lets players reach a game that runs on a computer they cannot connect to, such as its maker's computer at home. A relay has an HTTPS address that is a site's root, such as `https://relay.example/`, and gives each game a site of its own under that name: `https://<ID>.relay.example/`, where the ID is the one the game's host signs under. That is the realm's ID for a game run by its maker, and the host's own ID for a release (see "Releases"). The game uses that address as it would any other, in its sign-in codes and its card.
 
 **Asking to be relayed.** The game's host opens a WebSocket to `endlessmind/relay` under the relay's address. Every message on it is JSON text with a `t` field.
 
 1. The relay sends `{ "t": "hello", "nonce": "<32 hex characters>" }`.
-2. The host answers `{ "t": "note", "note": <signed JSON> }`. The note is signed by the realm and names the relay and the nonce:
+2. The host answers `{ "t": "note", "note": <signed JSON> }`. The note is signed by that ID and names the relay and the nonce:
 
    ```json
-   { "v": 1, "type": "relay", "signers": ["<realm ID>"], "time": 1790000000000, "relay": "https://relay.example/", "nonce": "<the nonce>" }
+   { "v": 1, "type": "relay", "signers": ["<ID>"], "time": 1790000000000, "relay": "https://relay.example/", "nonce": "<the nonce>" }
    ```
 
-3. The relay checks that the realm signed the note, that `relay` is its own address and that `nonce` is the one it just sent. It answers `{ "t": "ready", "base": "<the game's address>" }`, or `{ "t": "full" }` if it has no room, and then closes. A host that is offered any address but the one above stops using that relay.
+3. The relay checks the signature, that `relay` is its own address and that `nonce` is the one it just sent. It answers `{ "t": "ready", "base": "<the game's address>" }`, or `{ "t": "full" }` if it has no room, and then closes. A host that is offered any address but the one above stops using that relay.
 
-A realm that asks again takes the place of its earlier connection. The game is at its address for as long as the connection stays open.
+An ID that asks again takes the place of its earlier connection. A relay that is also a host refuses an ID whose name it already uses for a release. The game is at its address for as long as the connection stays open.
 
 **Passing players through.** The relay gives each request and each display's line a number, `n`.
 
@@ -255,9 +255,40 @@ A host has a main address that is a site's root, such as `https://host.example/`
 | -------------------------- | -------------------------------------------------------------------- |
 | `host.example`             | The host's resident game, and `endlessmind/relay` for games to dial  |
 | `eportal.host.example`     | An EntryPortal: published versions only, and nothing else            |
-| `<realm ID>.host.example`  | Each other game                                                      |
+| `<realm ID>.host.example`  | Each release the host runs, named by its realm                       |
+| `<ID>.host.example`        | Each relayed game, named by the ID its own host signs under          |
 
 No two games share a name, and no game is ever at a path under another's name or at the EntryPortal's. A realm whose address is an HTTPS site's root names its session cookie `__Host-endlessmind`, which browsers accept only from that exact name; any other realm names it `endlessmind`.
+
+## Releases
+
+A release is one exact version of a game, packed so that anyone can fetch it, check it and run it.
+
+**The files.** Every file of the game's folder (see "Game servers"), plus a release note named `endlessmind-release.json`. A file's path is made of parts joined by `/`; each part starts with a letter, a digit or `_`, continues with letters, digits, `.`, `_`, `-` or spaces, and is at most 100 characters. A release holds at most 500 files and 50 MB.
+
+**The release note** is signed JSON, signed by the realm alone:
+
+```json
+{ "v": 1, "type": "release", "signers": ["<realm ID>"], "time": 1790000000000, "calls": 1,
+  "card": { "name": "...", "description": "...", "tags": ["..."] },
+  "content": "<64 hex characters>" }
+```
+
+| Field     | Meaning                                                                          |
+| --------- | -------------------------------------------------------------------------------- |
+| `calls`   | The version of the game server's calls the game was written for; `1` is this one |
+| `card`    | The realm card's words: `name`, `description`, and optionally `tags`, `picture`  |
+| `content` | The fingerprint of every other file in the release                               |
+
+`content` is the SHA-256, in hex, of the canonical JSON of a list with one entry per file except the note, sorted by path: `[path, size in bytes, SHA-256 of the file in hex]`.
+
+**The ID.** A release is described by a BitTorrent (version 1) torrent file, and the release's ID is that torrent's info-hash: 40 hex characters. The torrent lists the files sorted by path, the note among them, with pieces of 262144 bytes, and its `name` is the realm's ID. Any torrent program can fetch and share a release by that ID.
+
+**Checking.** Before running or passing on a release, a host checks that the torrent file hashes to the ID, that every file matches the torrent's pieces and no other file is present, that the note is signed by the realm the torrent names, that `content` matches the files, and that `calls` is a version it speaks. Whoever sent the files need not be trusted.
+
+**Fetching from a host.** A host serves each release it runs, and its resident game's, under its main address: the torrent file at `endlessmind/release/<ID>.torrent`, and each file at `endlessmind/release/<ID>/<path>`.
+
+**Running a release.** The realm's secret is not on the host, so the host signs under an ID of its own. Its card, and every record it signs with a player, carry two more fields: `realm`, the realm's ID, and `release`, the release's ID. Such a record says that this host ran that release of that realm and that the player earned what the text says; the realm itself has signed only the release.
 
 ## Burning an identity
 
