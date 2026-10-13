@@ -16,7 +16,9 @@ async function gameFolder(temp, name = "game") {
   const folder = join(temp, name);
   await Deno.mkdir(join(folder, "art"), { recursive: true });
   await Deno.writeTextFile(join(folder, "card.json"), JSON.stringify({ name: "Packed", description: "A game for tests.", tags: ["test"] }));
+  // The comment names a file for its types only, as the examples do; it is not part of the release.
   await Deno.writeTextFile(join(folder, "game.js"), `import { greeting } from "./words.js";
+    /** @typedef {import("../../host/sealed.js").Game} Game */
     export default {
       join(game, player) { game.offer(player, [{ text: "You came in." }]); },
       message(game, player, data) { game.send(player, { said: greeting + data, who: player.who }); },

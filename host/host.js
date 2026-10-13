@@ -91,16 +91,22 @@ async function checkImports(entry, folder) {
   const info = await new Deno.Command(Deno.execPath(), { args: ["info", "--json", ...SEAL.slice(1), entry], stderr: "piped" }).output();
   if (!info.success) throw new Error(new TextDecoder().decode(info.stderr).trim());
   const graph = JSON.parse(new TextDecoder().decode(info.stdout));
+  // Only what the code loads counts. A file named just for its types, in a comment, is never loaded
+  // when the game server runs, so it may be anywhere, or missing.
+  /** @type {Map<string, any>} */
+  const modules = new Map((graph.modules ?? []).map((/** @type {any} */ module) => [module.specifier, module]));
   /** @type {Set<string>} */
   const wanted = new Set();
-  for (const module of graph.modules ?? []) {
-    if (module.error) throw new Error(String(module.error));
-    wanted.add(module.specifier);
-    for (const dependency of module.dependencies ?? []) {
-      for (const use of [dependency.code, dependency.type]) {
-        if (use?.error) throw new Error(String(use.error));
-        if (use?.specifier) wanted.add(use.specifier);
-      }
+  const next = [...(graph.roots ?? [])];
+  for (let specifier = next.pop(); specifier !== undefined; specifier = next.pop()) {
+    specifier = graph.redirects?.[specifier] ?? specifier;
+    if (wanted.has(specifier)) continue;
+    wanted.add(specifier);
+    const module = modules.get(specifier);
+    if (module?.error) throw new Error(String(module.error));
+    for (const dependency of module?.dependencies ?? []) {
+      if (dependency.code?.error) throw new Error(String(dependency.code.error));
+      if (dependency.code?.specifier) next.push(dependency.code.specifier);
     }
   }
   const own = pathToFileURL(folder + sep).href;
