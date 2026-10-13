@@ -27,19 +27,19 @@ Steps do not wait on each other unless they say so.
 
 ### 1. Finding each other
 
-Taken by:
+Taken by: Claude (Opus), session of 2026-10-13
 
 Hosts find other hosts, a maker at home finds a relay, and a host fetches a release, all without being told an address (today `--relay` and `--from` name one), in the way torrent programs find each other. Each host publishes a signed card of its own (its ID, its address, what it runs) and the list of hosts it knows. Players in browsers ask any host they know. The suggested design is under "Not decided yet" in the design.
 
 ### 2. Loading by demand
 
-Taken by:
+Taken by: Claude (Opus), session of 2026-10-13
 
 Needs step 1. A host loads the most wanted games that too few hosts run, by rules its admin sets once, and removes them when others are wanted more. The suggested design, wishes signed by players, is under "Not decided yet" in the design.
 
 ### 3. Notes and boards
 
-Taken by:
+Taken by: Claude (Opus), session of 2026-10-13
 
 A player's own words on a record (a review, a boast), covered only by the player's proof. Then a board that adds up play per release across hosts and shows which hosts run a game. The board needs step 1; notes do not.
 
@@ -47,7 +47,7 @@ Files for notes: the EntryPortal (`deploy/entryportal.js`, a new version in `por
 
 ### 4. The EntryPortal's messages
 
-Taken by:
+Taken by: Claude (Opus), session of 2026-10-13
 
 The reminder on the screen that takes a phrase, and the "being asked is rare" rule at setup. It also accepts plain `http` for names under `localhost`, as it does for `localhost` itself; `tests/browser/` then runs the whole loop a second time through `deno task host` with a relayed game. Published as a new version.
 
@@ -55,13 +55,13 @@ Files: `deploy/entryportal.js`, `portal/`, `tests/browser/`.
 
 ### 5. The package
 
-Taken by:
+Taken by: Claude (Opus), session of 2026-10-13
 
 One download for Mac, Windows and Linux, installable with brew, apt, winget and pacman, so that nobody needs Deno installed first. On a server it asks for the web address and the resident game, and sets up HTTPS, which today means installing Caddy and giving it `host/Caddyfile`. Try it from nothing on a freshly rented server.
 
 ### 6. Other languages
 
-Taken by:
+Taken by: Claude (Opus), session of 2026-10-13
 
 Game servers compiled to WebAssembly, under the same seal and the same calls.
 

@@ -3,3 +3,5 @@
 .data/
 # The host program keeps releases, their data and its own secret phrase here.
 .endlessmind/
+# Python leaves these behind.
+__pycache__/
