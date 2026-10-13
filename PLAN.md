@@ -79,8 +79,6 @@ Taken by: the session that wrote this plan (started 2026-10-13).
 Each of these removes something; none waits on another step.
 
 - **One program on ordinarydata.** Replace the `endless-maze` and `endless-relay` units, and the separate certificate and Caddy arrangements in `deploy/`, with one `deno task host`, or stop running them.
-- **Drop the `relay` command.** `deno task host` with no game is a relay; remove `runRelay` and the `relay` task once nothing uses them.
-- **Old EntryPortal versions.** `portal/` keeps every version ever published. With no players yet, keep only the newest.
 - **`realm-py/`.** A second copy of the realm library for tied realms in Python. Decide with the owner whether it earns its upkeep; every change to `realm/realm.js` is made twice.
 
 ## Questions to settle first

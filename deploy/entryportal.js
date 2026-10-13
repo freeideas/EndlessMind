@@ -1,29 +1,25 @@
 // Keeps the EntryPortal in step with shared/: copies the shared code into the newest version's page
 // between its "begin shared" and "end shared" lines, puts the SHA-256 hashes of its script and style
-// into its security policy, and writes the page's fingerprint next to it. It also writes the two
-// forwarding pages: portal/index.html (portal.endlessmind.com/, to the newest version) and
-// site/EntryPortal/index.html (the old address, endlessmind.com/EntryPortal/, to portal.endlessmind.com/).
+// into its security policy, and writes the page's fingerprint next to it. It also writes the
+// forwarding page, portal/index.html, which leads to the newest version.
 //
 // The EntryPortal has a site of its own, portal.endlessmind.com, served from portal/: any script on the
-// same site could use the stored key, so nothing else may ever be served there. v0.1, published on
-// endlessmind.com before this rule, stays in site/EntryPortal/v0.1/ unchanged.
+// same site could use the stored key, so nothing else may ever be served there.
 //
 //   deno task portal          update the files
 //   deno task portal --check  fail if they are out of date
 //
 // Improvements are welcome, as new versions: a published version is never edited in place, so a check
 // of it stays true. To change the EntryPortal after VERSION is published, copy its folder to the next
-// version (after v0.4 come v0.61, v0.62, ... up to v1.0), set VERSION to it, and edit the copy.
+// version, set VERSION to it, and edit the copy. Only the newest version is kept here.
 
 export const VERSION = "v0.64";
-export const PORTAL_SITE = "https://portal.endlessmind.com/";
 const ROOT = new URL("../", import.meta.url);
 const SHARED = ["words-en.js", "keys.js", "signed.js", "names.js", "qrcodegen.js", "qr.js", "jsqr.js"];
 
 export const pagePath = () => new URL(`portal/${VERSION}/index.html`, ROOT);
 export const sumsPath = () => new URL(`portal/${VERSION}/SHA256SUMS`, ROOT);
 export const forwardPath = () => new URL("portal/index.html", ROOT);
-export const oldForwardPath = () => new URL("site/EntryPortal/index.html", ROOT);
 
 /** @param {string} text */
 async function sha256(text) {
@@ -89,7 +85,6 @@ async function files() {
     { path: pagePath(), want: page, have: await read(pagePath()) },
     { path: sumsPath(), want: await sums(page), have: await read(sumsPath()) },
     { path: forwardPath(), want: await forwardPage(VERSION + "/"), have: await read(forwardPath()) },
-    { path: oldForwardPath(), want: await forwardPage(PORTAL_SITE), have: await read(oldForwardPath()) },
   ];
 }
 

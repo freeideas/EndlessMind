@@ -4,8 +4,7 @@
 // request and every display's line for that site down the connection the maker opened.
 // See "Relays" in specs/PROTOCOL.md.
 //
-//   openRelay({ base })  the relay's side, for a server that answers other things too (see hosting.js)
-//   runRelay({ base })   the same with a web server of its own
+//   openRelay({ base })  the relay's side, used by a host (see hosting.js)
 //   dial({ relay, ... }) the game's side, used by openGame
 
 import { hex, isId } from "../shared/keys.js";
@@ -258,28 +257,6 @@ export function openRelay(options) {
     },
     stop() {
       for (const game of games.values()) game.socket.close(1001, "the relay is closing");
-    },
-  };
-}
-
-/**
- * Run a relay with a web server of its own.
- * @param {{ base: string, port?: number, hostname?: string, games?: number, log?: (text: string) => void }} options
- */
-export function runRelay(options) {
-  const relay = openRelay(options);
-  const server = Deno.serve({ port: options.port ?? 8100, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, (request) => {
-    const answer = relay.handle(request);
-    if (answer) return answer;
-    if (new URL(request.url).pathname !== "/") return new Response("Not found", { status: 404 });
-    return page("An Endless Mind relay", "This passes players to games that run on their makers' own computers. Each game has an address of its own here while its maker's computer is on.", 200);
-  });
-  return {
-    base: relay.base,
-    games: relay.games,
-    async stop() {
-      relay.stop();
-      await server.shutdown();
     },
   };
 }

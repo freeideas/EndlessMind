@@ -9,17 +9,14 @@
 //                                 [--from <address>,...] [--store <folder>] [--port 8000]
 //                                 [--hostname 127.0.0.1] [--data <folder>] [--portal <address>]
 //                                 [--games 20] [--no-relay] [--no-portal]
-//   deno run -A host/main.js relay --base <address> [--port 8100] [--hostname 127.0.0.1] [--games 20]
 //
 // `run` plays one game on this computer: it prints the address to open, and starts the game server
 // again whenever a file in the folder changes. With `--relay`, players anywhere can join it. Given a
 // release's ID instead of a folder, it runs someone else's game. `pack` makes a release from a game's
 // folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
-// releases, relays for games on other computers and serves a spare EntryPortal. `relay` only relays.
-// See host/README.md.
+// releases, relays for games on other computers and serves a spare EntryPortal. See host/README.md.
 
 import { runGame } from "./host.js";
-import { runRelay } from "./relay.js";
 import { runHost } from "./hosting.js";
 import { findRelease, isReleaseId, pack } from "./release.js";
 import { join } from "node:path";
@@ -90,14 +87,10 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
   for (const game of host.hosted()) console.log(`  ${game.name}: ${game.base} (release ${game.id})`);
   if (!("no-relay" in flags)) console.log(`  Relaying: a game on another computer joins with --relay ${host.base}`);
   if (host.entryPortal) console.log(`  EntryPortal: ${host.entryPortal}`);
-} else if (command === "relay" && names.length === 0 && flags.base) {
-  const relay = runRelay({ base: flags.base, port, hostname: flags.hostname || undefined, games: flags.games ? Number(flags.games) : undefined });
-  console.log(`Relaying for games at ${relay.base}`);
 } else {
   console.error("Usage: run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay <address>] [--portal <address>] [--data <folder>] [--no-watch]");
   console.error("       run <release ID> --relay <address> [--from <address>,...] [--store <folder>]");
   console.error("       pack <folder> [--store <folder>]");
   console.error("       host --base <address> [--game <folder>] [--load <release ID>,...] [--from <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]");
-  console.error("       relay --base <address> [--port 8100] [--hostname 127.0.0.1] [--games 20]");
   Deno.exit(2);
 }

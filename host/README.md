@@ -8,7 +8,7 @@ Runs a game: serves its display, keeps its game server sealed, and passes messag
 | `host.js`    | `runGame`: the web server, the sealed process, saved data, sign-in and records       |
 | `sealed.js`  | Runs inside the seal: turns the host's messages into the calls a game server answers |
 | `play.js`    | For the display: its line to the game server, served at `<base>endlessmind/play.js`  |
-| `relay.js`   | `runRelay`: a relay. `dial`: how a game reaches players through one                  |
+| `relay.js`   | `openRelay`: a host's relay. `dial`: how a game reaches players through one          |
 | `hosting.js` | `runHost`: one web server for a resident game, releases, a relay and an EntryPortal  |
 | `release.js` | Releases: packing a game under an ID, checking one, fetching one from a host         |
 | `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it                   |
@@ -74,20 +74,7 @@ deno task run <folder> --relay https://relay.example/
 
 A relay for trying this out runs at `https://relay.endlessmind.com/`. The link it prints, `https://<realm ID>.relay.example/`, works for anyone, for as long as this computer stays on and connected. It is the same link every time, since it holds the realm's ID, and the relay gives it only to whoever holds the realm's secret phrase. A relay can read and change what passes through it, so use one you would trust to host the game.
 
-A host is a relay too (see "Hosting" below). To run a relay and nothing else:
-
-```
-deno task relay --base https://relay.example/
-```
-
-| Option       | Default     | What it sets                                         |
-| ------------ | ----------- | ---------------------------------------------------- |
-| `--base`     |             | The relay's own address: a site's root               |
-| `--port`     | `8100`      | The port to listen on                                |
-| `--hostname` | `127.0.0.1` | Who can reach it; the default is this computer only  |
-| `--games`    | `20`        | How many games it passes at once                     |
-
-The relay speaks plain HTTP, so a web server in front of it must provide HTTPS for the relay's name and for every name under it (`*.relay.example`), and pass both on with the name the player asked for. To try one with no setup, use `--base http://localhost:8100/`: browsers treat every name under `localhost` as this computer. Signing in does not work that way, since an EntryPortal accepts plain `http` only for `localhost` itself.
+Every host is a relay (see "Hosting" below), unless its admin turns that off.
 
 ## Hosting
 

@@ -3,20 +3,29 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { runGame } from "../host/host.js";
-import { relayedBase, runRelay } from "../host/relay.js";
+import { runHost } from "../host/hosting.js";
+import { relayedBase } from "../host/relay.js";
 import { newWords, signerFromWords } from "../shared/keys.js";
 import { addSignature } from "../shared/signed.js";
 import { makeMaze, solution } from "../examples/maze/maze.js";
 
 let nextPort = 18900 + Math.floor(Math.random() * 500);
 
-/** A relay on this computer. Names under `localhost` all lead here, so each game gets a site of its own. */
-function relaying(games = 20) {
+/** A host that only relays, on this computer. Names under `localhost` all lead here, so each game gets a site of its own. */
+async function relaying(games = 20) {
   const port = nextPort++;
   /** @type {string[]} */
   const said = [];
-  const relay = runRelay({ base: `http://localhost:${port}/`, port, games, log: (text) => said.push(text) });
-  return { relay, said, port, base: relay.base };
+  const store = await Deno.makeTempDir();
+  const host = await runHost({ base: `http://localhost:${port}/`, port, games, entryPortal: false, store, log: (text) => said.push(text) });
+  const relay = {
+    games: host.games,
+    async stop() {
+      await host.stop();
+      await Deno.remove(store, { recursive: true });
+    },
+  };
+  return { relay, said, port, base: host.base };
 }
 
 /**
@@ -98,7 +107,7 @@ async function until(done, ms = 15000) {
 const status = (address) => fetch(address).then((answer) => (answer.body?.cancel(), answer.status));
 
 Deno.test("Endless Maze on one computer is played at an address of its own on a relay", async () => {
-  const { relay, base } = relaying();
+  const { relay, base } = await relaying();
   const game = await relayed(base, { folder: "examples/maze" });
   try {
     assert.equal(game.base, relayedBase(base, game.host.realm.id));
@@ -136,7 +145,7 @@ Deno.test("Endless Maze on one computer is played at an address of its own on a 
 });
 
 Deno.test("a relay passes big files, posted bodies and refusals unchanged", async () => {
-  const { relay, base } = relaying();
+  const { relay, base } = await relaying();
   const game = await relayed(base);
   try {
     const big = new Uint8Array(await (await fetch(game.base + "big.bin")).arrayBuffer());
@@ -176,7 +185,7 @@ Deno.test("a relay passes big files, posted bodies and refusals unchanged", asyn
 });
 
 Deno.test("a relay gives a realm's address only to whoever proves they are that realm", async () => {
-  const { relay, base, port } = relaying();
+  const { relay, base, port } = await relaying();
   const realm = await signerFromWords(await newWords());
   const thief = await signerFromWords(await newWords());
   /** Dial the relay and answer its hello with whatever `note` makes. @param {(nonce: string) => Promise<any>} note */
@@ -221,7 +230,7 @@ Deno.test("a relay gives a realm's address only to whoever proves they are that 
 });
 
 Deno.test("a relayed game is gone while its computer is off, and back at the same address afterwards", async () => {
-  const { relay, base } = relaying(1);
+  const { relay, base } = await relaying(1);
   const data = await Deno.makeTempDir();
   let game = await relayed(base, { data });
   const address = game.base;
