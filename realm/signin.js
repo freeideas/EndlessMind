@@ -3,6 +3,7 @@
 //   import { mountSignIn } from "./endlessmind/signin.js";
 //   const signIn = mountSignIn(document.querySelector("#signin"), { onChange: (me) => redraw(me) });
 //   ... after something may have earned a record: signIn.refresh();
+//   ... to open the claim box for the records that are waiting: signIn.claim();
 //
 // It shows "playing as a guest" with a sign-in button, or the player ID with any records waiting to be
 // claimed. Signing in and claiming each show a QR code, a link for this computer and a short address.
@@ -169,5 +170,5 @@ export function mountSignIn(box, options = {}) {
   }
 
   refresh();
-  return { refresh };
+  return { refresh, claim: () => openPanel("claim") };
 }

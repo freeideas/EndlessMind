@@ -167,7 +167,13 @@ Deno.test("a host runs a game from its release's ID alone, fetched from whicheve
       // Told of no host this time, it still knows Jane's: the hosts it knows are kept in its store.
       assert.deepEqual(again.hosts.known().map((card) => card.address), [jane.base]);
       assert.equal((await ask(hosted.base, "back", { cookie: `endlessmind=${session}` })).who, "player:" + player);
-      const kept = JSON.parse(await Deno.readTextFile(join(temp, "other", "games", realm, "realm-data.json")));
+      // The offer is written a moment after the game server makes it.
+      /** @type {any} */
+      let kept = {};
+      for (let tries = 0; tries < 100 && !kept.offers?.[player]; tries++) {
+        await new Promise((done) => setTimeout(done, 20));
+        kept = JSON.parse(await Deno.readTextFile(join(temp, "other", "games", realm, "realm-data.json")));
+      }
       const [offer] = kept.offers[player];
       assert.deepEqual([offer.signers, offer.realm, offer.release, offer.text], [[cards[1].signers[0], player], realm, id, "You came in."]);
 

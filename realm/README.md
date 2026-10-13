@@ -28,7 +28,7 @@ realm.records(player)[0]?.notes?.[player]?.text; // the words the player added t
 await realm.offer(player, [{ text: "Finished the Glass Maze." }]); // a record for the player to claim
 ```
 
-On the page: `import { mountSignIn } from "./endlessmind/signin.js"; mountSignIn(element, { onChange })`.
+On the page: `import { mountSignIn } from "./endlessmind/signin.js"; const signIn = mountSignIn(element, { onChange })`. After something may have earned a record, `signIn.refresh()` shows it waiting; `signIn.claim()` opens the claim box at once.
 
 A game keeps its data in `.data/` inside its own folder, which Git ignores and which a web server that refuses names starting with a dot (as endlessmind.com's does) never serves. The realm's secret phrase is made on first run in `.data/realm-secret.txt` (option `secretFile`); keep a copy, since it is the realm's identity. What it must remember (sessions, records waiting to be claimed, the public list, burned IDs) goes in `.data/realm-data.json` (option `dataFile`). Keep the game's own data there too. Other options: `portal` (the EntryPortal its codes name), `isBurned` (check a board's list of burned IDs too) and `onRecord` (called with each completed record).
 

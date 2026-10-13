@@ -9,6 +9,7 @@
 //   hosts.card()        this host's own card, signed, or null for a program with no address
 //   hosts.relays()      the addresses of the known hosts that relay
 //   hosts.sources(id)   the addresses a release can be fetched from
+//   hosts.place(card, address)  a game's address from a card, if the card's host may speak for it
 //   hosts.refresh()     read the known hosts' lists, then send them this host's card
 //   hosts.changed()     what this host runs has changed: its card is signed again when next asked for
 //   hosts.handle(request)  answer a request for this host's card, its list, or a card sent to it
@@ -71,7 +72,7 @@ export function hostAddress(address, local = false) {
 }
 
 /** Read a body as text, giving up once it is longer than `most` bytes. @param {ReadableStream<Uint8Array> | null} body @param {number} most */
-async function capped(body, most) {
+export async function capped(body, most) {
   const decoder = new TextDecoder();
   let text = "", size = 0;
   for await (const part of body ?? []) {
@@ -82,7 +83,7 @@ async function capped(body, most) {
 }
 
 /** Ask one address, never following it anywhere else, and read its JSON answer. @param {string} address @param {number} most @param {RequestInit} [how] */
-async function ask(address, most, how = {}) {
+export async function ask(address, most, how = {}) {
   const stop = new AbortController();
   const slow = setTimeout(() => stop.abort(), WAIT_MS);
   try {
@@ -98,7 +99,7 @@ async function ask(address, most, how = {}) {
 }
 
 /** Do `work` for each item, a few at a time. @template T @param {Iterable<T>} items @param {(item: T) => Promise<unknown>} work */
-async function each(items, work) {
+export async function each(items, work) {
   const waiting = [...items];
   await Promise.all(Array.from({ length: Math.min(AT_ONCE, waiting.length) }, async () => {
     for (let item = waiting.shift(); item !== undefined; item = waiting.shift()) await work(item);
@@ -305,6 +306,17 @@ export async function openHosts(options) {
     }
   }
 
+  /**
+   * A game's address as a host's card gives it, or null unless the card's host may speak for it: a
+   * site's root at the host's own name or at a name under it.
+   * @param {HostCard} card @param {unknown} address
+   */
+  function place(card, address) {
+    const good = hostAddress(address, local);
+    const name = new URL(card.address).host;
+    return good && (new URL(good).host === name || new URL(good).host.endsWith("." + name)) ? good : null;
+  }
+
   /** @param {unknown} body */
   const json = (body) => new Response(JSON.stringify(body), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-cache" } });
 
@@ -346,17 +358,17 @@ export async function openHosts(options) {
       if (running.length) return running;
       /** @type {string[]} */
       const found = [];
-      const games = [...known.values()].flatMap((other) => (other.relays ?? []).map((game) => ({ game, under: "." + new URL(other.address).host })));
-      await each(games, async ({ game, under }) => {
-        const play = hostAddress(game.play, local);
-        // A relay speaks only for the names under its own.
-        if (!play || !new URL(play).host.endsWith(under)) return;
+      // A relay speaks only for the names under its own.
+      const games = [...known.values()].flatMap((other) => (other.relays ?? []).map((game) => place(other, game.play)));
+      await each(games, async (play) => {
+        if (!play) return;
         const realmCard = await ask(play + "endlessmind-card.json", MAX_REALM_CARD).catch(() => null);
         if (realmCard?.release === id) found.push(play);
       });
       return found;
     },
     refresh,
+    place,
     changed() {
       stale = true;
     },

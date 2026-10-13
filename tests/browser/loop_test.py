@@ -9,7 +9,7 @@ Guest play, sign-in by QR code (read from the screen), claiming a record with wo
 own, the public list, "sign in on this computer", a typed address, and burning an identity. The
 EntryPortal and the realm run on different local addresses, like two sites. Then the heart of the loop
 again through a host: a game on "another computer" relayed by `deno task host`, played at a name of its
-own under the host's, with the host's EntryPortal. Run: uv run tests/browser/loop_test.py [--headed]
+own under the host's, with the host's EntryPortal, then found on the host's board and wished for. Run: uv run tests/browser/loop_test.py [--headed]
 (the first run may need: uv run --with playwright playwright install chromium)
 """
 import base64, functools, http.client, http.server, json, os, re, socket, subprocess, sys, tempfile, threading, time
@@ -73,13 +73,15 @@ def start_maze(data: str) -> subprocess.Popen:
     return game
 
 
-def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str]:
+def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str, str]:
     """A host with no game of its own, and Endless Maze on "another computer" relayed through it.
-    Returns the two programs, the maze's address under the host's name, and the host's EntryPortal."""
+    Returns the two programs, the maze's address under the host's name, the host's EntryPortal and
+    the host's own address."""
     port = free_port()
-    host = host_program("host", "--base", f"http://localhost:{port}/", "--port", str(port), "--store", os.path.join(folder, "host"))
-    wait_for(port)
     portal = f"http://eportal.localhost:{port}/"
+    host = host_program("host", "--base", f"http://localhost:{port}/", "--port", str(port), "--store", os.path.join(folder, "host"),
+                        "--portal", portal, "--hosts", "")
+    wait_for(port)
     game = host_program("run", "examples/maze", "--relay", f"http://localhost:{port}/", "--portal", portal,
                         "--port", str(free_port()), "--data", os.path.join(folder, "relayed"), "--no-watch")
     said = ""
@@ -89,7 +91,7 @@ def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str]:
         said += line
     maze = re.search(r"Play at (http://[a-z2-7]{52}\.localhost:\d+/)", said).group(1)
     wait_for(port, maze.split("/")[2].rsplit(":", 1)[0])
-    return [host, game], maze, portal
+    return [host, game], maze, portal, f"http://localhost:{port}/"
 
 
 def read_qr(page, selector: str = ".em-qr") -> str:
@@ -234,7 +236,7 @@ def public_record(pc, maze: str, player: str, words: str) -> dict:
     return record
 
 
-def relayed_loop(browser, watch, maze: str, portal: str) -> None:
+def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     """The heart of the loop where every address is plain http at a name under localhost."""
     site = maze.split("/")[2]
     phone = watch(browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2).new_page())
@@ -258,6 +260,22 @@ def relayed_loop(browser, watch, maze: str, portal: str) -> None:
     phone.get_by_role("button", name="Sign in").click()
     expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
     expect(pc.locator(".em-name")).to_have_text(name)
+
+    # The host's board lists the game with its play on record, and the player wishes for it.
+    pc.goto(host + "endlessmind/board")
+    game = pc.locator("#games li").filter(has_text="Endless Maze")
+    expect(game).to_contain_text("No host runs this game yet.")
+    expect(game).to_contain_text("1 player has 1 public record here. 0 wishes.")
+    expect(game.locator("blockquote")).to_have_text("Relayed, and still mine.")
+    sign_in_by_code(pc, phone, portal, host.split("/")[2])
+    game.get_by_role("button", name="Wish for this game").click()
+    claim = read_qr(pc)
+    assert claim.startswith(host + "claim/")
+    phone.goto(claim)
+    expect(phone.locator("#sign-records")).to_contain_text("I want to play Endless Maze (release ")
+    phone.locator("#sign-ok").click()
+    expect(phone.locator("#message-title")).to_have_text("Records kept")
+    expect(game).to_contain_text("1 wish.")
     phone.context.close()
     pc.context.close()
 
@@ -453,9 +471,9 @@ def main() -> None:
             expect(new_phone.locator("#in-app")).to_be_hidden()  # an ordinary browser gets no warning
 
             print("again through a host: a relayed game at a name under localhost, with the host's EntryPortal")
-            relayed, relayed_maze, host_portal = start_relayed_maze(data)
+            relayed, relayed_maze, host_portal, host = start_relayed_maze(data)
             programs += relayed
-            relayed_loop(browser, watch, relayed_maze, host_portal)
+            relayed_loop(browser, watch, relayed_maze, host_portal, host)
 
             browser.close()
             assert not errors, "errors in the browsers:\n" + "\n".join(errors)

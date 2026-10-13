@@ -15,7 +15,7 @@ async function* pages(dir) {
 
 Deno.test("every page starts with <!doctype html>", async () => {
   let count = 0;
-  for (const top of ["site/", "portal/", "examples/"]) {
+  for (const top of ["site/", "portal/", "examples/", "host/"]) {
     for await (const page of pages(new URL(`../${top}`, import.meta.url))) {
       const text = await Deno.readTextFile(page);
       assert.ok(text.startsWith("<!doctype html>"), `${page.pathname} has something before its doctype`);

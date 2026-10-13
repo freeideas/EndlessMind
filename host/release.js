@@ -9,6 +9,7 @@
 //   findRelease({ store, id, hosts }) the release from the store if it is there; if not, fetched from
 //                                    whichever known host runs it
 //   serveRelease(store, ids, request) answer another host that asks for a release
+//   removeRelease(store, id)         take a release out of the store
 //
 // The store is a folder: `releases/<ID>/release.torrent` and `releases/<ID>/files/...`.
 
@@ -328,6 +329,11 @@ export async function findRelease({ store, id, hosts }) {
   } catch {
     return fetchRelease({ store, id, from: await hosts.sources(id) });
   }
+}
+
+/** Take a release out of the store. What its players saved is kept elsewhere. @param {string} store @param {string} id */
+export async function removeRelease(store, id) {
+  if (isReleaseId(id)) await Deno.remove(placeOf(store, id), { recursive: true }).catch(() => {});
 }
 
 /**

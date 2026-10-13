@@ -186,7 +186,26 @@ A realm serves its newest card at `endlessmind-card.json` under each address in 
 
 It holds the realm's complete records marked `public`, signed by the realm and by every player they name, each with its notes. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
 
-**Boards** are realms that read cards and lists and rank other realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`.
+**Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`. Every host serves one (see "Hosts").
+
+**Wishes.** A wish is a record by which a player asks hosts to run a release. It is signed by the player and by the realm where they wished, and is claimed like any other record:
+
+```json
+{
+  "v": 1,
+  "type": "record",
+  "signers": ["<the realm's ID>", "<the player's ID>"],
+  "time": 1790000000000,
+  "text": "I want to play Sword of Swankery (release <release ID>).",
+  "data": { "wish": "<release ID>" },
+  "public": true,
+  "sigs": { "<the realm's ID>": "...", "<the player's ID>": "..." }
+}
+```
+
+- **A record is a wish** when `data.wish` is a release's ID. A wish is never counted as play.
+- **It is read from the public list** of the realm that signed it, so a wish the player marked private asks nothing of anyone.
+- **Only a player's newest wish counts,** by `time`, and for a week from that time. A wish dated more than ten minutes ahead of the reader's clock is ignored.
 
 ## Game servers
 
@@ -318,7 +337,7 @@ A host has a main address that is a site's root, such as `https://host.example/`
 | `<realm ID>.host.example`  | Each release the host runs, named by its realm                       |
 | `<ID>.host.example`        | Each relayed game, named by the ID its own host signs under          |
 
-No two games share a name, and no game is ever at a path under another's name or at the EntryPortal's. A realm whose address is an HTTPS site's root names its session cookie `__Host-endlessmind`, which browsers accept only from that exact name; any other realm names it `endlessmind`.
+No two games share a name, and no game is ever at a path under another's name or at the EntryPortal's. A host with no resident game has a realm of its own at its main address, signed by the host's ID, where players sign in to wish for games. A realm whose address is an HTTPS site's root names its session cookie `__Host-endlessmind`, which browsers accept only from that exact name; any other realm names it `endlessmind`.
 
 **Host card.** A host has an ID of its own, and describes itself with a card: signed JSON, signed by the host alone. It signs a new one whenever what it runs changes, and at least every hour.
 
@@ -366,6 +385,61 @@ Both files carry the header `Access-Control-Allow-Origin: *`, so any web page ma
 A newer card from an ID replaces its older one, and a card at an address replaces a card by any other ID at that address. A card is forgotten a day after its `time`. The reference host holds at most 1000 cards, reads a list of at most 4 MB, waits five seconds for any one host, and keeps what it holds across a restart.
 
 **Finding hosts.** A host program starts from a few addresses it is given. It reads `endlessmind/hosts.json` from each, then from each address those lists name, until it has asked every host it has heard of; it does this again every hour. A program with no address of its own, such as a game on a computer at home, publishes no card and only reads.
+
+**The board.** A host serves a page at `endlessmind/board` under its main address, and that page's data at `endlessmind/board.json`, with the header `Access-Control-Allow-Origin: *`:
+
+```json
+{
+  "v": 1,
+  "type": "board",
+  "host": "<host ID>",
+  "address": "https://host.example/",
+  "time": 1790000000000,
+  "games": [{
+    "realm": "<realm ID>",
+    "release": "<release ID>",
+    "name": "Sword of Swankery",
+    "description": "Duels with very fancy swords.",
+    "hosts": [{ "id": "<host ID>", "address": "https://host.example/", "play": "https://host.example/" }],
+    "relayed": ["https://<ID>.host.example/"],
+    "players": 12,
+    "records": 40,
+    "wishes": 3,
+    "notes": [{ "player": "<player ID>", "text": "Harder than it looks.", "time": 1790000000000 }]
+  }]
+}
+```
+
+| Field     | Meaning                                                                              |
+| --------- | ------------------------------------------------------------------------------------ |
+| `games`   | One entry per release, the one with the most players first                           |
+| `hosts`   | The hosts whose cards say they run it, and where each one plays it                   |
+| `relayed` | Where it is played through a relay, on a computer that is no host                    |
+| `players` | How many players have play on record with it, in every place added together          |
+| `records` | How many records of play those are                                                   |
+| `wishes`  | How many players' newest wish, less than a week old, names it                        |
+| `notes`   | The three newest notes players wrote on those records                                |
+
+A host builds its board from its own host card and the cards it holds:
+
+1. **The games.** Each release in a card's `runs` is a game, run by that host. Each game in a card's `relays` whose realm card names a `release` is a game too, played at that address; if no card runs it, it is run by no host.
+2. **The places.** The host reads `endlessmind-card.json` and `endlessmind-list.json` under each host's main address and under each `play` address in its `runs` and `relays`. An address counts only if it is a site's root at the host's own name or a name under it, checked as a host card's address is. A redirect is never followed.
+3. **Who may sign there.** A place counts only if its realm card is completely signed by one ID, the list's `realm` is that ID, and that ID is the host's, the `realm` of a run played at that address, or the `id` of a game relayed there.
+4. **The records.** A record in the list counts only if it is complete, its `public` is `true`, and its `signers` are that ID and one other, the player. A record that is not a wish is play. It counts toward the release the place's realm card names, unless the record itself names another `release`.
+5. **The wishes.** Counted as "Wishes" under "Finding realms" says, from every place.
+
+Games are ordered by `players`, then `records`, then `wishes`. The reference host reads each place at most once in ten minutes, a realm card of at most 128 KB and a list of at most 2 MB, and waits five seconds for any one answer; it reads the lists of the games it runs itself where it keeps them.
+
+**Wishing.** The board's page lets a signed-in player wish for a game it lists. It sends a `POST` to `endlessmind/wish` under the host's main address with the JSON body `{ "release": "<release ID>" }`, and with the player's session at the realm there: the resident game's, or the host's own. The realm then offers that player the wish, to claim as any record is claimed. The answer is `401` for a guest, `404` for a release the board does not list, and `403` for a page at any other site.
+
+**Loading by demand.** A host may load games without being asked. Its admin sets how many, and may name IDs it trusts besides its own. Every ten minutes the reference host reads the lists as for its board, then:
+
+1. **A wish counts** only if its player has play on record (step 4 above) signed by an ID the host trusts: its own host ID, its resident game's realm ID, and those its admin named.
+2. **Each release gets its wishes per host:** the wishes that count, divided by the number of hosts whose cards run it, counting this host as one of them whether it runs the release yet or not.
+3. **The host runs the best** of the releases with a wish that counts, as many as its admin set, not counting its resident game and the releases its admin named. Between equals, one it already runs stays. A release it cannot fetch is passed over, and so is one whose realm already has a name on this host.
+4. **A release that loses its place is stopped** and removed from the host's store. What its players saved stays, and is there if the release is loaded again.
+
+A release loaded this way is fetched, checked and run as any other, and is in the host's card. A host that loaded or dropped one sends its new card to the hosts it knows at once.
 
 ## Releases
 

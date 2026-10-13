@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Games | Endless Mind</title>
+<style>
+body { font: 1.1rem/1.5 system-ui, sans-serif; max-width: 38rem; margin: 2rem auto 4rem; padding: 0 1rem; }
+h1 { margin: 0 0 .3rem; }
+h2 { margin: 0; font-size: 1.25rem; }
+.small { font-size: .9em; opacity: .8; }
+#signin { margin: 1rem 0; padding: .8rem 1rem; border: 1px solid #8884; border-radius: 12px; }
+#games { list-style: none; margin: 0; padding: 0; }
+#games li { margin: 1rem 0; padding: 1rem; border: 1px solid #8884; border-radius: 12px; }
+#games p { margin: .4rem 0; }
+blockquote { margin: .4rem 0; padding-left: .8rem; border-left: 3px solid #8886; }
+button.wish { font: inherit; cursor: pointer; padding: .35rem .9rem; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; }
+</style>
+</head>
+<body>
+<h1>Games</h1>
+<p class="small">The games this host knows of, those with the most players on record first. A wish asks hosts to run a game: sign in, then wish. Your newest wish counts, for a week.</p>
+<div id="signin"></div>
+<p id="said" role="status"></p>
+<ol id="games"></ol>
+<script type="module">
+import { mountSignIn } from "./signin.js";
+
+const list = document.querySelector("#games");
+const said = document.querySelector("#said");
+let me = null;
+
+/** @param {string} tag @param {Record<string, any>} [props] @param {(Node | string)[]} [children] */
+const el = (tag, props = {}, children = []) => {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+};
+/** @param {number} n @param {string} one @param {string} many */
+const count = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+/** Only an ordinary web address becomes a link. @param {string} address @param {string} text */
+const link = (address, text) => (/^https?:\/\//.test(address) ? el("a", { href: address, textContent: text }) : text);
+
+async function draw() {
+  const board = await (await fetch("./board.json", { cache: "no-store" })).json();
+  list.replaceChildren(...board.games.map((game) => {
+    const places = game.hosts.flatMap((host) => [link(host.play, new URL(host.address).host), ", "]).slice(0, -1);
+    const home = game.relayed.flatMap((play) => [link(play, "its maker's computer"), ", "]).slice(0, -1);
+    const where = game.hosts.length
+      ? el("p", {}, ["Play at ", ...places, ...(home.length ? [", or on ", ...home] : []), "."])
+      : el("p", {}, ["No host runs this game yet. Play it on ", ...home, " while that computer is on."]);
+    const play = game.players
+      ? `${count(game.players, "player has", "players have")} ${count(game.records, "public record", "public records")} here.`
+      : "No play on record yet.";
+    return el("li", {}, [
+      el("h2", { textContent: game.name }),
+      el("p", { textContent: game.description }),
+      where,
+      el("p", { className: "small", textContent: `${play} ${count(game.wishes, "wish", "wishes")}.` }),
+      ...game.notes.map((note) => el("blockquote", { textContent: note.text })),
+      el("p", {}, [el("button", { className: "wish", textContent: "Wish for this game", onclick: () => wish(game) })]),
+    ]);
+  }));
+  if (!board.games.length) list.replaceChildren(el("li", { textContent: "This host knows of no games yet." }));
+}
+
+async function wish(game) {
+  if (!me?.player) {
+    said.textContent = "Sign in first, then wish.";
+    document.querySelector("#signin").scrollIntoView();
+    return;
+  }
+  const answer = await fetch("./wish", { method: "POST", body: JSON.stringify({ release: game.release }) });
+  if (!answer.ok) {
+    said.textContent = (await answer.json()).error;
+    return;
+  }
+  said.textContent = `Your wish for ${game.name} is a record like any other: claim it to make it count.`;
+  document.querySelector("#signin").scrollIntoView();
+  signIn.claim();
+}
+
+// The box says so whenever the player signs in or out or claims a record: a wish, most likely.
+const signIn = mountSignIn(document.querySelector("#signin"), {
+  onChange(now) {
+    me = now;
+    if (!now.claims) said.textContent = "";
+    draw();
+  },
+});
+</script>
+</body>
+</html>
