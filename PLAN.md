@@ -10,6 +10,7 @@ Jane, who cannot code, describes a game to her AI coding agent and points it at 
 
 - `deno task run <folder>` runs a game on its maker's computer with its game server sealed; with `--relay <address>` friends anywhere join by a link.
 - `deno task host --base <address> --game <folder>` on a server keeps that game at the main address, relays for games on other computers, and serves an EntryPortal at `eportal.<name>`. It needs no domain name.
+- Other people's games are held to limits: memory, share of the processor, and rest while nobody plays.
 - That host prints its game's release ID. `deno task host --load <ID> --from <address>` on another server, or `deno task run <ID> --relay <address> --from <address>` at home, runs the same game, checked against the ID.
 - Identity, signing in, records and the EntryPortal, as in [specs/PROTOCOL.md](specs/PROTOCOL.md).
 
@@ -24,35 +25,27 @@ Jane, who cannot code, describes a game to her AI coding agent and points it at 
 
 Steps do not wait on each other unless they say so.
 
-### 1. Running strangers' games safely
-
-Taken by: the session that wrote this plan (started 2026-10-13).
-
-A host that runs games it did not write needs: a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; stopping a game that nobody is playing, which needs the host to keep its timer; and the plain statement to the admin, before the first stranger's game loads, that a host is responsible for what it serves.
-
-Files: `host/host.js`, `host/sealed.js`.
-
-### 2. Finding each other
+### 1. Finding each other
 
 Taken by:
 
 Hosts find other hosts, a maker at home finds a relay, and a host fetches a release, all without being told an address (today `--relay` and `--from` name one), in the way torrent programs find each other. Each host publishes a signed card of its own (its ID, its address, what it runs) and the list of hosts it knows. Players in browsers ask any host they know. The suggested design is under "Not decided yet" in the design.
 
-### 3. Loading by demand
+### 2. Loading by demand
 
 Taken by:
 
-Needs step 2. A host loads the most wanted games that too few hosts run, by rules its admin sets once, and removes them when others are wanted more. The suggested design, wishes signed by players, is under "Not decided yet" in the design.
+Needs step 1. A host loads the most wanted games that too few hosts run, by rules its admin sets once, and removes them when others are wanted more. The suggested design, wishes signed by players, is under "Not decided yet" in the design.
 
-### 4. Notes and boards
+### 3. Notes and boards
 
 Taken by:
 
-A player's own words on a record (a review, a boast), covered only by the player's proof. Then a board that adds up play per release across hosts and shows which hosts run a game. The board needs step 2; notes do not.
+A player's own words on a record (a review, a boast), covered only by the player's proof. Then a board that adds up play per release across hosts and shows which hosts run a game. The board needs step 1; notes do not.
 
 Files for notes: the EntryPortal (`deploy/entryportal.js`, a new version in `portal/`), `realm/realm.js` and its copy in `realm-py/`.
 
-### 5. The EntryPortal's messages
+### 4. The EntryPortal's messages
 
 Taken by:
 
@@ -60,19 +53,19 @@ The reminder on the screen that takes a phrase, and the "being asked is rare" ru
 
 Files: `deploy/entryportal.js`, `portal/`, `tests/browser/`.
 
-### 6. The package
+### 5. The package
 
 Taken by:
 
 One download for Mac, Windows and Linux, installable with brew, apt, winget and pacman, so that nobody needs Deno installed first. On a server it asks for the web address and the resident game, and sets up HTTPS, which today means installing Caddy and giving it `host/Caddyfile`. Try it from nothing on a freshly rented server.
 
-### 7. Other languages
+### 6. Other languages
 
 Taken by:
 
 Game servers compiled to WebAssembly, under the same seal and the same calls.
 
-### 8. Tidying
+### 7. Tidying
 
 Taken by: the session that wrote this plan (started 2026-10-13).
 
@@ -87,5 +80,5 @@ Each is described under "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md).
 
 | Question                           | Needed for |
 | ---------------------------------- | ---------- |
-| How hosts and players find hosts   | Step 2     |
-| Which games a host loads by itself | Step 3     |
+| How hosts and players find hosts   | Step 1     |
+| Which games a host loads by itself | Step 2     |

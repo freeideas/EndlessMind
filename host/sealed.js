@@ -2,7 +2,8 @@
 // network or other programs; this file is all that stands between it and the host. The host writes one
 // JSON message per line to this process, and this file turns them into the calls a game server answers
 // (start, join, leave, message, timer) and turns what the game asks for (send, save, timer, offer) back
-// into lines. See "Game servers" in specs/PROTOCOL.md.
+// into lines. Nothing here can be relied on by the host: the game shares this process, so the host
+// checks every line it reads and measures the process from outside. See "Game servers" in specs/PROTOCOL.md.
 
 /**
  * @typedef {{ text: string, data?: Record<string, unknown>, time?: number }} RecordText
@@ -44,8 +45,6 @@ export async function seal(server) {
   const players = new Map();
   /** @type {Record<string, unknown>} */
   let data = {};
-  /** @type {ReturnType<typeof setTimeout> | undefined} */
-  let timer;
   /** Calls run one at a time, in the order they arrived. */
   let queue = Promise.resolve();
 
@@ -68,10 +67,8 @@ export async function seal(server) {
       else data[key] = copy(value);
       out({ t: "save", key, value });
     },
-    timer(ms) {
-      clearTimeout(timer);
-      if (ms !== null) timer = setTimeout(() => run(() => server.timer?.(game)), Math.max(0, ms));
-    },
+    // The host keeps the timer, so that it still rings after the game server has rested and started again.
+    timer: (ms) => out({ t: "timer", ms }),
     offer(player, records) {
       if (player.id) out({ t: "offer", id: player.id, records });
     },
@@ -90,6 +87,7 @@ export async function seal(server) {
       data = m.data ?? {};
       return run(() => server.start?.(game));
     }
+    if (m.t === "timer") return run(() => server.timer?.(game));
     if (m.t === "join") {
       players.set(m.p.conn, m.p);
       return run(() => server.join?.(game, m.p));

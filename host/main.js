@@ -68,6 +68,9 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
   });
   console.log(`Play at ${running.base} (realm ID ${running.realm.id})`);
 } else if (command === "host" && names.length === 0 && flags.base) {
+  if (listed(flags.load).length || !("no-relay" in flags)) {
+    console.log("You are responsible for what this host serves, like anyone who runs a website. Other people's games are sealed, which protects this computer, not its owner.");
+  }
   const host = await runHost({
     base: flags.base,
     game: flags.game || undefined,

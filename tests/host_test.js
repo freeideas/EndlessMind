@@ -9,7 +9,7 @@ let nextPort = 18300 + Math.floor(Math.random() * 500);
 
 /**
  * Run a game from `folder`, or one made here from the text of its game server.
- * @param {{ folder?: string, server?: string, files?: Record<string, string>, memory?: number }} game
+ * @param {{ folder?: string, server?: string, files?: Record<string, string>, memory?: number, idle?: number, share?: { part: number, over: number, every: number } }} game
  */
 async function running(game) {
   const temp = await Deno.makeTempDir();
@@ -25,7 +25,7 @@ async function running(game) {
   const port = nextPort++;
   /** @type {string[]} */
   const said = [];
-  const host = await runGame({ folder, port, data: join(temp, "data"), memory: game.memory, log: (text) => said.push(text) });
+  const host = await runGame({ folder, port, data: join(temp, "data"), memory: game.memory, idle: game.idle, share: game.share, log: (text) => said.push(text) });
   return {
     host,
     said,
@@ -71,9 +71,9 @@ async function display(port, guest = "0123456789abcdef0123456789abcdef") {
   };
 }
 
-/** @param {() => boolean} done */
+/** @param {() => boolean | Promise<boolean>} done */
 async function until(done, ms = 15000) {
-  for (const end = Date.now() + ms; !done();) {
+  for (const end = Date.now() + ms; !(await done());) {
     assert(Date.now() < end, "waited too long");
     await new Promise((wake) => setTimeout(wake, 50));
   }
@@ -204,5 +204,56 @@ Deno.test("a game server keeps what it saves, has one timer, and offers records 
     assert.deepEqual(game.host.realm.data.offers, {});
   } finally {
     await game.stop();
+  }
+});
+
+Deno.test("a game server with nobody playing rests, and its timer still rings", async () => {
+  const server = `
+    export default {
+      start(game) { game.save("starts", (game.load("starts") ?? 0) + 1); },
+      leave(game) { game.timer(2500); },
+      timer(game) { game.save("rang", game.load("starts")); },
+    };`;
+  const game = await running({ server, idle: 300 });
+  try {
+    const line = await display(game.port);
+    await line.close();
+    await until(() => !game.host.awake);
+    assert.equal(game.said.join("\n"), "", "resting is not a fault, so nothing is said");
+
+    // The host kept the timer: it starts the game server again when the time comes.
+    const saved = () => Deno.readTextFile(join(game.data, "game-data.json")).then(JSON.parse, () => ({}));
+    await until(async () => (await saved()).rang === 2);
+    await until(() => !game.host.awake);
+
+    // And the next player wakes it.
+    const again = await display(game.port);
+    await until(() => game.host.awake);
+    await again.close();
+    await until(async () => (await saved()).starts === 3);
+  } finally {
+    await game.stop();
+  }
+});
+
+Deno.test("a game server that keeps answering but uses too much of the processor is stopped", async () => {
+  // Busy four fifths of the time, in bursts short enough that it never seems to have stopped answering.
+  const server = `
+    export default {
+      join(game) { game.timer(0); },
+      timer(game) { for (const end = Date.now() + 80; Date.now() < end;); game.timer(20); },
+    };`;
+  const greedy = await running({ server, share: { part: 0.5, over: 1500, every: 500 } });
+  const modest = await running({ server: server.replace("+ 80", "+ 5"), share: { part: 0.5, over: 1500, every: 500 } });
+  try {
+    const lines = [await display(greedy.port), await display(modest.port)];
+    await until(() => !greedy.host.awake);
+    assert.match(greedy.said.join("\n"), /more than its share of the processor/);
+    assert.equal(modest.host.awake, true);
+    assert.equal(modest.said.join("\n"), "");
+    for (const line of lines) await line.close();
+  } finally {
+    await greedy.stop();
+    await modest.stop();
   }
 });

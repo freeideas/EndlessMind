@@ -17,6 +17,11 @@ const MEMORY_MB = 64; // a game server that needs more memory than this is stopp
 const PING_MS = 2000; // how often a game server is asked whether it is still answering
 const DEAF_MS = 6000; // one that has not answered for this long is stopped
 const RESTART_MS = 1000; // a stopped game server is not started again sooner than this
+const IDLE_MS = 60 * 1000; // a game server with nobody playing for this long rests until someone comes
+const SHARE = 0.5; // the part of one processor a game server may use, measured over SHARE_MS
+const SHARE_MS = 30 * 1000;
+const SHARE_CHECK_MS = 5000; // how often its use of the processor is measured
+const PENALTY_MS = 5 * 60 * 1000; // the longest a game server stopped for that waits before starting again
 const RELAY_MS = 5000; // how long starting waits for a relay before carrying on without it
 const MAX_MESSAGE = 64 * 1024; // the longest message a display or a game server may send, in characters
 const MAX_DATA = 4 * 1024 * 1024; // the most a game server may keep with save(), as JSON
@@ -54,6 +59,8 @@ const TYPES = {
  *   portal?: string,
  *   data?: string,
  *   memory?: number,
+ *   idle?: number,
+ *   share?: { part: number, over: number, every: number },
  *   watch?: boolean,
  *   log?: (text: string) => void,
  * }} GameOptions
@@ -179,6 +186,33 @@ export async function openGame(options) {
   /** The sealed process, while it runs. @type {{ child: Deno.ChildProcess, writer: WritableStreamDefaultWriter<Uint8Array>, heard: number } | null} */
   let sealed = null;
   let started = 0;
+  /** When the last display left, or 0 while someone is playing. */
+  let emptySince = Date.now();
+  /** True while the game server is being stopped only because nobody is playing. */
+  let resting = false;
+  /** When the game's one timer is due, kept here so that it rings even after a rest. @type {number | null} */
+  let due = null;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let ringing;
+  /** How long a game server stopped for using too much of the processor waits before it starts again. */
+  let penalty = 0;
+  let notBefore = 0;
+  const share = options.share ?? { part: SHARE, over: SHARE_MS, every: SHARE_CHECK_MS };
+  const idle = options.idle ?? IDLE_MS;
+
+  /** Set, or with null clear, the game's one timer. @param {number | null} at */
+  function setTimer(at) {
+    clearTimeout(ringing);
+    due = at;
+    if (at === null || stopped) return;
+    // Timers cannot be set further ahead than about 24 days, so a longer wait is taken in steps.
+    ringing = setTimeout(async () => {
+      if (due === null || Date.now() < due) return setTimer(due);
+      due = null;
+      await awake();
+      tell({ t: "timer" });
+    }, Math.min(Math.max(0, at - Date.now()), 2 ** 31 - 1));
+  }
   /** @type {Promise<void> | null} */
   let starting = null;
   let stopped = false;
@@ -199,6 +233,8 @@ export async function openGame(options) {
       writing ||= setTimeout(() => write().catch((error) => log(String(error))), 200);
     } else if (m.t === "offer" && isId(m.id) && Array.isArray(m.records)) {
       realm.offer(m.id, m.records).catch((error) => log(String(error)));
+    } else if (m.t === "timer") {
+      setTimer(typeof m.ms === "number" && Number.isFinite(m.ms) ? Date.now() + Math.max(0, m.ms) : null);
     } else if (m.t === "log" || m.t === "error") log(`[game] ${m.text}`);
   }
 
@@ -241,10 +277,17 @@ export async function openGame(options) {
     child.status.then((status) => {
       if (sealed !== mine) return;
       sealed = null;
+      const rested = resting;
+      resting = false;
+      if (rested) return;
+      // A game server that stopped for any other reason starts from what it saved, with no timer set.
+      setTimer(null);
       if (!stopped) log(`The game server stopped (${status.signal ?? "exit " + status.code}). ${said.join(" ")}`.trim());
       for (const line of [...seated.values()]) line.close(1012, "the game server stopped");
       seated.clear();
+      emptySince = Date.now();
     });
+    emptySince = Date.now();
     tell({ t: "start", data: kept });
   }
 
@@ -252,7 +295,7 @@ export async function openGame(options) {
   function awake() {
     if (sealed) return Promise.resolve();
     return (starting ??= (async () => {
-      const wait = started + RESTART_MS - Date.now();
+      const wait = Math.max(started + RESTART_MS, notBefore) - Date.now();
       if (wait > 0) await new Promise((done) => setTimeout(done, wait));
       try {
         if (!sealed && !stopped) await start();
@@ -271,11 +314,62 @@ export async function openGame(options) {
     sealed.child.kill("SIGKILL");
   }
 
+  /** Let the game server rest: nobody is playing, and its timer, if set, is not due soon. */
+  function rest() {
+    if (!sealed || resting) return;
+    resting = true;
+    sealed.writer.close().catch(() => {});
+  }
+
   const pinging = setInterval(() => {
-    if (!sealed) return;
+    if (!sealed || resting) return;
     if (Date.now() - sealed.heard > DEAF_MS) return halt("The game server stopped answering, so it was stopped.");
+    const quiet = emptySince && Date.now() - emptySince > idle && seated.size === 0 && (due === null || due - Date.now() > idle);
+    if (quiet) return rest();
     tell({ t: "ping", n: Date.now() });
-  }, PING_MS);
+  }, Math.min(PING_MS, Math.max(100, idle)));
+
+  /** The processor time a process has used so far, in seconds, or null if it cannot be told. @param {number} pid */
+  async function used(pid) {
+    try {
+      if (Deno.build.os === "linux") {
+        const fields = (await Deno.readTextFile(`/proc/${pid}/stat`)).split(") ").pop()?.split(" ") ?? [];
+        return (Number(fields[11]) + Number(fields[12])) / 100;
+      }
+      if (Deno.build.os === "windows") return null;
+      const out = await new Deno.Command("ps", { args: ["-o", "time=", "-p", String(pid)], stderr: "null" }).output();
+      const parts = new TextDecoder().decode(out.stdout).trim().split(/[-:]/).map(Number);
+      if (!out.success || !parts.length || parts.some(Number.isNaN)) return null;
+      return parts.reduce((total, part, i) => total * (i === parts.length - 3 && parts.length === 4 ? 24 : 60) + part, 0);
+    } catch {
+      return null;
+    }
+  }
+
+  // A game server may keep answering while using a whole processor, so its use is measured from
+  // outside. One that takes more than its share is stopped, and waits longer each time before it may
+  // start again.
+  /** @type {{ pid: number, at: number, cpu: number }[]} */
+  let samples = [];
+  let measuring = false;
+  const sharing = setInterval(async () => {
+    const mine = sealed;
+    if (!mine || resting || measuring) return;
+    measuring = true;
+    const cpu = await used(mine.child.pid);
+    measuring = false;
+    if (cpu === null || sealed !== mine) return;
+    const now = Date.now();
+    samples = samples.filter((sample) => sample.pid === mine.child.pid && now - sample.at <= share.over + share.every);
+    samples.push({ pid: mine.child.pid, at: now, cpu });
+    const first = samples[0];
+    if (now - first.at < share.over) return;
+    if ((cpu - first.cpu) / ((now - first.at) / 1000) <= share.part) return void (penalty = 0);
+    penalty = Math.min(Math.max(penalty * 2, 5000), PENALTY_MS);
+    notBefore = now + penalty;
+    samples = [];
+    halt(`The game server used more than its share of the processor, so it was stopped. It may start again in ${Math.round(penalty / 1000)} seconds.`);
+  }, share.every);
 
   /**
    * A display asks for its line to the game server: refuse it, or say what to do with the line.
@@ -304,6 +398,7 @@ export async function openGame(options) {
         if (!open) return;
         if (!sealed) return line.close(1012, "the game server is not running");
         seated.set(conn, (mine = line));
+        emptySince = 0;
         const records = id ? realm.records(id).map(({ text, data, time }) => ({ text, data, time })) : [];
         tell({ t: "join", p: { conn, who: id ? "player:" + id : "guest:" + guest, id, name: id ? realm.playerName(id) : "Guest", guest: "guest:" + guest, records } });
       },
@@ -318,6 +413,7 @@ export async function openGame(options) {
       close() {
         open = false;
         if (mine && seated.get(conn) === mine && seated.delete(conn)) tell({ t: "leave", conn });
+        if (seated.size === 0 && !emptySince) emptySince = Date.now();
       },
     };
   }
@@ -399,6 +495,8 @@ export async function openGame(options) {
       if (stopped) return;
       stopped = true;
       clearInterval(pinging);
+      clearInterval(sharing);
+      clearTimeout(ringing);
       watcher?.close();
       relayed?.stop();
       for (const line of [...seated.values()]) line.close(1001, "the game is closing");

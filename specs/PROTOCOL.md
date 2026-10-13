@@ -207,7 +207,17 @@ A game is a folder: `game.js` (the game server), `card.json` (the realm card's `
 
 Everything passed in either direction is JSON. A game that keeps progress under `who` can carry a guest's progress over at sign-in, since `guest` stays the same.
 
-**The seal.** A game server runs where it cannot open files, use the network, start other programs or learn anything about the computer it is on. It may import other files from its own folder, all named in the code so the host can check them before it starts; nothing from the web, and no built-in modules. A host stops a game server that needs more memory than the host allows (64 MB in the reference host) or that goes six seconds without answering, and starts it again when the next display connects. A game server may therefore start at any moment knowing only what it saved, and what it saved may be at most 4 MB as JSON. A message may be at most 64 KB as JSON.
+**The seal.** A game server runs where it cannot open files, use the network, start other programs or learn anything about the computer it is on. It may import other files from its own folder, all named in the code so the host can check them before it starts; nothing from the web, and no built-in modules. A host stops a game server that needs more memory than the host allows, that stops answering, or that uses more than its share of the processor, and starts it again when the next display connects. A host also lets a game server rest while nobody is playing. The timer is kept by the host: it rings even after a rest, with the game server started again for it, but a game server stopped for any other reason starts with no timer set. A game server may therefore start at any moment knowing only what it saved.
+
+| Limit in the reference host                  | Value                                    |
+| -------------------------------------------- | ---------------------------------------- |
+| Memory                                       | 64 MB                                    |
+| Going without answering                      | 6 seconds                                |
+| Share of one processor                       | Half, measured over 30 seconds           |
+| Wait after being stopped for that            | 5 seconds, doubling to at most 5 minutes |
+| Rest with nobody playing                     | After one minute                         |
+| What it saved, as JSON                       | 4 MB                                     |
+| One message, as JSON                         | 64 KB                                    |
 
 **The display's line.** The display opens a WebSocket to `endlessmind/play?guest=<32 random hex characters>` under the game's address and sends and receives JSON text messages. The host learns who is playing from the session the browser sends with that connection, so the display connects again after its player signs in or out. Hosts accept the connection only from the game's own pages, and serve a helper for all of this at `endlessmind/play.js`.
 
