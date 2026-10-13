@@ -67,11 +67,10 @@ Game servers compiled to WebAssembly, under the same seal and the same calls.
 
 ### 7. Tidying
 
-Taken by: the session that wrote this plan (started 2026-10-13).
-
-Each of these removes something; none waits on another step.
+Taken by:
 
 - **`realm-py/`.** A second copy of the realm library for tied realms in Python. Decide with the owner whether it earns its upkeep; every change to `realm/realm.js` is made twice.
+- **A name for the host on ordinarydata.** It lives at `relay.endlessmind.com`, a name chosen when it only relayed. Renaming it means new DNS records and a new certificate (see `deploy/README.md`).
 
 ## Questions to settle first
 
