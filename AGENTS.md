@@ -1,13 +1,13 @@
 # Working on this repository
 
-Instructions for AI agents (and people) changing Endless Mind itself. The design is in [specs/DESIGN.md](specs/DESIGN.md). The parts of it not built yet, and the order to build them in, are in [PLAN.md](PLAN.md).
+Instructions for AI agents (and people) changing Endless Mind itself. The design is in [specs/DESIGN.md](specs/DESIGN.md). What is left to do is in [PLAN.md](PLAN.md).
 
 ## Layout
 
 | Path        | What it is                                                                          |
 | ----------- | ----------------------------------------------------------------------------------- |
 | `README.md` | For end users: people who play and people who create                                |
-| `PLAN.md`   | What is being built next, in order; each step is deleted once it is done            |
+| `PLAN.md`   | What is left to do; each step is deleted once it is done                            |
 | `specs/`    | The design and the protocol                                                         |
 | `shared/`   | Code run unchanged in browsers and Deno: keys, signed JSON, names, QR codes         |
 | `portal/`   | portal.endlessmind.com: the EntryPortal's own site, one folder per version          |

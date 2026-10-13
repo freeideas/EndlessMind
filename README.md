@@ -57,7 +57,7 @@ One download, the `endlessmind` command, runs and hosts games. Nobody needs Deno
 | Windows         | `winget install FreeIdeas.EndlessMind`                                                  |
 | Anything else   | the archive for your system from the releases page, unpacked anywhere                   |
 
-The releases page is [github.com/freeideas/EndlessMind/releases](https://github.com/freeideas/EndlessMind/releases). Working from a checkout of this repository needs [Deno](https://deno.com/) instead, and `deno task` in place of `endlessmind`.
+The releases page is [github.com/freeideas/EndlessMind/releases](https://github.com/freeideas/EndlessMind/releases). Working from a checkout of this repository needs [Deno](https://deno.com/) instead, and `deno task` in place of `endlessmind`. The packages are not published yet (see [PLAN.md](PLAN.md)), so for now a checkout is the way.
 
 ## Making realms
 
@@ -71,7 +71,7 @@ Be original: do not make anything overly similar to someone else's game, and do 
 | -------------------------------- | ------------------------------------------------------- |
 | [DESIGN.md](specs/DESIGN.md)     | The design, the reasons behind it, and what is not decided yet |
 | [PROTOCOL.md](specs/PROTOCOL.md) | Exact formats: IDs, signing in, records, EntryPortal rules |
-| [PLAN.md](PLAN.md)               | What is being built next                                |
+| [PLAN.md](PLAN.md)               | What is left to do                                      |
 
 ## License
 
