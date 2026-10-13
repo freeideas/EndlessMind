@@ -9,7 +9,7 @@ let nextPort = 18300 + Math.floor(Math.random() * 500);
 
 /**
  * Run a game from `folder`, or one made here from the text of its game server.
- * @param {{ folder?: string, server?: string, files?: Record<string, string>, memory?: number, idle?: number, share?: { part: number, over: number, every: number } }} game
+ * @param {{ folder?: string, server?: string, wasm?: Uint8Array, files?: Record<string, string>, memory?: number, idle?: number, share?: { part: number, over: number, every: number } }} game
  */
 async function running(game) {
   const temp = await Deno.makeTempDir();
@@ -18,7 +18,8 @@ async function running(game) {
     folder = join(temp, "game");
     await Deno.mkdir(folder);
     await Deno.writeTextFile(join(folder, "card.json"), JSON.stringify({ name: "Test", description: "A test game." }));
-    await Deno.writeTextFile(join(folder, "game.js"), game.server ?? "export default {};");
+    if (game.wasm) await Deno.writeFile(join(folder, "game.wasm"), game.wasm);
+    if (game.server || !game.wasm) await Deno.writeTextFile(join(folder, "game.js"), game.server ?? "export default {};");
     await Deno.writeTextFile(join(folder, "index.html"), "<!doctype html><title>Test</title>");
   }
   for (const [name, text] of Object.entries(game.files ?? {})) await Deno.writeTextFile(join(temp, name), text);
@@ -30,6 +31,7 @@ async function running(game) {
     host,
     said,
     port,
+    folder,
     data: join(temp, "data"),
     async stop() {
       await host.stop();
@@ -255,5 +257,124 @@ Deno.test("a game server that keeps answering but uses too much of the processor
   } finally {
     await greedy.stop();
     await modest.stop();
+  }
+});
+
+/** @param {number} n a number as WebAssembly writes it */
+const leb = (n) => {
+  /** @type {number[]} */
+  const bytes = [];
+  do {
+    bytes.push((n & 127) | (n > 127 ? 128 : 0));
+    n = Math.floor(n / 128);
+  } while (n > 0);
+  return bytes;
+};
+/** @param {string} text */
+const label = (text) => [...leb(text.length), ...new TextEncoder().encode(text)];
+/** @param {number} id @param {number[][]} items */
+const section = (id, items) => {
+  const body = [...leb(items.length), ...items.flat()];
+  return [id, ...leb(body.length), ...body];
+};
+
+/**
+ * A small WebAssembly module made by hand: it does nothing, but has everything a game server module needs.
+ * @param {{ imports?: [string, string][], memory?: number[], exports?: string[] }} [shape]
+ */
+function module(shape = {}) {
+  const imports = shape.imports ?? [["host", "ask"]];
+  const exports = shape.exports ?? ["memory", "alloc", "call"];
+  /** @type {Record<string, number[]>} */
+  const kinds = { memory: [2, 0], alloc: [0, imports.length], call: [0, imports.length + 1] };
+  return new Uint8Array([
+    0, 0x61, 0x73, 0x6d, 1, 0, 0, 0,
+    ...section(1, [[0x60, 1, 0x7f, 1, 0x7f], [0x60, 2, 0x7f, 0x7f, 0]]),
+    ...section(2, imports.map(([from, name]) => [...label(from), ...label(name), 0, 1])),
+    ...section(3, [[0], [1]]),
+    ...section(5, [shape.memory ?? [1, 1, 16]]),
+    ...section(7, exports.map((name) => [...label(name), ...kinds[name]])),
+    // alloc returns 1024; call does nothing.
+    ...section(10, [[5, 0, 0x41, 0x80, 0x08, 0x0b], [2, 0, 0x0b]]),
+  ]);
+}
+
+Deno.test("a game server compiled to WebAssembly plays through the same seal, and keeps what it saves", async () => {
+  const wasm = await Deno.readFile("examples/counter/game.wasm");
+  const game = await running({ wasm, idle: 300 });
+  try {
+    assert.equal(game.host.awake, true);
+    const saved = () => Deno.readTextFile(join(game.data, "game-data.json")).then(JSON.parse, () => ({}));
+    const first = await display(game.port);
+    const second = await display(game.port, "f".repeat(32));
+    assert.deepEqual(await first.next(), { count: 0 });
+    assert.deepEqual(await second.next(), { count: 0 });
+    first.send("press");
+    first.send("something else");
+    second.send("press");
+    // The module's timer rings, and it tells everyone connected.
+    assert.deepEqual(await first.next(), { count: 2 });
+    assert.deepEqual(await second.next(), { count: 2 });
+    await until(async () => (await saved()).count === 2);
+    await first.close();
+    second.send("press");
+    assert.deepEqual(await second.next(), { count: 3 });
+    await second.close();
+
+    // With nobody playing it rests, and starts again from what it saved.
+    await until(() => !game.host.awake);
+    const again = await display(game.port);
+    assert.deepEqual(await again.next(), { count: 3 });
+    await again.close();
+  } finally {
+    await game.stop();
+  }
+  assert.equal(game.said.join("\n"), "");
+});
+
+Deno.test("a WebAssembly module that asks for more than the seal gives is refused", async () => {
+  /** @type {[string, Parameters<typeof module>[0], RegExp][]} */
+  const refusals = [
+    ["imports something else", { imports: [["env", "abort"]] }, /imports env.abort/],
+    ["imports more than host.ask", { imports: [["host", "ask"], ["host", "more"]] }, /imports host.more/],
+    ["lacks an export", { exports: ["memory", "call"] }, /must export alloc/],
+    ["does not say its largest memory", { memory: [0, 1] }, /must declare the most memory/],
+    ["may grow past the memory limit", { memory: [1, 1, 255, 255, 3] }, /more than the 1024 allowed/],
+    ["has memory that several threads share", { memory: [3, 1, 16] }, /shared or 64-bit/],
+  ];
+  for (const [why, shape, said] of refusals) {
+    const game = await running({ wasm: module(shape) });
+    try {
+      assert.equal(game.host.awake, false, why);
+      assert.match(game.said.join("\n"), said, why);
+      assert.match(game.said.join("\n"), /did not start/, why);
+    } finally {
+      await game.stop();
+    }
+  }
+  const garbage = await running({ wasm: new Uint8Array([1, 2, 3]) });
+  try {
+    assert.match(garbage.said.join("\n"), /not a WebAssembly module/);
+  } finally {
+    await garbage.stop();
+  }
+});
+
+Deno.test("the memory limit holds for a WebAssembly module, and a game holds one kind of server", async () => {
+  // 16 pages of 64 KB are 1 MB: a module that may use 17 is too much for a host that allows 1 MB.
+  const tight = await running({ wasm: module({ memory: [1, 1, 17] }), memory: 1 });
+  const fits = await running({ wasm: module({ memory: [1, 1, 16] }), memory: 1 });
+  const both = await running({ wasm: module(), server: "export default {};" });
+  try {
+    assert.equal(tight.host.awake, false);
+    assert.match(tight.said.join("\n"), /17 pages of memory.*more than the 16 allowed/);
+    assert.equal(fits.host.awake, true);
+    assert.equal(fits.said.join("\n"), "");
+    assert.equal(both.host.awake, false);
+    assert.match(both.said.join("\n"), /game\.js or game\.wasm, one of them/);
+  } finally {
+    await tight.stop();
+    await fits.stop();
+    await both.stop();
   }
 });

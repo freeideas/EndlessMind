@@ -7,6 +7,7 @@
     "run": "deno run --allow-read --allow-write --allow-net --allow-run host/main.js run",
     "maze": "deno task run examples/maze",
     "monster": "deno task run examples/monster",
+    "counter": "deno task run examples/counter",
     "pack": "deno run --allow-read --allow-write host/main.js pack",
     "host": "deno run --allow-read --allow-write --allow-net --allow-run host/main.js host"
   },

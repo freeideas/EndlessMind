@@ -1,0 +1,5 @@
+{
+  "name": "Shared Button",
+  "description": "Everyone presses one shared button and sees the count. The game server is written in Rust and runs as WebAssembly. An example realm for Endless Mind.",
+  "tags": ["counter", "example", "webassembly"]
+}

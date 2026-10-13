@@ -36,6 +36,7 @@ It prints the address to open, and starts the game server again whenever a file 
 | File          | What it is                                                             |
 | ------------- | ---------------------------------------------------------------------- |
 | `game.js`     | The game server. It may import other files in the folder               |
+| `game.wasm`   | Or the game server as WebAssembly, from any language (not both)        |
 | `card.json`   | The realm card's words: `name`, `description`, and optionally `tags`   |
 | `index.html`  | Where the display starts. Every other file in the folder is served too |
 | `.data/`      | Made by the host; never served, and the game server cannot read it     |
@@ -116,6 +117,6 @@ To try a host with no setup, use `--base http://localhost:8000/`: browsers treat
 
 ## The seal
 
-Each game server runs in a process of its own, started with no permissions at all: it cannot open files, use the network, start programs or read anything about the computer. Before it starts, the host checks that every file it imports is inside the game's own folder. It is stopped if it needs more than 64 MB of memory, goes six seconds without answering, or uses more than half of one processor over thirty seconds, and started again when the next player connects. With nobody playing for a minute it rests; the host keeps its timer and starts it again when the timer is due. The processor's use is not measured on Windows. The realm's secret phrase stays with the host, outside the seal. [tests/host_test.js](../tests/host_test.js) tries to break out.
+Each game server runs in a process of its own, started with no permissions at all: it cannot open files, use the network, start programs or read anything about the computer. Before it starts, the host checks that every file it imports is inside the game's own folder; a WebAssembly module may import only `host.ask`, and must declare a most memory of no more than the limit, since the engine's own memory flag does not bound it. It is stopped if it needs more than 64 MB of memory, goes six seconds without answering, or uses more than half of one processor over thirty seconds, and started again when the next player connects. With nobody playing for a minute it rests; the host keeps its timer and starts it again when the timer is due. The processor's use is not measured on Windows. The realm's secret phrase stays with the host, outside the seal. [tests/host_test.js](../tests/host_test.js) tries to break out.
 
 `.data/` holds `realm-secret.txt` (the realm's identity; keep a copy), `realm-data.json` (sign-ins and records) and `game-data.json` (what the game server saved).

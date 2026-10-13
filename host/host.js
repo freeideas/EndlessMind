@@ -7,11 +7,13 @@
 // openGame is the same without a web server of its own, for a server that answers for several things
 // (see hosting.js): give its `handle` each request that arrives for the game's address.
 
+import { Buffer } from "node:buffer";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { extname, join, sep } from "node:path";
 import { isId, signerFromWords } from "../shared/keys.js";
 import { DEFAULT_PORTAL, openRealm, secretWords } from "../realm/realm.js";
 import { dial, relayedBase } from "./relay.js";
+import { checkWasm } from "./sealed.js";
 
 const MEMORY_MB = 64; // a game server that needs more memory than this is stopped
 const PING_MS = 2000; // how often a game server is asked whether it is still answering
@@ -64,7 +66,7 @@ const TYPES = {
  *   watch?: boolean,
  *   log?: (text: string) => void,
  * }} GameOptions
- * `folder` holds the game: `game.js` (the game server), `card.json` (its name and description) and the
+ * `folder` holds the game: `game.js` or `game.wasm` (the game server), `card.json` (its name and description) and the
  * display's files, starting at `index.html`. `base` is the address players use, ending in "/". `relay`
  * is the address of a relay to be reached through instead: it gives the game an address of its own, so
  * players anywhere can join a game on this computer. `data` is where the realm's secret phrase and
@@ -259,9 +261,21 @@ export async function openGame(options) {
   async function start() {
     started = Date.now();
     const entry = join(data, "sealed-entry.js");
-    const game = pathToFileURL(join(folder, "game.js")).href;
-    await Deno.writeTextFile(entry, `import server from ${JSON.stringify(game)};\nimport { seal } from ${JSON.stringify(SEALED_JS)};\nseal(server);\n`);
-    await checkImports(entry, folder);
+    const names = (await Promise.all(["game.js", "game.wasm"].map((name) => Deno.stat(join(folder, name)).then(() => name, () => "")))).filter(Boolean);
+    if (names.length !== 1) throw new Error("A game's folder holds game.js or game.wasm, one of them.");
+    const pages = Math.floor(((options.memory ?? MEMORY_MB) * 1024) / 64);
+    /** @type {Uint8Array | null} */
+    let module = null;
+    if (names[0] === "game.wasm") {
+      // A module imports nothing from anywhere, so there are no files to check. Its bytes go in over its input.
+      module = await Deno.readFile(join(folder, "game.wasm"));
+      checkWasm(module, pages);
+      await Deno.writeTextFile(entry, `import { sealWasm } from ${JSON.stringify(SEALED_JS)};\nsealWasm();\n`);
+    } else {
+      const game = pathToFileURL(join(folder, "game.js")).href;
+      await Deno.writeTextFile(entry, `import server from ${JSON.stringify(game)};\nimport { seal } from ${JSON.stringify(SEALED_JS)};\nseal(server);\n`);
+      await checkImports(entry, folder);
+    }
     const child = new Deno.Command(Deno.execPath(), {
       args: ["run", ...SEAL, `--v8-flags=--max-old-space-size=${options.memory ?? MEMORY_MB}`, entry],
       cwd: folder,
@@ -294,6 +308,7 @@ export async function openGame(options) {
       emptySince = Date.now();
     });
     emptySince = Date.now();
+    if (module) tell({ t: "module", wasm: Buffer.from(module).toString("base64"), pages });
     tell({ t: "start", data: kept });
   }
 

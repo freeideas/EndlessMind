@@ -101,12 +101,173 @@ export async function seal(server) {
     if (m.t === "message") return run(() => server.message?.(game, player, m.data));
   }
 
+  await lines(handle);
+}
+
+/** Read the host's lines until it closes this process's input, give each to `handle`, then exit. @param {(message: any) => void} handle */
+async function lines(handle) {
   const decoder = new TextDecoder();
   let rest = "";
   for await (const chunk of Deno.stdin.readable) {
-    const lines = (rest + decoder.decode(chunk, { stream: true })).split("\n");
-    rest = lines.pop() ?? "";
-    for (const line of lines) if (line) handle(JSON.parse(line));
+    const parts = (rest + decoder.decode(chunk, { stream: true })).split("\n");
+    rest = parts.pop() ?? "";
+    for (const line of parts) if (line) handle(JSON.parse(line));
   }
   Deno.exit(0);
+}
+
+const ASK_MOST = 8 * 1024 * 1024; // the longest request a module may make of its host, in bytes
+const TABLE_MOST = 100000; // the most entries a module's table may start with
+
+/**
+ * Check a WebAssembly module against the surface a game server may have, reading its bytes directly:
+ * it imports only `host.ask`, exports `memory`, `alloc` and `call`, and declares the most memory it may
+ * ever use, no more than `pages` pages of 64 KB (an engine flag does not limit WebAssembly memory).
+ * Throws an error that says what is wrong.
+ * @param {Uint8Array} bytes @param {number} pages
+ */
+export function checkWasm(bytes, pages) {
+  /** @param {string} why @returns {never} */
+  const bad = (why) => {
+    throw new Error(`The WebAssembly module ${why}.`);
+  };
+  if (bytes.length < 8 || [0, 0x61, 0x73, 0x6d, 1, 0, 0, 0].some((byte, i) => bytes[i] !== byte)) bad("is not a WebAssembly module");
+  let at = 8;
+  const u32 = () => {
+    for (let value = 0, shift = 0; ; shift += 7) {
+      if (at >= bytes.length || shift > 28) bad("is malformed");
+      const byte = bytes[at++];
+      value += (byte & 127) * 2 ** shift;
+      if (!(byte & 128)) return value;
+    }
+  };
+  const name = () => {
+    const length = u32();
+    if (at + length > bytes.length) bad("is malformed");
+    return new TextDecoder().decode(bytes.subarray(at, (at += length)));
+  };
+  const limits = () => {
+    const flag = bytes[at++];
+    if (flag > 1) bad("uses shared or 64-bit memory");
+    const min = u32();
+    return { min, max: flag ? u32() : null };
+  };
+  /** @type {Map<string, number>} */
+  const exported = new Map();
+  while (at < bytes.length) {
+    const id = bytes[at++];
+    const size = u32();
+    const end = at + size;
+    if (end > bytes.length) bad("is malformed");
+    if (id === 2) {
+      for (let n = u32(); n > 0; n--) {
+        const from = name() + "." + name();
+        if (from !== "host.ask" || bytes[at++] !== 0) bad(`imports ${from}, but may import only host.ask`);
+        u32();
+      }
+    } else if (id === 4) {
+      for (let n = u32(); n > 0; n--) {
+        at++;
+        if (limits().min > TABLE_MOST) bad("starts with too large a table");
+      }
+    } else if (id === 5) {
+      for (let n = u32(); n > 0; n--) {
+        const { min, max } = limits();
+        if (max === null) bad("must declare the most memory it may use");
+        if (max > pages || min > max) bad(`may use up to ${max} pages of memory (64 KB each), more than the ${pages} allowed`);
+      }
+    } else if (id === 7) {
+      for (let n = u32(); n > 0; n--) {
+        const exports = name();
+        exported.set(exports, bytes[at++]);
+        u32();
+      }
+    }
+    at = end;
+  }
+  for (const [needed, kind] of /** @type {const} */ ([["memory", 2], ["alloc", 0], ["call", 0]])) {
+    if (exported.get(needed) !== kind) bad(`must export ${needed}`);
+  }
+}
+
+/**
+ * Run a game server compiled to WebAssembly until the host closes this process's input. The host's
+ * first line carries the module's bytes; the rest are the same lines a JavaScript game server gets.
+ */
+export async function sealWasm() {
+  /** @type {Map<number, Player>} */
+  const players = new Map();
+  /** @type {{ memory: WebAssembly.Memory, alloc(length: number): number, call(pointer: number, length: number): void } | null} */
+  let wasm = null;
+  const decoder = new TextDecoder();
+  let queue = Promise.resolve();
+
+  /** @param {number} pointer @param {number} length @returns {Uint8Array} */
+  function view(pointer, length) {
+    const bytes = new Uint8Array(/** @type {NonNullable<typeof wasm>} */ (wasm).memory.buffer);
+    if (length > ASK_MOST || pointer + length > bytes.length) throw new Error("A pointer and length point outside the module's memory.");
+    return bytes.subarray(pointer, pointer + length);
+  }
+
+  /** What the module asks of its host: one JSON request. @param {number} pointer @param {number} length */
+  function ask(pointer, length) {
+    const m = JSON.parse(decoder.decode(view(pointer >>> 0, length >>> 0)));
+    if (m.t === "send") out({ t: "send", conn: m.conn, data: m.data });
+    else if (m.t === "save" && typeof m.key === "string") out({ t: "save", key: m.key, value: m.value });
+    else if (m.t === "timer") out({ t: "timer", ms: m.ms ?? null });
+    else if (m.t === "offer") out({ t: "offer", id: m.id, records: m.records });
+    else if (m.t === "log") out({ t: "log", text: String(m.text) });
+    else throw new Error("The module asked for something unknown: " + JSON.stringify(m.t));
+  }
+
+  /** One call to the module. @param {Record<string, unknown>} message */
+  function call(message) {
+    const module = /** @type {NonNullable<typeof wasm>} */ (wasm);
+    const bytes = encoder.encode(JSON.stringify(message));
+    const pointer = module.alloc(bytes.length) >>> 0;
+    view(pointer, bytes.length).set(bytes);
+    module.call(pointer, bytes.length);
+  }
+
+  /** @param {() => unknown} work */
+  const run = (work) =>
+    (queue = queue.then(async () => {
+      try {
+        await work();
+      } catch (error) {
+        out({ t: "error", text: String(error instanceof Error ? (error.stack ?? error.message) : error) });
+      }
+    }));
+
+  /** @param {any} m */
+  function handle(m) {
+    if (m.t === "ping") return out({ t: "pong", n: m.n });
+    if (m.t === "module") {
+      return run(async () => {
+        try {
+          const bytes = Uint8Array.from(atob(m.wasm), (char) => char.charCodeAt(0));
+          checkWasm(bytes, m.pages);
+          wasm = /** @type {any} */ ((await WebAssembly.instantiate(bytes, { host: { ask } })).instance.exports);
+        } catch (error) {
+          out({ t: "error", text: String(error) });
+          Deno.exit(1); // without its module there is nothing to run
+        }
+      });
+    }
+    if (m.t === "join") {
+      players.set(m.p.conn, m.p);
+      return run(() => call({ t: "join", player: m.p }));
+    }
+    if (m.t === "start") return run(() => call({ t: "start", data: m.data ?? {} }));
+    if (m.t === "timer") return run(() => call({ t: "timer" }));
+    const player = players.get(m.conn);
+    if (!player) return;
+    if (m.t === "leave") {
+      players.delete(m.conn);
+      return run(() => call({ t: "leave", player }));
+    }
+    if (m.t === "message") return run(() => call({ t: "message", player, data: m.data }));
+  }
+
+  await lines(handle);
 }

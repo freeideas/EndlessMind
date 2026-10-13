@@ -1,0 +1,6 @@
+[build]
+target = "wasm32-unknown-unknown"
+
+# The host refuses a module that does not say the most memory it may use: here 16 MB (256 pages).
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=--max-memory=16777216"]

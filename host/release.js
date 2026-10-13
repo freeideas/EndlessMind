@@ -17,6 +17,7 @@ import { addSignature, canonical, isComplete } from "../shared/signed.js";
 import { secretWords } from "../realm/realm.js";
 
 export const CALLS = 1; // the version of the game server's calls this host program speaks
+const GAME_FILES = ["game.js", "game.wasm"]; // a game holds one of them
 export const NOTE = "endlessmind-release.json"; // the release note's name among the files
 const PIECE = 256 * 1024; // the torrent's piece length
 const MAX_FILES = 500;
@@ -184,7 +185,8 @@ export async function pack(options) {
   await Deno.mkdir(data, { recursive: true });
   const signer = await signerFromWords(await secretWords(join(data, "realm-secret.txt")));
   const paths = await filesIn(folder);
-  for (const needed of ["game.js", "card.json", "index.html"]) if (!paths.includes(needed)) throw new Error(`A game's folder needs ${needed}.`);
+  for (const needed of ["card.json", "index.html"]) if (!paths.includes(needed)) throw new Error(`A game's folder needs ${needed}.`);
+  if (GAME_FILES.filter((name) => paths.includes(name)).length !== 1) throw new Error("A game's folder holds game.js or game.wasm, one of them.");
   if (paths.includes(NOTE)) throw new Error(`A game's folder cannot hold a file named ${NOTE}.`);
   const { name, description, tags, picture } = JSON.parse(await Deno.readTextFile(join(folder, "card.json")));
   const content = await contentOf((await measure(folder, paths)).facts);
@@ -245,7 +247,8 @@ export async function checkRelease(store, id) {
     typeof note.card?.name === "string" && typeof note.card?.description === "string" && note.content === (await contentOf(facts)) && (await isComplete(note));
   if (!good) throw new Error(`Release ${id} is not signed by its realm.`);
   if (!Number.isInteger(note.calls) || note.calls < 1 || note.calls > CALLS) throw new Error(`Release ${id} needs a newer host program.`);
-  for (const needed of ["game.js", "index.html"]) if (!facts.some((fact) => fact.path === needed)) throw new Error(`Release ${id} has no ${needed}.`);
+  if (!facts.some((fact) => fact.path === "index.html")) throw new Error(`Release ${id} has no index.html.`);
+  if (GAME_FILES.filter((name) => facts.some((fact) => fact.path === name)).length !== 1) throw new Error(`Release ${id} holds neither game.js nor game.wasm, or both.`);
   return { id, realm, note, folder };
 }
 

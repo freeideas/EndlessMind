@@ -171,7 +171,7 @@ It holds the realm's complete records marked `public`, signed by the realm and b
 
 ## Game servers
 
-A game is a folder: `game.js` (the game server), `card.json` (the realm card's `name`, `description` and optional `tags` and `picture`) and the display's files, starting at `index.html`. A file or folder whose name starts with a dot is never served to players and never loaded.
+A game is a folder: `game.js` or `game.wasm` (the game server, one of them), `card.json` (the realm card's `name`, `description` and optional `tags` and `picture`) and the display's files, starting at `index.html`. A file or folder whose name starts with a dot is never served to players and never loaded.
 
 **The calls.** `game.js` is a JavaScript module whose default export is an object with any of these functions. The host calls them one at a time, in order, and waits for each to finish:
 
@@ -207,11 +207,40 @@ A game is a folder: `game.js` (the game server), `card.json` (the realm card's `
 
 Everything passed in either direction is JSON. A game that keeps progress under `who` can carry a guest's progress over at sign-in, since `guest` stays the same.
 
+**WebAssembly.** `game.wasm` is a WebAssembly module, so a game server can be written in any language that compiles to one. It gets the same calls, the same player objects and the same seal, through a surface of three exports and one import:
+
+- Export `memory`: the module's memory.
+- Export `alloc(length)`: returns a pointer to `length` bytes of room, which the host fills.
+- Export `call(pointer, length)`: one call from the host, given UTF-8 JSON in the room `alloc` returned. The module owns that room from then on and may free it.
+- Import `host.ask(pointer, length)`: one request to the host, given UTF-8 JSON in the module's memory.
+
+The host's calls to `call`, one at a time and in order, each waiting for the last to return:
+
+| Message                                             | When                                              |
+| --------------------------------------------------- | ------------------------------------------------- |
+| `{ "t": "start", "data": { ...saved keys... } }`    | The game server has started, with all it saved    |
+| `{ "t": "join", "player": {...} }`                  | A display connected                               |
+| `{ "t": "leave", "player": {...} }`                 | That display's connection ended                   |
+| `{ "t": "message", "player": {...}, "data": ... }`  | That display sent `data`                          |
+| `{ "t": "timer" }`                                  | The time set with a `timer` request has passed    |
+
+The module's requests to `host.ask`, which it may make during any call:
+
+| Message                                             | What it does                                            |
+| --------------------------------------------------- | ------------------------------------------------------- |
+| `{ "t": "send", "conn": n, "data": ... }`           | Sends `data` to the display with that `conn`            |
+| `{ "t": "save", "key": "...", "value": ... }`       | Keeps `value` under `key`; without `value`, removes it  |
+| `{ "t": "timer", "ms": n }`                         | Sets the one timer; `null` clears it                    |
+| `{ "t": "offer", "id": "<ID>", "records": [...] }`  | Offers that player records to claim                     |
+| `{ "t": "log", "text": "..." }`                     | Writes a line to the host's log                         |
+
+There is no call to load a value and none to list players: what was saved arrives with `start`, and a module that wants the players keeps them from `join` and `leave`. A module that imports anything else, lacks an export, or does not declare the most memory it may use (a maximum within the memory limit below) is refused, and the host does not start it. The host sends the module's bytes to the sealed process, which has no files to read.
+
 **The seal.** A game server runs where it cannot open files, use the network, start other programs or learn anything about the computer it is on. It may import other files from its own folder, all named in the code so the host can check them before it starts; nothing from the web, and no built-in modules. A host stops a game server that needs more memory than the host allows, that stops answering, or that uses more than its share of the processor, and starts it again when the next display connects. A host also lets a game server rest while nobody is playing. The timer is kept by the host: it rings even after a rest, with the game server started again for it, but a game server stopped for any other reason starts with no timer set. A game server may therefore start at any moment knowing only what it saved.
 
 | Limit in the reference host                  | Value                                    |
 | -------------------------------------------- | ---------------------------------------- |
-| Memory                                       | 64 MB                                    |
+| Memory (a module's declared maximum)         | 64 MB                                    |
 | Going without answering                      | 6 seconds                                |
 | Share of one processor                       | Half, measured over 30 seconds           |
 | Wait after being stopped for that            | 5 seconds, doubling to at most 5 minutes |
@@ -274,7 +303,7 @@ No two games share a name, and no game is ever at a path under another's name or
 
 A release is one exact version of a game, packed so that anyone can fetch it, check it and run it.
 
-**The files.** Every file of the game's folder (see "Game servers"), plus a release note named `endlessmind-release.json`. A file's path is made of parts joined by `/`; each part starts with a letter, a digit or `_`, continues with letters, digits, `.`, `_`, `-` or spaces, and is at most 100 characters. A release holds at most 500 files and 50 MB.
+**The files.** Every file of the game's folder (see "Game servers"; it holds `game.js` or `game.wasm`, not both), plus a release note named `endlessmind-release.json`. A file's path is made of parts joined by `/`; each part starts with a letter, a digit or `_`, continues with letters, digits, `.`, `_`, `-` or spaces, and is at most 100 characters. A release holds at most 500 files and 50 MB.
 
 **The release note** is signed JSON, signed by the realm alone:
 

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared Button</title>
+<style>
+:root { color-scheme: dark; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; text-align: center; color: #e9f1ff; background: #0d1420; font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { padding: 1rem; }
+#count { font-size: 5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+button { font: inherit; font-size: 1.6rem; padding: .8rem 2rem; border-radius: 14px; border: 1px solid #ffffff40; background: #ffffff12; color: inherit; cursor: pointer; }
+button:active { background: #ffffff30; }
+p { color: #9fb2cc; }
+a { color: #8fc3ff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Shared Button</h1>
+  <div id="count">...</div>
+  <button id="press">Press</button>
+  <p>Everyone who is here presses the same button. An example realm for <a href="https://endlessmind.com/">Endless Mind</a>.</p>
+</main>
+<script type="module">
+import { play } from "./endlessmind/play.js";
+const count = document.getElementById("count");
+const server = play({ onMessage: (data) => (count.textContent = String(data.count)) });
+document.getElementById("press").onclick = () => server.send("press");
+</script>
+</body>
+</html>

@@ -215,3 +215,22 @@ Deno.test("what a host sends is believed only as far as it matches the ID", asyn
     await Deno.remove(temp, { recursive: true });
   }
 });
+
+Deno.test("a game with a WebAssembly server packs and checks like any other, but not with both servers", async () => {
+  const temp = await Deno.makeTempDir();
+  try {
+    const folder = join(temp, "counter");
+    await Deno.mkdir(folder);
+    for (const name of ["card.json", "index.html", "game.wasm"]) await Deno.copyFile(join("examples/counter", name), join(folder, name));
+    const store = join(temp, "store");
+    const release = await pack({ folder, store });
+    assert.equal((await checkRelease(store, release.id)).id, release.id);
+    await Deno.writeTextFile(join(folder, "game.js"), "export default {};");
+    await assert.rejects(() => pack({ folder, store }), /game\.js or game\.wasm, one of them/);
+    await Deno.remove(join(folder, "game.js"));
+    await Deno.remove(join(folder, "game.wasm"));
+    await assert.rejects(() => pack({ folder, store }), /game\.js or game\.wasm, one of them/);
+  } finally {
+    await Deno.remove(temp, { recursive: true });
+  }
+});
