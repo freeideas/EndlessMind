@@ -117,7 +117,7 @@ async function lines(handle) {
 }
 
 const ASK_MOST = 8 * 1024 * 1024; // the longest request a module may make of its host, in bytes
-const TABLE_MOST = 100000; // the most entries a module's table may start with
+const TABLE_MOST = 100000; // the most entries a module's table may ever hold
 
 /**
  * Check a WebAssembly module against the surface a game server may have, reading its bytes directly:
@@ -168,10 +168,13 @@ export function checkWasm(bytes, pages) {
     } else if (id === 4) {
       for (let n = u32(); n > 0; n--) {
         at++;
-        if (limits().min > TABLE_MOST) bad("starts with too large a table");
+        const { min, max } = limits();
+        if (max === null || max > TABLE_MOST || min > max) bad("must declare a table of at most " + TABLE_MOST + " entries");
       }
     } else if (id === 5) {
-      for (let n = u32(); n > 0; n--) {
+      const memories = u32();
+      if (memories !== 1) bad("must have one memory");
+      {
         const { min, max } = limits();
         if (max === null) bad("must declare the most memory it may use");
         if (max > pages || min > max) bad(`may use up to ${max} pages of memory (64 KB each), more than the ${pages} allowed`);
