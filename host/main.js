@@ -10,11 +10,14 @@
 //                                 [--hostname 127.0.0.1] [--data <folder>] [--portal <address>]
 //                                 [--games 20] [--no-relay] [--no-portal]
 //
+//   deno run -A host/main.js setup [--base <address>] [--game <folder>] [--yes]
+//
 // `run` plays one game on this computer: it prints the address to open, and starts the game server
 // again whenever a file in the folder changes. With `--relay`, players anywhere can join it. Given a
 // release's ID instead of a folder, it runs someone else's game. `pack` makes a release from a game's
 // folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
-// releases, relays for games on other computers and serves a spare EntryPortal. See host/README.md.
+// releases, relays for games on other computers and serves a spare EntryPortal. `setup` turns a Linux
+// server into such a host. See host/README.md.
 
 import { runGame } from "./host.js";
 import { runHost } from "./hosting.js";
@@ -90,10 +93,13 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
   for (const game of host.hosted()) console.log(`  ${game.name}: ${game.base} (release ${game.id})`);
   if (!("no-relay" in flags)) console.log(`  Relaying: a game on another computer joins with --relay ${host.base}`);
   if (host.entryPortal) console.log(`  EntryPortal: ${host.entryPortal}`);
+} else if (command === "setup" && names.length === 0) {
+  await (await import("./setup.js")).setup(flags);
 } else {
   console.error("Usage: run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay <address>] [--portal <address>] [--data <folder>] [--no-watch]");
   console.error("       run <release ID> --relay <address> [--from <address>,...] [--store <folder>]");
   console.error("       pack <folder> [--store <folder>]");
   console.error("       host --base <address> [--game <folder>] [--load <release ID>,...] [--from <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]");
+  console.error("       setup [--base <address>] [--game <folder>] [--yes]    (a Linux server, as root)");
   Deno.exit(2);
 }

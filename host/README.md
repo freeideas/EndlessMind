@@ -11,9 +11,12 @@ Runs a game: serves its display, keeps its game server sealed, and passes messag
 | `relay.js`   | `openRelay`: a host's relay. `dial`: how a game reaches players through one          |
 | `hosting.js` | `runHost`: one web server for a resident game, releases, a relay and an EntryPortal  |
 | `release.js` | Releases: packing a game under an ID, checking one, fetching one from a host         |
-| `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it                   |
+| `setup.js`   | `endlessmind setup`: turns a Linux server into a host                                |
+| `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it; setup installs it |
 
 ## Use
+
+The program is the `endlessmind` command (see [README.md](../README.md) for how to get it). From a checkout, `deno task run` stands for `endlessmind run`, `deno task pack` for `endlessmind pack`, and `deno task host` for `endlessmind host`. The examples below use `deno task`.
 
 ```
 deno task run <folder>
@@ -79,7 +82,7 @@ Every host is a relay (see "Hosting" below), unless its admin turns that off.
 
 ## Hosting
 
-On a computer everyone can reach, such as a rented server, one command does every job:
+On a Linux server, `sudo endlessmind setup` sets one up: it asks for the web address (by default the free name made from the server's number) and the resident game's folder (by default a copy of Endless Maze), says what it is about to change, and on a yes installs Caddy with apt, pacman or dnf, writes the Caddyfile and a systemd unit for the host, starts them and prints the address to open. `--base`, `--game` and `--yes` answer its questions in advance so it can run unattended. Ports 80 and 443 must be open. The game is copied to `/var/lib/endlessmind/`, where the host runs as an account of its own. To do the same by hand, or on a computer that is not a Linux server, one command does every job:
 
 ```
 deno task host --base https://myvps.example/ --game <folder>
@@ -109,7 +112,7 @@ deno task host --base https://myvps.example/ --game <folder>
 
 **Names.** The main name and every name under it must lead to the server. With a domain, that is two DNS records: `myvps.example` and `*.myvps.example`. Without one, a free name made from the server's number works with no setup at all: for the server at `203.0.113.7`, use `--base https://203-0-113-7.sslip.io/`.
 
-**HTTPS.** The host program speaks plain HTTP on this computer only, and [Caddy](Caddyfile) in front of it provides HTTPS: it gets a certificate for each name the first time someone asks for it, after checking with the host program that the name is one of its own. Certificate authorities ration certificates by parent name. For a free name that ration is shared with everyone who uses the naming service; with a domain of one's own, a single certificate for `*.myvps.example` avoids it (see [deploy/README.md](../deploy/README.md) for how the relay at relay.endlessmind.com does that).
+**HTTPS.** The host program speaks plain HTTP on this computer only, and [Caddy](Caddyfile) in front of it provides HTTPS (setup installs it): it gets a certificate for each name the first time someone asks for it, after checking with the host program that the name is one of its own. Certificate authorities ration certificates by parent name. For a free name that ration is shared with everyone who uses the naming service; with a domain of one's own, a single certificate for `*.myvps.example` avoids it (see [deploy/README.md](../deploy/README.md) for how the relay at relay.endlessmind.com does that).
 
 **Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID and this host's address to their own: `deno task host --base https://other.example/ --load <release ID> --from https://myvps.example/`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
 

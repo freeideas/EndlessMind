@@ -17,12 +17,13 @@ Instructions for AI agents (and people) changing Endless Mind itself. The design
 | `examples/` | Example games: `maze/` Endless Maze, `monster/` Monster Maze, `counter/` in Rust     |
 | `tests/`    | Deno unit tests, and `browser/`: the whole loop in two browsers (Playwright, `uv`)  |
 | `site/`     | The endlessmind.com website, one subfolder per page                                 |
-| `deploy/`   | How both sites are published; `entryportal.js` assembles the EntryPortal            |
+| `deploy/`   | How both sites and the downloadable package are published; `package.py` builds it   |
 
 ## Conventions
 
 - Plain JavaScript ES modules with JSDoc type comments; no build step, no bundler, no npm dependencies in browser or shared code. Browsers must be able to load every file as it is.
 - `deno task check` and `deno task test` must pass before committing; run `deno task browser` too when changing the EntryPortal, the realm library, the host program or the example. After editing `shared/` or the EntryPortal, run `deno task portal`.
+- `deno.json` holds the version and the `deno task` lines; `deploy/package.py` takes the package's version and permissions from it, and `host/Caddyfile` is the one Caddy template, used by `endlessmind setup`.
 - `realm-py/` copies `realm/realm.js` and the `shared/` code it uses; change both together, and run `uv run pytest` in `realm-py/` (it compares the two with Deno).
 - Protocol changes (formats, signing, the phrase-to-key recipe, the game server's calls, rules for realms and EntryPortals) must be reflected in [specs/PROTOCOL.md](specs/PROTOCOL.md). The phrase-to-key recipe must keep matching the published BIP39 and SLIP-0010 test vectors in `tests/keys_test.js`.
 - Design decisions go in [specs/DESIGN.md](specs/DESIGN.md), using the terms in its "Words used here" section (realm, player, ID, secret phrase, proof, EntryPortal, record).

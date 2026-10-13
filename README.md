@@ -42,9 +42,23 @@ A realm can give you signed **records**: "in good standing as of 1 December", "f
 
 You find realms on **boards**: realms whose purpose is listing other realms, run by anyone. There are no likes or votes. Boards rank realms by real play: public records from players who are themselves known to play in realms the board trusts. Playing a realm a lot is the strongest recommendation you can give. Most realms link to a board, and endlessmind.com lists boards to start from.
 
+## Getting the program
+
+One download, the `endlessmind` command, runs and hosts games. Nobody needs Deno installed first.
+
+| On              | Install with                                                                            |
+| --------------- | --------------------------------------------------------------------------------------- |
+| macOS           | `brew install freeideas/tap/endlessmind`                                                |
+| Debian, Ubuntu  | the `.deb` from the releases page: `sudo apt install ./endlessmind_<version>_<arch>.deb` |
+| Arch            | the `PKGBUILD` from the releases page: `makepkg -si`                                    |
+| Windows         | `winget install FreeIdeas.EndlessMind`                                                  |
+| Anything else   | the archive for your system from the releases page, unpacked anywhere                   |
+
+The releases page is [github.com/freeideas/EndlessMind/releases](https://github.com/freeideas/EndlessMind/releases). Working from a checkout of this repository needs [Deno](https://deno.com/) instead, and `deno task` in place of `endlessmind`.
+
 ## Making realms
 
-Describe your game to your AI coding agent and point it at this repository. The agent writes the game and starts it on your computer with [the host program](host/README.md), which gives you a link to play it; [Endless Maze](examples/maze/README.md) is a small example to start from, and [Monster Maze](examples/monster/README.md) a fast one for several players at once. A game server may also be written in another language, such as Rust, and compiled to WebAssembly: see [Shared Button](examples/counter/README.md). Friends anywhere can join while your computer is on, through a relay: a go-between on the web that anyone can run with the same program. One for trying this out runs at `https://relay.endlessmind.com/`. To put a game on the web for good, run the same program on a server of your own, which needs no domain name; there it is also a relay and an EntryPortal for others, and it prints an ID with which anyone can host your game on their own server, or at home. A game with private server code can instead use the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md). Releasing a game for others to host while you sleep is being built: see [PLAN.md](PLAN.md).
+Describe your game to your AI coding agent and point it at this repository. The agent writes the game and starts it on your computer with [the host program](host/README.md) (`endlessmind run <folder>`), which gives you a link to play it; [Endless Maze](examples/maze/README.md) is a small example to start from, and [Monster Maze](examples/monster/README.md) a fast one for several players at once. A game server may also be written in another language, such as Rust, and compiled to WebAssembly: see [Shared Button](examples/counter/README.md). Friends anywhere can join while your computer is on, through a relay: a go-between on the web that anyone can run with the same program. One for trying this out runs at `https://relay.endlessmind.com/`. To put a game on the web for good, run the same program on a server of your own (`sudo endlessmind setup` does the whole job on Linux), which needs no domain name; there it is also a relay and an EntryPortal for others, and it prints an ID with which anyone can host your game on their own server, or at home. A game with private server code can instead use the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md). Releasing a game for others to host while you sleep is being built: see [PLAN.md](PLAN.md).
 
 Be original: do not make anything overly similar to someone else's game, and do not copy anyone's names, characters, art, music or logos.
 

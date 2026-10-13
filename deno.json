@@ -1,4 +1,5 @@
 {
+  "version": "0.1.0",
   "tasks": {
     "test": "deno test --allow-read --allow-write --allow-run --allow-net --allow-env tests/",
     "check": "deno check shared/*.js realm/*.js host/*.js examples/*/*.js deploy/*.js tests/*.js",

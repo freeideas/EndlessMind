@@ -7,3 +7,5 @@
 target/
 # Python leaves these behind.
 __pycache__/
+# deploy/package.py builds the packages here.
+dist/
