@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from endlessmind import (
+    add_note,
     add_signature,
     canonical,
     default_name,
@@ -20,6 +21,7 @@ from endlessmind import (
     qr_svg,
     signer_from_words,
     tidy_name,
+    valid_notes,
     valid_signers,
     words_from_entropy,
 )
@@ -67,6 +69,18 @@ def test_signatures_agree_both_ways():
     py_signed = [add_signature(o, signer_from_words(words)) for o in objects]
     assert js("sign", {"words": words, "objects": objects}) == py_signed, "Ed25519 signatures are deterministic"
     assert js("verify", py_signed) == [valid_signers(o) for o in py_signed] == [[signer_from_words(words).id]] * len(objects)
+
+
+def test_notes_agree_both_ways():
+    words, signer = PHRASES[1], signer_from_words(PHRASES[1])
+    text = "Ünïcode ✓ \U0001f600 and \"quotes\"."
+    records = [add_signature({"v": 1, "type": "record", "signers": [signer.id], "time": 1790000000000, **o}, signer) for o in TRICKY if isinstance(o, dict)]
+    py_noted = [add_note(r, signer, text) for r in records]
+    assert js("note", {"words": words, "records": records, "text": text}) == py_noted
+    # A note on the wrong record checks out in neither.
+    moved = [{**records[0], "notes": py_noted[1]["notes"]}]
+    assert js("notes", py_noted + moved) == [valid_notes(r) for r in py_noted + moved] == [r["notes"] for r in py_noted] + [{}]
+    assert js("verify", py_noted) == [[signer.id]] * len(records), "a note leaves the record's proof valid"
 
 
 def test_same_names():

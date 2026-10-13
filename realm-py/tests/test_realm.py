@@ -9,6 +9,7 @@ import secrets
 from urllib.parse import quote, unquote, urlencode
 
 from endlessmind import (
+    add_note,
     add_signature,
     base64url,
     is_complete,
@@ -17,6 +18,7 @@ from endlessmind import (
     open_realm,
     seed_from_words,
     signer_from_words,
+    valid_notes,
     valid_signers,
     words_from_entropy,
 )
@@ -167,6 +169,33 @@ def test_claiming():
     assert wait == {"state": "claimed", "count": 1}
     assert call(realm, "endlessmind/me", headers=cookie).json()["claims"] == 0
     assert call(realm, f"claim/{claim['code']}").status == 410, "a claim code works once"
+
+
+def test_a_players_own_words_are_kept_and_a_bad_note_is_dropped():
+    realm, clock = setup()
+    cookie = sign_in(realm, clock.now)
+    asyncio.run(realm.offer(PLAYER.id, [{"text": "Planted ten seeds."}, {"text": "Watered a seed."}, {"text": "Picked a pear."}]))
+    claim = call(realm, "endlessmind/claim", "POST", cookie).json()
+    proposals = sign_payload(call(realm, f"claim/{claim['code']}"))["records"]
+    stranger = signer_from_words(words_for(9))
+
+    signed = [add_signature({**p, "public": True}, PLAYER) for p in proposals]
+    noted = add_note(signed[0], PLAYER, "My best garden yet.")
+    assert valid_signers(noted) == [PLAYER.id], "a note leaves the record's proofs valid"
+    moved = {**signed[1], "notes": noted["notes"]}
+    outsider = add_note(signed[2], stranger, "I was never there.")
+    assert valid_notes(moved) == {}
+    assert valid_notes(outsider) == {}
+    assert valid_notes({**noted, "notes": {PLAYER.id: {**noted["notes"][PLAYER.id], "text": "Changed."}}}) == {}
+    assert valid_notes({**noted, "notes": "nonsense"}) == {}
+
+    done = sign_payload(call(realm, f"claim/{claim['code']}", form={"records": json.dumps([noted, moved, outsider])}))
+    assert len(done["records"]) == 3, "a bad note is never a reason to refuse the record"
+    assert [r.get("notes") for r in done["records"]] == [noted["notes"], None, None]
+    assert all(is_complete(r) for r in done["records"])
+    assert valid_notes(done["records"][0]) == noted["notes"], "the realm's proof did not disturb the note"
+    assert realm.list()["records"][0]["notes"][PLAYER.id]["text"] == "My best garden yet."
+    assert realm.records(PLAYER.id) == done["records"]
 
 
 def test_private_records_signed_not_published():

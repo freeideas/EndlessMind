@@ -1,12 +1,13 @@
 # The realm library
 
-What a tied realm (one that runs on its maker's own server) includes to join Endless Mind on Deno: sign-in by QR code, claiming records, its realm card, its public list and refusing burned IDs. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md); [The host program](../host/README.md) uses all of it. For game servers written in Python, [realm-py/](../realm-py/) does the same, on the same files.
+What a tied realm (one that runs on its maker's own server) includes to join Endless Mind on Deno: sign-in by QR code, claiming records (with the words a player adds to one), its realm card, its public list and refusing burned IDs. The formats are in [specs/PROTOCOL.md](../specs/PROTOCOL.md); [The host program](../host/README.md) uses all of it. For game servers written in Python, [realm-py/](../realm-py/) does the same, on the same files.
 
-| File                  | What it is                                                                  |
-| --------------------- | --------------------------------------------------------------------------- |
-| `realm.js`            | The server side: `openRealm`, then `realm.handle(request)` in `Deno.serve`  |
-| `signin.js`           | The browser side: the sign-in and claim box, served at `<base>endlessmind/signin.js` |
-| `vendor/qrcodegen.js` | Project Nayuki's QR Code generator v1.8.0 (MIT), types removed, otherwise unchanged |
+| File        | What it is                                                                           |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `realm.js`  | The server side: `openRealm`, then `realm.handle(request)` in `Deno.serve`           |
+| `signin.js` | The browser side: the sign-in and claim box, served at `<base>endlessmind/signin.js` |
+
+Both use the code in [shared/](../shared/): keys, signed JSON, names and QR codes.
 
 ## Use
 
@@ -23,6 +24,7 @@ Deno.serve(async (request) => (await realm.handle(request)) ?? myGame(request));
 const player = await realm.player(request); // the player ID, or null for a guest
 realm.playerName(player); // the name to show for them, such as "Witty Clover"
 realm.records(player); // every record signed with them, public and private (only public ones are listed)
+realm.records(player)[0]?.notes?.[player]?.text; // the words the player added to a record, if any
 await realm.offer(player, [{ text: "Finished the Glass Maze." }]); // a record for the player to claim
 ```
 

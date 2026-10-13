@@ -9,7 +9,7 @@
 // `<base>endlessmind/signin.js`, which draws the sign-in and claim boxes.
 
 import { checkWords, fromBase64url, hex, isId, newWords, signerFromPrivateKey, signerFromWords } from "../shared/keys.js";
-import { addSignature, canonical, isComplete, signedBytes, validSigners } from "../shared/signed.js";
+import { addSignature, canonical, isComplete, signedBytes, validNotes, validSigners } from "../shared/signed.js";
 import { qrSvg } from "../shared/qr.js";
 import { defaultName, tidyName } from "../shared/names.js";
 
@@ -427,8 +427,9 @@ export class Realm {
   }
 
   /**
-   * Sign a record the player sent back, if it is one of the claim's proposals with only `public` and
-   * `sigs` changed and the player's proof checks out. Returns the complete record, or null.
+   * Sign a record the player sent back, if it is one of the claim's proposals with only `public`,
+   * `sigs` and `notes` changed and the player's proof checks out. Notes that check out are kept and
+   * the rest dropped. Returns the complete record, or null.
    * @param {{ player: string, records: any[] }} claim
    * @param {any} record
    */
@@ -439,9 +440,10 @@ export class Realm {
     if (!claim.records.some((p) => proposalKey(p) === key)) return null;
     if (signedBytes(record).length > MAX_SIGNED) return null;
     if (!(await validSigners(record)).includes(claim.player)) return null;
-    const { sigs, ...body } = record;
+    const { sigs, notes: _, ...body } = record;
+    const notes = await validNotes(record);
     /** @type {any} */
-    const done = await addSignature({ ...body, sigs: { [claim.player]: sigs[claim.player] } }, this.signer);
+    const done = await addSignature({ ...body, sigs: { [claim.player]: sigs[claim.player] }, ...(Object.keys(notes).length ? { notes } : {}) }, this.signer);
     if (!(await isComplete(done))) return null;
     this.data.records.push(done);
     if (done.public === true) this.data.public.push(done);
@@ -583,9 +585,9 @@ export async function secretWords(path) {
   return words;
 }
 
-/** What identifies a proposal: everything except `public` and `sigs`. @param {any} record */
+/** What identifies a proposal: everything except `public`, `sigs` and `notes`. @param {any} record */
 function proposalKey(record) {
-  const { public: _p, sigs: _s, ...body } = record;
+  const { public: _p, sigs: _s, notes: _n, ...body } = record;
   return canonical(body);
 }
 

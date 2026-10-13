@@ -16,7 +16,7 @@ import {
   signerFromWords,
   wordsFromEntropy,
 } from "../shared/keys.js";
-import { addSignature, canonical, isComplete, validSigners } from "../shared/signed.js";
+import { addSignature, canonical, isComplete, validNotes, validSigners } from "../shared/signed.js";
 import { defaultName, tidyName } from "../shared/names.js";
 
 const fromHex = (/** @type {string} */ s) => Uint8Array.from(s.match(/../g) ?? [], (b) => parseInt(b, 16));
@@ -85,6 +85,10 @@ Deno.test("the signed examples in PROTOCOL.md check out", async () => {
     const example = JSON.parse(text);
     assert.deepEqual((await validSigners(example)).sort(), Object.keys(example.sigs).sort(), text);
   }
+  // The example note is written on the example record.
+  const record = examples.map((text) => JSON.parse(text)).find((example) => example.type === "record");
+  const { notes } = JSON.parse(`{${md.match(/```json\n("notes": [\s\S]*?)```/)?.[1]}}`);
+  assert.deepEqual(await validNotes({ ...record, notes }), notes);
 });
 
 Deno.test("a numbered list pasted from a screenshot is read as the phrase", async () => {

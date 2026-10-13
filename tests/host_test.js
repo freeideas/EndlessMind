@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { runGame } from "../host/host.js";
+import { signerFromWords, wordsFromEntropy } from "../shared/keys.js";
+import { addNote, addSignature } from "../shared/signed.js";
 import { makeMaze, solution } from "../examples/maze/maze.js";
 
 let nextPort = 18300 + Math.floor(Math.random() * 500);
@@ -38,9 +40,10 @@ async function running(game) {
   };
 }
 
-/** A display's line to the game server. @param {number} port */
-async function display(port, guest = "0123456789abcdef0123456789abcdef") {
-  const socket = new WebSocket(`ws://localhost:${port}/endlessmind/play?guest=${guest}`);
+/** A display's line to the game server. @param {number} port @param {string} [guest] @param {string} [cookie] a signed-in player's session */
+async function display(port, guest = "0123456789abcdef0123456789abcdef", cookie = "") {
+  // Deno's WebSocket takes headers, which the browser types this project checks against do not know.
+  const socket = new WebSocket(`ws://localhost:${port}/endlessmind/play?guest=${guest}`, cookie ? /** @type {any} */ ({ headers: { cookie } }) : undefined);
   /** @type {any[]} */
   const heard = [];
   /** @type {(() => void)[]} */
@@ -202,6 +205,23 @@ Deno.test("a game server keeps what it saves, has one timer, and offers records 
     await game.host.stop();
     assert.deepEqual(JSON.parse(await Deno.readTextFile(join(game.data, "game-data.json"))), { starts: 1 });
     assert.deepEqual(game.host.realm.data.offers, {});
+  } finally {
+    await game.stop();
+  }
+});
+
+Deno.test("a game server is told a player's records, each with the words the player added", async () => {
+  const game = await running({ server: "export default { join(game, player) { game.send(player, player.records); } };" });
+  try {
+    const realm = game.host.realm;
+    const player = await signerFromWords(await wordsFromEntropy(new Uint8Array(32).fill(7)));
+    const plain = await addSignature({ v: 1, type: "record", signers: [realm.id, player.id], time: 1, text: "Opened the gate." }, player);
+    const noted = await addNote(await addSignature({ ...plain, time: 2, text: "Crossed the bridge.", sigs: {} }, player), player, "Hard won.");
+    realm.data.records.push(plain, noted);
+    realm.data.sessions.s1 = { player: player.id, created: Date.now() };
+    const line = await display(game.port, undefined, "endlessmind=s1");
+    assert.deepEqual(await line.next(), [{ text: "Opened the gate.", time: 1 }, { text: "Crossed the bridge.", time: 2, note: "Hard won." }]);
+    await line.close();
   } finally {
     await game.stop();
   }

@@ -24,6 +24,7 @@ from endlessmind import (
     signer_from_private_key,
     signer_from_words,
     tidy_name,
+    valid_notes,
     valid_signers,
     words_from_compact,
     words_from_entropy,
@@ -100,6 +101,10 @@ def test_protocol_examples_check_out():
     for text in examples:
         example = json.loads(text)
         assert sorted(valid_signers(example)) == sorted(example["sigs"])
+    # The example note is written on the example record.
+    record = next(e for e in map(json.loads, examples) if e["type"] == "record")
+    notes = json.loads("{" + re.search(r'```json\n("notes": [\s\S]*?)```', md).group(1) + "}")["notes"]
+    assert valid_notes({**record, "notes": notes}) == notes
 
 
 def test_names():

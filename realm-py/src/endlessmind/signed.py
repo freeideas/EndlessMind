@@ -1,7 +1,9 @@
-"""Signed JSON: notes and records, the same as shared/signed.js. See "Signed JSON" in specs/PROTOCOL.md."""
+"""Signed JSON: sign-in notes and records, and the words a player adds to a record, the same as
+shared/signed.js. See "Signed JSON" and "Records" in specs/PROTOCOL.md."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -10,6 +12,7 @@ from typing import Any
 from .keys import Signer, base64url, from_base64url, sign, verify
 
 MAX_SAFE = 2**53 - 1
+NOTE_MAX = 500  # the most characters a player's own words on a record may have
 _LONE = re.compile("[\ud800-\udfff]")
 
 
@@ -45,8 +48,8 @@ def canonical(value: Any) -> str:
 
 
 def signed_bytes(obj: dict) -> bytes:
-    """The bytes every signer signs: the canonical JSON of everything except `sigs`."""
-    return canonical({k: v for k, v in obj.items() if k != "sigs"}).encode("utf-8")
+    """The bytes every signer signs: the canonical JSON of everything except `sigs` and `notes`."""
+    return canonical({k: v for k, v in obj.items() if k not in ("sigs", "notes")}).encode("utf-8")
 
 
 def add_signature(obj: dict, signer: Signer) -> dict:
@@ -80,6 +83,51 @@ def is_complete(record: dict) -> bool:
         return False
     ok = valid_signers(record)
     return all(id in ok for id in signers)
+
+
+def u16len(text: str) -> int:
+    """A string's length as JavaScript counts it."""
+    return len(text.encode("utf-16-le", "surrogatepass")) // 2
+
+
+def _note_bytes(record: dict, text: str) -> bytes:
+    """The bytes a note's writer signs: they name the record by the SHA-256 of its signed bytes, so a
+    note belongs to one exact record."""
+    note = {"v": 1, "type": "note", "record": hashlib.sha256(signed_bytes(record)).hexdigest(), "text": text}
+    return canonical(note).encode("utf-8")
+
+
+def add_note(record: dict, signer: Signer, text: str) -> dict:
+    """Add a signer's own words (at most 500 characters) to a record, in place of any they added before.
+    Only their proof covers them, and the record's proofs stay valid."""
+    if not isinstance(text, str) or not text or u16len(text) > NOTE_MAX:
+        raise ValueError(f"a note is 1 to {NOTE_MAX} characters")
+    sig = base64url(sign(signer, _note_bytes(record, text)))
+    notes = record.get("notes")
+    return {**record, "notes": {**(notes if isinstance(notes, dict) else {}), signer.id: {"text": text, "sig": sig}}}
+
+
+def valid_notes(record: dict) -> dict[str, dict[str, str]]:
+    """The notes on a record that check out, by their writers' IDs: each written by one of the record's
+    signers, for this exact record. Any other note is left out."""
+    ok: dict[str, dict[str, str]] = {}
+    notes = record.get("notes")
+    signers = record.get("signers")
+    if not isinstance(notes, dict) or not isinstance(signers, list):
+        return ok
+    for id in signers:
+        note = notes.get(id) if isinstance(id, str) else None
+        if not isinstance(note, dict):
+            continue
+        text, sig = note.get("text"), note.get("sig")
+        if not isinstance(text, str) or not text or u16len(text) > NOTE_MAX or not isinstance(sig, str):
+            continue
+        try:
+            if verify(id, from_base64url(sig), _note_bytes(record, text)):
+                ok[id] = {"text": text, "sig": sig}
+        except (ValueError, TypeError):
+            continue
+    return ok
 
 
 def parse_json(text: str | bytes) -> Any:

@@ -2,7 +2,7 @@
 // answer as JSON, so the Python port can be compared with shared/*.js and realm/realm.js.
 
 import { signerFromWords } from "../../shared/keys.js";
-import { addSignature, canonical, validSigners } from "../../shared/signed.js";
+import { addNote, addSignature, canonical, validNotes, validSigners } from "../../shared/signed.js";
 import { defaultName, tidyName } from "../../shared/names.js";
 import { qrSvg } from "../../shared/qr.js";
 import { fileStore, memoryStore, openRealm } from "../../realm/realm.js";
@@ -16,6 +16,11 @@ const commands = {
     return Promise.all(objects.map((/** @type {any} */ o) => addSignature(o, signer)));
   },
   verify: async (objects) => Promise.all(objects.map((/** @type {any} */ o) => validSigners(o))),
+  note: async ({ words, records, text }) => {
+    const signer = await signerFromWords(words);
+    return Promise.all(records.map((/** @type {any} */ r) => addNote(r, signer, text)));
+  },
+  notes: async (records) => Promise.all(records.map((/** @type {any} */ r) => validNotes(r))),
   names: async (ids) => ids.map((/** @type {string} */ id) => defaultName(id)),
   tidy: async (names) => names.map((/** @type {unknown} */ n) => tidyName(n)),
   qr: async (texts) => texts.map((/** @type {string} */ t) => qrSvg(t)),

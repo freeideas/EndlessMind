@@ -13,7 +13,7 @@
 // of it stays true. To change the EntryPortal after VERSION is published, copy its folder to the next
 // version, set VERSION to it, and edit the copy. Only the newest version is kept here.
 
-export const VERSION = "v0.64";
+export const VERSION = "v0.65";
 const ROOT = new URL("../", import.meta.url);
 const SHARED = ["words-en.js", "keys.js", "signed.js", "names.js", "qrcodegen.js", "qr.js", "jsqr.js"];
 
