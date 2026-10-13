@@ -1,6 +1,6 @@
 # Endless Mind protocol
 
-The exact formats: keys, signed JSON, signing in, records, finding realms, game servers, and burning an identity. Why things are this way is in [DESIGN.md](DESIGN.md). The formats for releases and hosts are added here as each is built.
+The exact formats: keys, signed JSON, signing in, records, finding realms, game servers, relays, hosts, releases, and burning an identity. Why things are this way is in [DESIGN.md](DESIGN.md).
 
 ## Keys and IDs
 
@@ -15,7 +15,7 @@ A key pair is an Ed25519 key pair (Ed25519 is a widely used signature method, bu
 
 ## Signed JSON
 
-Sign-in notes, records and realm cards are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
+Sign-in notes, records, realm cards, release notes and host cards are JSON objects with a `sigs` field: an object mapping each signer's ID to its signature.
 
 - **What is signed:** the object without `sigs`, as canonical JSON (object keys sorted by their UTF-16 code units at every level, no spaces, strings as `JSON.stringify` writes them, numbers only as integers), encoded as UTF-8.
 - **A signature:** the 64-byte Ed25519 signature of those bytes, in base64url without padding.
@@ -156,6 +156,7 @@ Because `public` is set by the player and is part of the signed text, the realm 
 | `tags`        | Optional: up to 10 short words                                          |
 | `play`        | The addresses where players start, now                                  |
 | `list`        | Optional: the address of the realm's public list                        |
+| `release`     | Optional: the ID of the release served under each address in `play`     |
 
 A realm serves its newest card at `endlessmind-card.json` under each address in `play` (for example `https://game-server.com/sword-of-swankery/endlessmind-card.json`), with the header `Access-Control-Allow-Origin: *` so any web page may read it.
 
@@ -238,6 +239,8 @@ A relay lets players reach a game that runs on a computer they cannot connect to
 
 An ID that asks again takes the place of its earlier connection. A relay that is also a host refuses an ID whose name it already uses for a release. The game is at its address for as long as the connection stays open.
 
+**Finding a relay.** A host that relays says so in its host card (see "Hosts"), so a game that is told of no relay reads the cards of the hosts it knows and asks each one that relays, in turn, until one says `ready`.
+
 **Passing players through.** The relay gives each request and each display's line a number, `n`.
 
 | From   | Message                                           | Meaning                                              |
@@ -270,6 +273,53 @@ A host has a main address that is a site's root, such as `https://host.example/`
 
 No two games share a name, and no game is ever at a path under another's name or at the EntryPortal's. A realm whose address is an HTTPS site's root names its session cookie `__Host-endlessmind`, which browsers accept only from that exact name; any other realm names it `endlessmind`.
 
+**Host card.** A host has an ID of its own, and describes itself with a card: signed JSON, signed by the host alone. It signs a new one whenever what it runs changes, and at least every hour.
+
+```json
+{
+  "v": 1,
+  "type": "host",
+  "signers": ["<host ID>"],
+  "time": 1790000000000,
+  "address": "https://host.example/",
+  "relay": true,
+  "portal": "https://eportal.host.example/",
+  "runs": [{ "realm": "<realm ID>", "release": "<release ID>", "name": "Sword of Swankery", "play": "https://host.example/" }],
+  "relays": [{ "id": "<ID>", "play": "https://<ID>.host.example/" }],
+  "sigs": { "<host ID>": "..." }
+}
+```
+
+| Field     | Meaning                                                                                  |
+| --------- | ---------------------------------------------------------------------------------------- |
+| `address` | The host's main address, exactly as `new URL(address).href` writes it                    |
+| `relay`   | `true` if the host relays; left out if it does not                                       |
+| `portal`  | The address of the EntryPortal it serves; left out if it serves none                     |
+| `runs`    | Each release it runs and hands on, its resident game's first: `play` is where it is played |
+| `relays`  | Each game it relays now, by the ID in the game's name; left out if there is none         |
+
+A card is at most 16 KB of canonical JSON. A host serves its newest card at `endlessmind/host.json` under its main address.
+
+**Known hosts.** A host serves the cards it holds at `endlessmind/hosts.json` under its main address, its own first:
+
+```json
+{ "v": 1, "type": "hosts", "hosts": [ <its own host card>, <host card>, ... ] }
+```
+
+Both files carry the header `Access-Control-Allow-Origin: *`, so any web page may read them: a player's browser asks any host it knows of.
+
+**Announcing.** A host sends its card, as the JSON body of a `POST`, to `endlessmind/hosts` under the main address of each host it knows, once an hour. The answer is `200` if the card is now held there and `400` if it was refused.
+
+**Checking a card.** A card is held only after all of this is true, whether it was sent or read from another host's list:
+
+1. It is a host card as above, completely signed, and its `time` is no more than a day in the past and no more than ten minutes ahead.
+2. Its `address` is a site's root over `https`, at a name rather than a number, with no user name, query or fragment. A program that is itself at a name under `localhost`, or was started from one, also accepts names under `localhost`, over `http` too.
+3. `endlessmind/host.json` under that address answers `200` with a card signed by the same ID that names the same address. This is what shows that the signer is at the address, so nobody can list an address that is not theirs. A redirect is never followed.
+
+A newer card from an ID replaces its older one, and a card at an address replaces a card by any other ID at that address. A card is forgotten a day after its `time`. The reference host holds at most 1000 cards, reads a list of at most 4 MB, waits five seconds for any one host, and keeps what it holds across a restart.
+
+**Finding hosts.** A host program starts from a few addresses it is given. It reads `endlessmind/hosts.json` from each, then from each address those lists name, until it has asked every host it has heard of; it does this again every hour. A program with no address of its own, such as a game on a computer at home, publishes no card and only reads.
+
 ## Releases
 
 A release is one exact version of a game, packed so that anyone can fetch it, check it and run it.
@@ -296,7 +346,9 @@ A release is one exact version of a game, packed so that anyone can fetch it, ch
 
 **Checking.** Before running or passing on a release, a host checks that the torrent file hashes to the ID, that every file matches the torrent's pieces and no other file is present, that the note is signed by the realm the torrent names, that `content` matches the files, and that `calls` is a version it speaks. Whoever sent the files need not be trusted.
 
-**Fetching from a host.** A host serves each release it runs, and its resident game's, under its main address: the torrent file at `endlessmind/release/<ID>.torrent`, and each file at `endlessmind/release/<ID>/<path>`.
+**Fetching.** A host serves each release in its card's `runs` under its main address: the torrent file at `endlessmind/release/<ID>.torrent`, and each file at `endlessmind/release/<ID>/<path>`. A game that is reached through a relay serves its own release the same way under its own address, and its realm card's `release` field gives that release's ID; a maker's game run from its folder is packed for this when it starts.
+
+**Finding a release.** Given only a release's ID, a host fetches it from a known host whose card lists that ID in `runs`. If none does, it reads the realm card (`endlessmind-card.json`) of each game in the known hosts' `relays`, at an address under the relaying host's name, and fetches from one whose `release` is that ID. Either way the release is checked as above.
 
 **Running a release.** The realm's secret is not on the host, so the host signs under an ID of its own. Its card, and every record it signs with a player, carry two more fields: `realm`, the realm's ID, and `release`, the release's ID. Such a record says that this host ran that release of that realm and that the player earned what the text says; the realm itself has signed only the release.
 

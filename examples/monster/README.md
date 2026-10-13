@@ -14,4 +14,4 @@ A fast example game for several players at once, to show whether real-time play 
 - **The monster** sees through walls and heads straight for the nearest player, a little slower than they walk, sliding along walls but never going around them. Reached players start again in another part of the maze with their clock still running, and are safe for a moment.
 - **Only progress is saved**, under who is playing, as in Endless Maze: the level reached and best times, with records for levels 3, 10, 20 and every tenth after. A restart puts everyone back at the start of their level; a line that drops and comes back within 30 seconds returns to where it was.
 
-Run it with `deno task monster` and open `http://localhost:8000/`; to play with friends anywhere, `deno task monster --relay https://relay.endlessmind.com/` and send them the link it prints; [the host program](../../host/README.md) lists the options.
+Run it with `deno task monster` and open `http://localhost:8000/`; to play with friends anywhere, `deno task monster --relay` and send them the link it prints; [the host program](../../host/README.md) lists the options.

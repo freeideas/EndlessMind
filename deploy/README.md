@@ -12,9 +12,10 @@ One host runs at `https://relay.endlessmind.com/` as the systemd unit in [endles
 | ----------------------------------- | ---------------------------------------------------------- |
 | `relay.endlessmind.com`             | Endless Maze, the resident game                            |
 | `eportal.relay.endlessmind.com`     | An EntryPortal                                             |
-| `<ID>.relay.endlessmind.com`        | Each game run somewhere with `--relay` and this address    |
+| `<ID>.relay.endlessmind.com`        | Each game run somewhere with `--relay` that it relays      |
 
 - **Names.** Cloudflare has two records, `relay.endlessmind.com` and `*.relay.endlessmind.com`, both pointing straight at ordinarydata. `maze.endlessmind.com` and `garden.endlessmind.com` forward to the host.
 - **Certificate.** One certificate covers both names, so a new game never waits for one. Certbot gets and renews it by proving control of the names through Cloudflare, with the token in `/etc/letsencrypt/cloudflare.ini` (`certbot certonly --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini --cert-name relay.endlessmind.com -d relay.endlessmind.com -d '*.relay.endlessmind.com'`). After each renewal, [relay-certificate-hook.sh](relay-certificate-hook.sh), installed as `/etc/letsencrypt/renewal-hooks/deploy/endless-relay.sh`, copies it to `/etc/caddy/certs/` and reloads Caddy.
 - **Caddy.** A site of its own in `/etc/caddy/Caddyfile` for the two names uses that certificate and passes everything to `127.0.0.1:8790`.
-- **What to keep.** The maze's secret phrase, its realm identity, exists only in `examples/maze/.data/realm-secret.txt` in the checkout on ordinarydata (ignored by Git). The host's own data is in `.endlessmind/` there. Copy the phrase somewhere safe if the realm should outlive that machine.
+- **Finding.** Its address is the one every host program starts looking from (`STARTING_HOSTS` in `host/hosts.js`), so its list of known hosts, `https://relay.endlessmind.com/endlessmind/hosts.json`, is where a new host first learns of the others.
+- **What to keep.** The maze's secret phrase, its realm identity, exists only in `examples/maze/.data/realm-secret.txt` in the checkout on ordinarydata (ignored by Git). The host's own data, its secret phrase and the hosts it knows among it, is in `.endlessmind/` there. Copy the phrase somewhere safe if the realm should outlive that machine.

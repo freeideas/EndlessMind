@@ -37,12 +37,14 @@ const COOKIE = "endlessmind"; // the session cookie's name; see cookieName
  *   isBurned?: (id: string) => boolean | Promise<boolean>,
  *   onRecord?: (record: any) => void,
  *   runs?: { realm: string, release: string },
+ *   release?: string,
  * }} RealmOptions
  * `base` is the realm's public address, ending in "/"; the realm answers under it. `portal` is the
  * EntryPortal its sign-in codes name. The realm's secret phrase is `words`, or is kept in `secretFile`
  * (made on first run). What it must remember is kept in `dataFile`, or in `store`. A host that runs
  * a release of someone else's realm signs under its own ID and gives `runs`: its card and every record
- * it signs then name that realm and release.
+ * it signs then name that realm and release. A realm that hands out a release of itself gives its ID as
+ * `release`, and its card names it.
  */
 
 export const DEFAULT_PORTAL = "https://portal.endlessmind.com/"; // forwards to the newest version
@@ -103,6 +105,7 @@ export class Realm {
       type: "card",
       signers: [this.id],
       ...(this.options.runs ?? {}),
+      ...(this.options.release ? { release: this.options.release } : {}),
       time: this.now(),
       name,
       description,
