@@ -12,6 +12,6 @@ A small example game: run mazes that grow with each level, using the arrow keys,
 - **Same maze for everyone.** A level number always makes the same maze (the "recursive backtracker"), so the game server checks a finished run by replaying its moves, and refuses runs faster than anyone can move.
 - **Progress follows the player.** It is saved by player ID, so signing in on any device starts at the first unfinished level, and a guest's progress carries over at sign-in. If nothing is saved for a player, the records signed with them say how far they got.
 
-Run it with `deno task maze` and open `http://localhost:8000/`; [the host program](../../host/README.md) lists the options. On endlessmind.com it runs as [deploy/endless-maze.service](../../deploy/endless-maze.service) at `https://maze.endlessmind.com/`.
+Run it with `deno task maze` and open `http://localhost:8000/`; [the host program](../../host/README.md) lists the options. It is the resident game of the host at `https://relay.endlessmind.com/` ([deploy/](../../deploy/README.md)).
 
 To try it with a local EntryPortal, serve `portal/` (for example `deno run -A jsr:@std/http/file-server --port 8001 portal`) and add `--portal http://127.0.0.1:8001/`. The EntryPortal accepts plain `http` only for `localhost` and `127.0.0.1`.

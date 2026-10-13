@@ -4,7 +4,7 @@ A free, open network for anything AI can make: games, places, shops, tools, whol
 
 AI coding agents now let anyone make a game just by describing it. Endless Mind connects all of them, the way the web connects websites, with no company in the middle. What ties it together is identity: you are the same player everywhere, and what you earn in one game you can show in another, with proof.
 
-**Try it:** [Endless Maze](https://maze.endlessmind.com/) is a small example realm, and [portal.endlessmind.com](https://portal.endlessmind.com/) is an EntryPortal.
+**Try it:** [Endless Maze](https://relay.endlessmind.com/) is a small example realm, and [portal.endlessmind.com](https://portal.endlessmind.com/) is an EntryPortal.
 
 ## Your secret phrase
 
