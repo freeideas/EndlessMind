@@ -5,9 +5,10 @@
 //
 //   pack({ folder, store })          make a release from a game's folder; returns its ID
 //   checkRelease(store, id)          check a release in the store, every byte of it
-//   fetchRelease({ store, id, from }) copy a release from a host that has it, then check it
-//   findRelease({ store, id, from })  the release from the store if it is there, fetched if not
-//   serveRelease(store, request)     answer another host that asks for a release
+//   fetchRelease({ store, id, from }) copy a release from one of the addresses that hand it out, then check it
+//   findRelease({ store, id, hosts }) the release from the store if it is there; if not, fetched from
+//                                    whichever known host runs it
+//   serveRelease(store, ids, request) answer another host that asks for a release
 //
 // The store is a folder: `releases/<ID>/release.torrent` and `releases/<ID>/files/...`.
 
@@ -176,14 +177,15 @@ const placeOf = (store, id) => join(store, "releases", id);
  * Make a release from a game's folder, signed by the game's realm. Packing the same files again
  * gives the same release, because the note is kept beside the realm's secret phrase: in `data`, which
  * is `.data/` in the folder unless given.
- * @param {{ folder: string, store: string, data?: string, now?: () => number }} options
+ * `secretFile` holds the realm's secret phrase: `realm-secret.txt` in `data` unless given.
+ * @param {{ folder: string, store: string, data?: string, secretFile?: string, now?: () => number }} options
  * @returns {Promise<Release>}
  */
 export async function pack(options) {
   const folder = await Deno.realPath(options.folder);
   const data = options.data ?? join(folder, ".data");
   await Deno.mkdir(data, { recursive: true });
-  const signer = await signerFromWords(await secretWords(join(data, "realm-secret.txt")));
+  const signer = await signerFromWords(await secretWords(options.secretFile ?? join(data, "realm-secret.txt")));
   const paths = await filesIn(folder);
   for (const needed of ["card.json", "index.html"]) if (!paths.includes(needed)) throw new Error(`A game's folder needs ${needed}.`);
   if (GAME_FILES.filter((name) => paths.includes(name)).length !== 1) throw new Error("A game's folder holds game.js or game.wasm, one of them.");
@@ -275,8 +277,8 @@ async function readTorrent(bytes, id) {
 }
 
 /**
- * Copy a release from a host that has it into the store, then check it. Each address in `from` is
- * tried in turn; what a host sends is believed only as far as it matches the ID.
+ * Copy a release into the store, then check it. Each address in `from` is tried in turn: a host's
+ * main address, or a relayed game's. What is sent is believed only as far as it matches the ID.
  * @param {{ store: string, id: string, from: string[] }} options
  * @returns {Promise<Release>}
  */
@@ -311,25 +313,21 @@ export async function fetchRelease({ store, id, from }) {
       failed.push(`${address}: ${error instanceof Error ? error.message : error}`);
     }
   }
-  throw new Error(`Release ${id} could not be fetched. ${failed.join("; ") || "No host to fetch it from was given."}`);
+  throw new Error(`Release ${id} could not be fetched. ${failed.join("; ") || "No known host runs it."}`);
 }
 
 /**
- * A release ready to run: checked if it is in the store, fetched and checked if it is not.
- * @param {{ store: string, id: string, from?: string[] }} options
+ * A release ready to run: checked if it is in the store; if it is not there, or is damaged, fetched
+ * from whichever of the known hosts runs it, and checked.
+ * @param {{ store: string, id: string, hosts: { sources(id: string): Promise<string[]> } }} options
  */
-export async function findRelease({ store, id, from = [] }) {
+export async function findRelease({ store, id, hosts }) {
   if (!isReleaseId(id)) throw new Error("A release's ID is 40 letters and digits.");
-  const here = await Deno.stat(placeOf(store, id)).then(() => true, () => false);
-  if (here && !from.length) return checkRelease(store, id);
-  if (here) {
-    try {
-      return await checkRelease(store, id);
-    } catch {
-      // Damaged here: fetch it again.
-    }
+  try {
+    return await checkRelease(store, id);
+  } catch {
+    return fetchRelease({ store, id, from: await hosts.sources(id) });
   }
-  return fetchRelease({ store, id, from });
 }
 
 /**

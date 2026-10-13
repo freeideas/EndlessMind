@@ -1,6 +1,6 @@
 # The host program
 
-Runs a game: serves its display, keeps its game server sealed, and passes messages between the two. A maker uses it to play a game on their own computer while making it, and to let friends anywhere join. On a server it hosts a game for good, and is a relay and an EntryPortal for others. The formats are in "Game servers" and "Relays" in [specs/PROTOCOL.md](../specs/PROTOCOL.md); what is still to come is in [PLAN.md](../PLAN.md).
+Runs a game: serves its display, keeps its game server sealed, and passes messages between the two. A maker uses it to play a game on their own computer while making it, and to let friends anywhere join. On a server it hosts a game for good, and is a relay and an EntryPortal for others. Hosts find each other, so no command needs another computer's address. The formats are in "Game servers", "Relays", "Hosts" and "Releases" in [specs/PROTOCOL.md](../specs/PROTOCOL.md); what is still to come is in [PLAN.md](../PLAN.md).
 
 | File         | What it is                                                                           |
 | ------------ | ------------------------------------------------------------------------------------ |
@@ -11,6 +11,7 @@ Runs a game: serves its display, keeps its game server sealed, and passes messag
 | `relay.js`   | `openRelay`: a host's relay. `dial`: how a game reaches players through one          |
 | `hosting.js` | `runHost`: one web server for a resident game, releases, a relay and an EntryPortal  |
 | `release.js` | Releases: packing a game under an ID, checking one, fetching one from a host         |
+| `hosts.js`   | `openHosts`: a host's own card, the hosts it knows, and what each of them runs       |
 | `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it                   |
 
 ## Use
@@ -26,9 +27,11 @@ It prints the address to open, and starts the game server again whenever a file 
 | `--port`     | `8000`                            | The port to listen on                                    |
 | `--hostname` | `127.0.0.1`                       | Who can reach it; the default is this computer only      |
 | `--base`     | `http://localhost:<port>/`        | The address players use                                  |
-| `--relay`    |                                   | A relay to be reached through; it sets the address       |
+| `--relay`    |                                   | Be reached through a relay: one found, or the one named  |
+| `--hosts`    | `https://relay.endlessmind.com/`  | Where finding hosts starts, with commas between them     |
 | `--portal`   | `https://portal.endlessmind.com/` | The EntryPortal its sign-in codes name                   |
 | `--data`     | `.data/` in the game's folder     | Where the realm's secret phrase and saved data are kept  |
+| `--store`    | `.endlessmind/`                   | Where releases and the known hosts are kept              |
 | `--no-watch` |                                   | Do not restart when files change                         |
 
 ## A game's folder
@@ -55,27 +58,37 @@ deno task pack <folder>
 
 It prints the release's ID. The release is signed with the realm's secret phrase from the folder's `.data/`, and packing the same files again gives the same ID. A host packs its resident game by itself, so `pack` is only for seeing the ID beforehand.
 
-To run someone else's game at home, give its ID in place of a folder, a relay for players to come through, and a host to fetch it from:
+To run someone else's game at home, give its ID in place of a folder; with `--relay`, players anywhere can come:
 
 ```
-deno task run <release ID> --relay https://relay.example/ --from https://myvps.example/
+deno task run <release ID> --relay
 ```
 
-Everything fetched is checked against the ID, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
+The release is fetched from whichever known host runs it. Everything fetched is checked against the ID, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
 
-The host program keeps releases, the data of the games it runs from them and its own secret phrase in `.endlessmind/` in the folder it is started from; `--store` names another place.
+The host program keeps releases, the data of the games it runs from them, the hosts it knows and its own secret phrase in `.endlessmind/` in the folder it is started from; `--store` names another place.
 
 ## Relaying
 
 A game on a computer at home cannot be reached from outside. A relay is a computer that can: the game connects out to it, and the relay gives the game an address of its own and passes players through.
 
 ```
-deno task run <folder> --relay https://relay.example/
+deno task run <folder> --relay
 ```
 
-A relay for trying this out runs at `https://relay.endlessmind.com/`. The link it prints, `https://<realm ID>.relay.example/`, works for anyone, for as long as this computer stays on and connected. It is the same link every time, since it holds the realm's ID, and the relay gives it only to whoever holds the realm's secret phrase. A relay can read and change what passes through it, so use one you would trust to host the game.
+It uses the first known host that relays and has room; `--relay https://relay.example/` names one instead. The link it prints, `https://<realm ID>.relay.example/`, works for anyone, for as long as this computer stays on and connected. With the same relay it is the same link every time, since it holds the realm's ID, and the relay gives it only to whoever holds the realm's secret phrase. A relay can read and change what passes through it, so name one you trust if that matters.
+
+A game run this way is packed as it starts, and prints its release's ID. While it is running, any host can fetch that release and run it, given only the ID.
 
 Every host is a relay (see "Hosting" below), unless its admin turns that off.
+
+## Finding hosts
+
+Every host signs a card that says its address, the releases it runs and the games it relays, and hands out the cards of the hosts it knows. The host program reads those lists, starting from the addresses in `--hosts`, and a host sends its own card to every host it learns of, again every hour. A host that stops answering is forgotten within a day.
+
+That is how `--relay` finds a relay and how a release is fetched from its ID alone. `--hosts ""` starts nowhere: the program then knows only the hosts that send it their cards. A game at home has no address of its own, so it only reads.
+
+Anyone can read what a host knows: `https://myvps.example/endlessmind/host.json` is its own card, and `https://myvps.example/endlessmind/hosts.json` the cards of the hosts it knows.
 
 ## Hosting
 
@@ -97,8 +110,8 @@ deno task host --base https://myvps.example/ --game <folder>
 | `--base`      |                                   | The host's main address: a site's root                  |
 | `--game`      |                                   | The resident game's folder; without it, a plain page    |
 | `--load`      |                                   | IDs of releases to run, with commas between them        |
-| `--from`      |                                   | Addresses of hosts to fetch those releases from         |
-| `--store`     | `.endlessmind/`                   | Where releases, their data and the host's secret are    |
+| `--hosts`     | `https://relay.endlessmind.com/`  | Where finding hosts starts, with commas between them    |
+| `--store`     | `.endlessmind/`                   | Releases, their data, known hosts, the host's secret    |
 | `--port`      | `8000`                            | The port to listen on                                   |
 | `--hostname`  | `127.0.0.1`                       | Who can reach it; the default is this computer only     |
 | `--data`      | `.data/` in the game's folder     | Where the resident game's secret phrase and data are    |
@@ -111,9 +124,9 @@ deno task host --base https://myvps.example/ --game <folder>
 
 **HTTPS.** The host program speaks plain HTTP on this computer only, and [Caddy](Caddyfile) in front of it provides HTTPS: it gets a certificate for each name the first time someone asks for it, after checking with the host program that the name is one of its own. Certificate authorities ration certificates by parent name. For a free name that ration is shared with everyone who uses the naming service; with a domain of one's own, a single certificate for `*.myvps.example` avoids it (see [deploy/README.md](../deploy/README.md) for how the relay at relay.endlessmind.com does that).
 
-**Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID and this host's address to their own: `deno task host --base https://other.example/ --load <release ID> --from https://myvps.example/`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
+**Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID to their own: `deno task host --base https://other.example/ --load <release ID>`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
 
-To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer, and an EntryPortal accepts plain `http` at those names. The host's own EntryPortal is then at `http://eportal.localhost:8000/`; a game relayed through the host names it with `--portal http://eportal.localhost:8000/`.
+To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer, and an EntryPortal accepts plain `http` at those names. The host's own EntryPortal is then at `http://eportal.localhost:8000/`; a game relayed through the host names it with `--portal http://eportal.localhost:8000/`. A second host started with `--hosts http://localhost:8000/` finds the first.
 
 ## The seal
 

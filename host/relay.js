@@ -61,9 +61,9 @@ export function relayedBase(relay, id) {
 /**
  * A relay without a web server of its own: give `handle` each request that arrives. The relay must be
  * reachable at `base` and at every name under it, with HTTPS in front of both.
- * @param {{ base: string, games?: number, taken?: (id: string) => boolean, log?: (text: string) => void }} options
+ * @param {{ base: string, games?: number, taken?: (id: string) => boolean, changed?: () => void, log?: (text: string) => void }} options
  * `games` is how many games it passes at once. `taken` says whether a name is already in use for
- * something else, so that no game is relayed there.
+ * something else, so that no game is relayed there. `changed` is called when a game comes or goes.
  */
 export function openRelay(options) {
   const own = new URL(options.base);
@@ -126,11 +126,12 @@ export function openRelay(options) {
       // The same realm dialing again takes over: its maker started the game again.
       before?.socket.close(1000, "the game connected again");
       games.set((id = signer), game);
+      options.changed?.();
       tell(game, { t: "ready", base: relayedBase(own.href, signer) });
       log(`Relaying ${relayedBase(own.href, signer)}`);
     };
     socket.onclose = () => {
-      if (id && games.get(id) === game) games.delete(id);
+      if (id && games.get(id) === game && games.delete(id)) options.changed?.();
       drop(game);
     };
     return response;
@@ -275,9 +276,12 @@ export function openRelay(options) {
  *   signer: import("../shared/keys.js").Signer,
  *   answer: (request: Request) => Promise<Response>,
  *   seat: (request: Request) => Promise<Response | Seat>,
+ *   patient?: boolean,
  *   log?: (text: string) => void,
  * }} options
- * `answer` answers a player's request; `seat` accepts or refuses a display's line.
+ * `answer` answers a player's request; `seat` accepts or refuses a display's line. Unless `patient` is
+ * false, a relay that is full or not answering is tried again for as long as it takes; with it false,
+ * the dialing ends there if the relay has never yet accepted this game.
  */
 export function dial(options) {
   const relay = new URL(options.relay).href;
@@ -288,11 +292,13 @@ export function dial(options) {
   let stopped = false;
   let wait = 500;
   let quiet = false;
+  let accepted = false;
+  const patient = options.patient !== false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let again;
-  /** @type {() => void} */
+  /** @type {(accepted: boolean) => void} */
   let isReady = () => {};
-  /** @type {Promise<void>} */
+  /** @type {Promise<boolean>} */
   const ready = new Promise((done) => (isReady = done));
   /** The displays' lines open now. @type {Map<number, { seat: Promise<Seat | null> }>} */
   const seats = new Map();
@@ -338,14 +344,16 @@ export function dial(options) {
       if (m.base !== base) {
         log(`The relay offered ${m.base}, not ${base}, so it is not used.`);
         stopped = true;
+        isReady(false);
         return mine.close();
       }
       if (quiet) log("Connected to the relay again.");
       wait = 500;
       quiet = false;
-      isReady();
+      accepted = true;
+      isReady(true);
     } else if (m.t === "full") {
-      if (!quiet) log("The relay has no room for another game now. Still trying.");
+      if (!quiet && (patient || accepted)) log("The relay has no room for another game now. Still trying.");
       quiet = true;
     } else if (m.t === "request") {
       request(mine, m);
@@ -405,6 +413,10 @@ export function dial(options) {
       seats.clear();
       answering.clear();
       if (stopped) return;
+      if (!patient && !accepted) {
+        stopped = true;
+        return isReady(false);
+      }
       if (!quiet) log(`The relay at ${relay} is not answering. Still trying.`);
       quiet = true;
       again = setTimeout(open, wait);
@@ -416,7 +428,7 @@ export function dial(options) {
   return {
     /** The address players use. */
     base,
-    /** Settles once the relay has first accepted this game. */
+    /** Settles once the relay has first accepted this game, with true, or once dialing has ended without that, with false. */
     ready,
     stop() {
       stopped = true;

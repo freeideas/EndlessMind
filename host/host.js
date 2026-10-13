@@ -12,7 +12,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { extname, join, sep } from "node:path";
 import { isId, signerFromWords } from "../shared/keys.js";
 import { DEFAULT_PORTAL, openRealm, secretWords } from "../realm/realm.js";
-import { dial, relayedBase } from "./relay.js";
+import { dial } from "./relay.js";
+import { pack, serveRelease } from "./release.js";
 import { checkWasm } from "./sealed.js";
 
 const MEMORY_MB = 64; // a game server that needs more memory than this is stopped
@@ -24,7 +25,7 @@ const SHARE = 0.5; // the part of one processor a game server may use, measured 
 const SHARE_MS = 30 * 1000;
 const SHARE_CHECK_MS = 5000; // how often its use of the processor is measured
 const PENALTY_MS = 5 * 60 * 1000; // the longest a game server stopped for that waits before starting again
-const RELAY_MS = 5000; // how long starting waits for a relay before carrying on without it
+const RELAY_MS = 5000; // how long starting waits for a relay before carrying on, or trying the next one
 const MAX_MESSAGE = 64 * 1024; // the longest message a display or a game server may send, in characters
 const MAX_DATA = 4 * 1024 * 1024; // the most a game server may keep with save(), as JSON
 const SEAL = ["--no-prompt", "--no-remote", "--no-npm", "--no-config", "--no-lock"]; // and no --allow flags at all
@@ -57,7 +58,9 @@ const TYPES = {
  *   release?: import("./release.js").Release,
  *   secretFile?: string,
  *   base?: string,
- *   relay?: string,
+ *   relay?: string | true,
+ *   hosts?: { relays(): Promise<string[]> },
+ *   store?: string,
  *   portal?: string,
  *   data?: string,
  *   memory?: number,
@@ -69,9 +72,12 @@ const TYPES = {
  * `folder` holds the game: `game.js` or `game.wasm` (the game server), `card.json` (its name and description) and the
  * display's files, starting at `index.html`. `base` is the address players use, ending in "/". `relay`
  * is the address of a relay to be reached through instead: it gives the game an address of its own, so
- * players anywhere can join a game on this computer. `data` is where the realm's secret phrase and
- * everything the game saves are kept: `.data/` in the folder unless given. `watch` restarts the game
- * server when a file in the folder changes.
+ * players anywhere can join a game on this computer. With `relay` true, the first relay among the
+ * known `hosts` that has room is used. `data` is where the realm's secret phrase and everything the
+ * game saves are kept: `.data/` in the folder unless given. `watch` restarts the game server when a
+ * file in the folder changes. `store` is the folder where releases are kept: with it, a game from a
+ * folder is packed as it starts, its realm card names that release, and the game hands its release to
+ * any host that asks at its own address.
  *
  * Instead of `folder`, `release` runs a checked release of someone else's game. Its realm's secret is
  * not here, so the host signs under an ID of its own, kept in `secretFile`, and `data` must be given.
@@ -130,6 +136,7 @@ export async function runGame(options) {
   return {
     realm: game.realm,
     base: game.base,
+    release: game.release,
     /** Whether the game server is running now. */
     get awake() {
       return game.awake;
@@ -155,7 +162,45 @@ export async function openGame(options) {
   if (options.relay && options.base) throw new Error("A relay gives the game its address, so give a relay or a base, not both.");
   // A relayed game's address holds the ID it signs under, so the secret is read before the realm opens.
   if (!options.relay && !options.base) throw new Error("A game needs an address: give a base or a relay.");
-  const base = options.relay ? relayedBase(options.relay, (await signerFromWords(await secretWords(secretFile))).id) : /** @type {string} */ (options.base);
+
+  // The release this game hands on: the one it runs, or its own folder packed as it is now.
+  let shared = options.store && release ? release : null;
+  if (options.store && !release) {
+    try {
+      shared = await pack({ folder, store: options.store, data, secretFile });
+    } catch (error) {
+      log(`This game cannot be packed, so no other host can run it. ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
+  // Players who cannot connect to this computer reach the game through a relay. The relay comes first,
+  // since the game's address is the one the relay gives it; players wait until the game is ready.
+  /** @type {() => void} */
+  let isOpen = () => {};
+  /** @type {Promise<void>} */
+  const open = new Promise((done) => (isOpen = done));
+  /** @type {ReturnType<typeof dial> | null} */
+  let relayed = null;
+  if (options.relay) {
+    const signer = await signerFromWords(await secretWords(secretFile));
+    const found = options.relay === true;
+    const relays = options.relay === true ? ((await options.hosts?.relays()) ?? []) : [options.relay];
+    for (const relay of relays) {
+      const line = dial({ relay, signer, patient: !found, answer: async (request) => (await open, answer(request)), seat: async (request) => (await open, seat(request)), log });
+      // Wait a little for the relay, so that the address is good by the time it is shown.
+      /** @type {ReturnType<typeof setTimeout> | undefined} */
+      let slow;
+      const ready = await Promise.race([line.ready, new Promise((later) => (slow = setTimeout(() => later(false), RELAY_MS)))]);
+      clearTimeout(slow);
+      relayed = line;
+      // A relay that was named is waited for. One that was found and is full or gone gives way to the next.
+      if (ready || !found) break;
+      line.stop();
+      relayed = null;
+    }
+    if (!relayed) throw new Error("No known host has room to relay this game now. Name a relay with --relay <address>, or hosts to ask with --hosts <addresses>.");
+  }
+  const base = relayed?.base ?? /** @type {string} */ (options.base);
 
   const basePath = new URL(base).pathname;
 
@@ -165,7 +210,7 @@ export async function openGame(options) {
     secretFile,
     dataFile: join(data, "realm-data.json"),
     card: release ? release.note.card : JSON.parse(await Deno.readTextFile(join(folder, "card.json"))),
-    ...(release ? { runs: { realm: release.realm, release: release.id } } : {}),
+    ...(release ? { runs: { realm: release.realm, release: release.id } } : shared ? { release: shared.id } : {}),
   });
 
   // What the game server keeps with save(): one JSON file, written a moment after each change.
@@ -460,6 +505,8 @@ export async function openGame(options) {
     if (mine) return mine;
     const url = new URL(request.url);
     if (!url.pathname.startsWith(basePath) || (request.method !== "GET" && request.method !== "HEAD")) return new Response("Not found", { status: 404 });
+    const handed = shared && options.store ? await serveRelease(options.store, [shared.id], request) : null;
+    if (handed) return handed;
     const name = decodeURIComponent(url.pathname.slice(basePath.length));
     if (name === "endlessmind/play.js") {
       return new Response(await Deno.readFile(PLAY_JS), { headers: { "content-type": TYPES[".js"], "cache-control": "no-cache" } });
@@ -479,16 +526,6 @@ export async function openGame(options) {
     return response;
   }
 
-  // Players who cannot connect to this computer reach the game through a relay.
-  const relayed = options.relay ? dial({ relay: options.relay, signer: realm.signer, answer, seat, log }) : null;
-  if (relayed) {
-    // Wait a little for the relay, so that the address is good by the time it is shown.
-    /** @type {ReturnType<typeof setTimeout> | undefined} */
-    let slow;
-    await Promise.race([relayed.ready, new Promise((later) => (slow = setTimeout(later, RELAY_MS)))]);
-    clearTimeout(slow);
-  }
-
   // While a game is being made, a changed file restarts its game server; displays reconnect by themselves.
   const watcher = options.watch ? Deno.watchFs(folder) : null;
   if (watcher) {
@@ -504,9 +541,12 @@ export async function openGame(options) {
   }
 
   await awake();
+  isOpen();
   return {
     realm,
     base,
+    /** The release this game hands to other hosts, or null. */
+    release: shared,
     handle,
     /** Whether the game server is running now. */
     get awake() {

@@ -8,12 +8,14 @@
 //   https://eportal.myvps.example/      the EntryPortal
 //   https://<realm ID>.myvps.example/   each release it runs, and each relayed game
 //
-// It also hands the releases it runs, its resident game's among them, to any host that asks.
+// It also hands the releases it runs, its resident game's among them, to any host that asks, and takes
+// part in finding: it publishes a card of its own and the hosts it knows (see hosts.js).
 
 import { join } from "node:path";
 import { openGame } from "./host.js";
-import { openRelay, page } from "./relay.js";
-import { findRelease, pack, serveRelease } from "./release.js";
+import { openHosts } from "./hosts.js";
+import { openRelay, page, relayedBase } from "./relay.js";
+import { findRelease, serveRelease } from "./release.js";
 
 const PORTAL_NAME = "eportal"; // the EntryPortal's name under the host's own
 const PORTAL_FILES = new URL("../portal/", import.meta.url);
@@ -59,14 +61,15 @@ async function portalFile(request) {
  *   games?: number,
  *   store?: string,
  *   load?: string[],
- *   from?: string[],
+ *   hosts?: string[],
  *   log?: (text: string) => void,
  * }} options
  * `base` is the host's main address, a site's root; every name under it must lead here too. `game` is
  * the resident game's folder, and `data` and `portal` are that game's, as in runGame. `relay` and
  * `entryPortal` are on unless false. `games` is how many games are relayed at once. `load` lists the
- * IDs of releases to run, each fetched from the hosts at the addresses in `from` unless it is already
- * in `store`, the folder where this host keeps releases, their data and its own secret phrase.
+ * IDs of releases to run, each fetched from whichever known host runs it unless it is already in
+ * `store`, the folder where this host keeps releases, their data, the hosts it knows and its own
+ * secret phrase. `hosts` lists the addresses of the hosts to start finding others from.
  */
 export async function runHost(options) {
   const own = new URL(options.base);
@@ -77,10 +80,18 @@ export async function runHost(options) {
   const store = options.store ?? ".endlessmind";
   await Deno.mkdir(store, { recursive: true });
 
+  const hosts = await openHosts({
+    store,
+    start: options.hosts,
+    address: own.href,
+    log,
+    offers: () => ({ relay: !!relay, portal: entryPortal, runs: runs(), relays: games().map((id) => ({ id, play: relayedBase(own.href, id) })) }),
+  });
+
   /** The releases run here, by the ID of each one's realm. @type {Map<string, { release: import("./release.js").Release, game: Awaited<ReturnType<typeof openGame>> }>} */
   const hosted = new Map();
   for (const id of options.load ?? []) {
-    const release = await findRelease({ store, id, from: options.from });
+    const release = await findRelease({ store, id, hosts });
     const game = await openGame({
       release,
       base: `${own.protocol}//${release.realm}.${own.host}/`,
@@ -93,12 +104,15 @@ export async function runHost(options) {
     hosted.set(release.realm, { release, game });
   }
 
-  const relay = options.relay === false ? null : openRelay({ base: own.href, games: options.games, taken: (id) => hosted.has(id), log });
-  const resident = options.game ? await openGame({ folder: options.game, base: own.href, data: options.data, portal: options.portal, log }) : null;
-  // The resident game is packed too, so that others can host it from its ID.
-  const residentRelease = options.game ? await pack({ folder: options.game, store, data: options.data }) : null;
-  const shared = () => [...(residentRelease ? [residentRelease.id] : []), ...[...hosted.values()].map(({ release }) => release.id)];
+  const relay = options.relay === false ? null : openRelay({ base: own.href, games: options.games, taken: (id) => hosted.has(id), changed: hosts.changed, log });
+  // The resident game is packed as it starts, so that others can host it from its ID.
+  const resident = options.game ? await openGame({ folder: options.game, base: own.href, data: options.data, portal: options.portal, store, log }) : null;
 
+  /** What this host's card says it runs: the resident game, then each release. @returns {import("./hosts.js").Run[]} */
+  const runs = () => [
+    ...(resident?.release ? [{ realm: resident.realm.id, release: resident.release.id, name: resident.realm.card.name, play: own.href }] : []),
+    ...[...hosted.values()].map(({ release, game }) => ({ realm: release.realm, release: release.id, name: release.note.card.name, play: game.base })),
+  ];
   const games = () => relay?.games() ?? [];
 
   const server = Deno.serve({ port: options.port ?? 8000, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, (request) => {
@@ -120,20 +134,27 @@ export async function runHost(options) {
     const relayed = relay?.handle(request);
     if (relayed) return relayed;
     if (host !== own.host) return page("Nothing is at this name", "This host has no game here.", 404);
+    const finding = hosts.handle(request);
+    if (finding) return finding;
     if (new URL(request.url).pathname.startsWith("/endlessmind/release/")) {
-      return serveRelease(store, shared(), request).then((answer) => answer ?? new Response("Not found", { status: 404 }));
+      return serveRelease(store, runs().map((run) => run.release), request).then((answer) => answer ?? new Response("Not found", { status: 404 }));
     }
     if (resident) return resident.handle(request);
     if (new URL(request.url).pathname !== "/") return new Response("Not found", { status: 404 });
     return page("An Endless Mind host", "This computer runs games for anyone to play.", 200);
   });
 
+  // Now that this host answers at its address, the hosts it knows are told of it.
+  await hosts.refresh();
+
   return {
     base: own.href,
     /** The resident game's realm, if there is one. */
     realm: resident?.realm ?? null,
     /** The resident game's release, which others can host from its ID. */
-    release: residentRelease,
+    release: resident?.release ?? null,
+    /** Finding: this host's own card, and the hosts it knows. See hosts.js. */
+    hosts,
     /** The releases run here: each one's ID, its realm, and where it is played. */
     hosted: () => [...hosted.values()].map(({ release, game }) => ({ id: release.id, realm: release.realm, name: release.note.card.name, base: game.base })),
     /** The address of the EntryPortal served here, or null. */
@@ -141,6 +162,7 @@ export async function runHost(options) {
     /** The IDs of the realms relayed now. */
     games,
     async stop() {
+      await hosts.stop();
       relay?.stop();
       await resident?.stop();
       for (const { game } of hosted.values()) await game.stop();
