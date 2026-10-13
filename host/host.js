@@ -3,6 +3,9 @@
 //
 //   const running = await runGame({ folder: "examples/maze" });
 //   ... running.base is the address to play at; running.stop() ends it.
+//
+// openGame is the same without a web server of its own, for a server that answers for several things
+// (see hosting.js): give its `handle` each request that arrives for the game's address.
 
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { extname, join, sep } from "node:path";
@@ -44,8 +47,6 @@ const TYPES = {
 /**
  * @typedef {{
  *   folder: string,
- *   port?: number,
- *   hostname?: string,
  *   base?: string,
  *   relay?: string,
  *   portal?: string,
@@ -53,12 +54,13 @@ const TYPES = {
  *   memory?: number,
  *   watch?: boolean,
  *   log?: (text: string) => void,
- * }} RunOptions
+ * }} GameOptions
  * `folder` holds the game: `game.js` (the game server), `card.json` (its name and description) and the
  * display's files, starting at `index.html`. `base` is the address players use, ending in "/". `relay`
  * is the address of a relay to be reached through instead: it gives the game an address of its own, so
  * players anywhere can join a game on this computer. `data` is where the realm's secret phrase and everything the game saves are kept: `.data/` in the folder
  * unless given. `watch` restarts the game server when a file in the folder changes.
+ * @typedef {GameOptions & { port?: number, hostname?: string }} RunOptions
  * @typedef {import("./relay.js").Line} Line
  * @typedef {import("./relay.js").Seat} Seat
  */
@@ -99,20 +101,37 @@ async function checkImports(entry, folder) {
   }
 }
 
-/** @param {RunOptions} options */
+/** Run a game with a web server of its own. @param {RunOptions} options */
 export async function runGame(options) {
+  const port = options.port ?? 8000;
+  const game = await openGame({ ...options, base: options.relay ? options.base : (options.base ?? `http://localhost:${port}/`) });
+  const server = Deno.serve({ port, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, game.handle);
+  return {
+    realm: game.realm,
+    base: game.base,
+    /** Whether the game server is running now. */
+    get awake() {
+      return game.awake;
+    },
+    async stop() {
+      await game.stop();
+      await server.shutdown();
+    },
+  };
+}
+
+/** @param {GameOptions} options */
+export async function openGame(options) {
   const folder = await Deno.realPath(options.folder);
   const data = options.data ?? join(folder, ".data");
   await Deno.mkdir(data, { recursive: true });
-  const port = options.port ?? 8000;
   const log = options.log ?? ((text) => console.log(text));
   const encoder = new TextEncoder();
   const secretFile = join(data, "realm-secret.txt");
   if (options.relay && options.base) throw new Error("A relay gives the game its address, so give a relay or a base, not both.");
   // A relayed game's address holds its realm's ID, so the realm's secret is read before the realm opens.
-  const base = options.relay
-    ? relayedBase(options.relay, (await signerFromWords(await secretWords(secretFile))).id)
-    : (options.base ?? `http://localhost:${port}/`);
+  if (!options.relay && !options.base) throw new Error("A game needs an address: give a base or a relay.");
+  const base = options.relay ? relayedBase(options.relay, (await signerFromWords(await secretWords(secretFile))).id) : /** @type {string} */ (options.base);
 
   const basePath = new URL(base).pathname;
 
@@ -321,7 +340,8 @@ export async function runGame(options) {
     return (await file(name)) ?? new Response("Not found", { status: 404 });
   }
 
-  const server = Deno.serve({ port, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, async (request) => {
+  /** Answer any request for the game's address. @param {Request} request @returns {Promise<Response>} */
+  async function handle(request) {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return answer(request);
     const place = await seat(request);
     if (place instanceof Response) return place;
@@ -330,7 +350,7 @@ export async function runGame(options) {
     socket.onmessage = (event) => typeof event.data === "string" && place.message(event.data);
     socket.onclose = () => place.close();
     return response;
-  });
+  }
 
   // Players who cannot connect to this computer reach the game through a relay.
   const relayed = options.relay ? dial({ relay: options.relay, signer: realm.signer, answer, seat, log }) : null;
@@ -360,6 +380,7 @@ export async function runGame(options) {
   return {
     realm,
     base,
+    handle,
     /** Whether the game server is running now. */
     get awake() {
       return sealed !== null;
@@ -371,7 +392,6 @@ export async function runGame(options) {
       watcher?.close();
       relayed?.stop();
       for (const line of [...seated.values()]) line.close(1001, "the game is closing");
-      await server.shutdown();
       const child = sealed?.child;
       await sealed?.writer.close().catch(() => {});
       await child?.status;

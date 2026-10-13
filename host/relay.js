@@ -4,8 +4,9 @@
 // request and every display's line for that site down the connection the maker opened.
 // See "Relays" in specs/PROTOCOL.md.
 //
-//   runRelay({ base })   the relay's side, on a computer everyone can reach
-//   dial({ relay, ... }) the game's side, used by runGame
+//   openRelay({ base })  the relay's side, for a server that answers other things too (see hosting.js)
+//   runRelay({ base })   the same with a web server of its own
+//   dial({ relay, ... }) the game's side, used by openGame
 
 import { hex, isId } from "../shared/keys.js";
 import { addSignature, isComplete } from "../shared/signed.js";
@@ -33,8 +34,8 @@ function toBase64(bytes) {
 /** @param {string} text */
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-/** @param {string} title @param {string} text @param {number} status */
-function page(title, text, status) {
+/** A plain page of the host program's own. @param {string} title @param {string} text @param {number} status */
+export function page(title, text, status) {
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title>` +
     `<body style="font: 1.1rem system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1rem"><h1>${title}</h1><p>${text}</p>`;
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
@@ -59,11 +60,12 @@ export function relayedBase(relay, id) {
  */
 
 /**
- * Run a relay. It must be reachable at `base` and at every name under it, with HTTPS in front of both.
- * @param {{ base: string, port?: number, hostname?: string, games?: number, log?: (text: string) => void }} options
+ * A relay without a web server of its own: give `handle` each request that arrives. The relay must be
+ * reachable at `base` and at every name under it, with HTTPS in front of both.
+ * @param {{ base: string, games?: number, log?: (text: string) => void }} options
  * `games` is how many games it passes at once.
  */
-export function runRelay(options) {
+export function openRelay(options) {
   const own = new URL(options.base);
   relayedBase(own.href, "x");
   const most = options.games ?? 20;
@@ -230,26 +232,51 @@ export function runRelay(options) {
     });
   }
 
-  const server = Deno.serve({ port: options.port ?? 8100, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, (request) => {
-    const url = new URL(request.url);
-    const host = (request.headers.get("host") ?? "").toLowerCase();
-    if (host === own.host) {
-      if (url.pathname === "/endlessmind/relay" && request.headers.get("upgrade")?.toLowerCase() === "websocket") return welcome(request);
-      if (url.pathname !== "/") return new Response("Not found", { status: 404 });
-      return page("An Endless Mind relay", "This passes players to games that run on their makers' own computers. Each game has an address of its own here while its maker's computer is on.", 200);
-    }
-    const id = host.endsWith("." + own.host) ? host.slice(0, -own.host.length - 1) : "";
-    const game = games.get(id);
-    if (!game) return page("This game is not running now", "It runs on its maker's computer, so it is here only while that computer is on.", 503);
-    return pass(game, request, url);
-  });
-
   return {
     base: own.href,
     /** The IDs of the realms relayed now. */
     games: () => [...games.keys()],
-    async stop() {
+    /**
+     * Answer a request that is the relay's: a game asking to be relayed, or anything for a name under
+     * the relay's own. Returns null for everything else at the relay's own name.
+     * @param {Request} request
+     * @returns {Response | Promise<Response> | null}
+     */
+    handle(request) {
+      const url = new URL(request.url);
+      const host = (request.headers.get("host") ?? "").toLowerCase();
+      if (host === own.host) {
+        const asks = url.pathname === "/endlessmind/relay" && request.headers.get("upgrade")?.toLowerCase() === "websocket";
+        return asks ? welcome(request) : null;
+      }
+      if (!host.endsWith("." + own.host)) return null;
+      const game = games.get(host.slice(0, -own.host.length - 1));
+      if (!game) return page("This game is not running now", "It runs on its maker's computer, so it is here only while that computer is on.", 503);
+      return pass(game, request, url);
+    },
+    stop() {
       for (const game of games.values()) game.socket.close(1001, "the relay is closing");
+    },
+  };
+}
+
+/**
+ * Run a relay with a web server of its own.
+ * @param {{ base: string, port?: number, hostname?: string, games?: number, log?: (text: string) => void }} options
+ */
+export function runRelay(options) {
+  const relay = openRelay(options);
+  const server = Deno.serve({ port: options.port ?? 8100, hostname: options.hostname ?? "127.0.0.1", onListen() {} }, (request) => {
+    const answer = relay.handle(request);
+    if (answer) return answer;
+    if (new URL(request.url).pathname !== "/") return new Response("Not found", { status: 404 });
+    return page("An Endless Mind relay", "This passes players to games that run on their makers' own computers. Each game has an address of its own here while its maker's computer is on.", 200);
+  });
+  return {
+    base: relay.base,
+    games: relay.games,
+    async stop() {
+      relay.stop();
       await server.shutdown();
     },
   };

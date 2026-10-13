@@ -20,7 +20,7 @@ const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_SIGNED = 16 * 1024;
 const MAX_BODY = 256 * 1024;
 const CODE_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no 0, 1, I or O, which are easy to mistype
-const COOKIE = "endlessmind";
+const COOKIE = "endlessmind"; // the session cookie's name; see cookieName
 
 /**
  * @typedef {{ name: string, description: string, picture?: string, tags?: string[] }} CardText
@@ -80,6 +80,9 @@ export class Realm {
     this.options = options;
     this.base = new URL(options.base).href;
     this.basePath = new URL(options.base).pathname;
+    // A realm with an HTTPS site to itself uses a name that browsers accept only from that exact site,
+    // so a page at a neighbouring name (another game on the same host or relay) cannot plant a session.
+    this.cookieName = this.base.startsWith("https:") && this.basePath === "/" ? "__Host-" + COOKIE : COOKIE;
     this.portal = options.portal ?? DEFAULT_PORTAL;
     this.signer = signer;
     this.id = signer.id;
@@ -150,7 +153,7 @@ export class Realm {
    * @param {Request} request
    */
   async player(request) {
-    const session = this.data.sessions[cookie(request, COOKIE) ?? ""];
+    const session = this.data.sessions[cookie(request, this.cookieName) ?? ""];
     if (!session || this.now() - session.created > SESSION_MS) return null;
     if (await this.isBurned(session.player)) return null;
     return session.player;
@@ -332,7 +335,7 @@ export class Realm {
 
   /** @param {Request} request */
   async #signOut(request) {
-    delete this.data.sessions[cookie(request, COOKIE) ?? ""];
+    delete this.data.sessions[cookie(request, this.cookieName) ?? ""];
     await this.#save();
     return json({ ok: true }, 200, { "set-cookie": this.#cookie("", 0) });
   }
@@ -504,7 +507,7 @@ export class Realm {
   /** @param {string} value @param {number} ms */
   #cookie(value, ms) {
     const secure = this.base.startsWith("https:") ? "; Secure" : "";
-    return `${COOKIE}=${value}; Path=${this.basePath}; Max-Age=${Math.floor(ms / 1000)}; HttpOnly; SameSite=Lax${secure}`;
+    return `${this.cookieName}=${value}; Path=${this.basePath}; Max-Age=${Math.floor(ms / 1000)}; HttpOnly; SameSite=Lax${secure}`;
   }
 
   /** A new session for a player, kept until it expires or they sign out. @param {string} player */

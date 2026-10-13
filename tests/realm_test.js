@@ -201,4 +201,13 @@ Deno.test("the device that signs in gets a session too, and a link to play there
   const cookie = /** @type {string} */ (answer.headers.get("set-cookie")).split(";")[0];
   assert.match(await answer.text(), new RegExp(`href="${BASE}"`));
   assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie } })).json()).player, player.id);
+
+  // A realm with an HTTPS site to itself names its session so that only that exact site can set it.
+  assert.match(cookie, /^__Host-endlessmind=/);
+  assert.match(/** @type {string} */ (answer.headers.get("set-cookie")), /; Path=\/; .*; Secure$/);
+  assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie: cookie.replace("__Host-", "") } })).json()).player, null);
+  for (const base of ["https://garden.example/sub/", "http://localhost:8000/"]) {
+    const other = await openRealm({ base, card: { name: "Other", description: "For tests." }, words: await wordsFor(2), store: memoryStore() });
+    assert.equal(other.cookieName, "endlessmind", base);
+  }
 });

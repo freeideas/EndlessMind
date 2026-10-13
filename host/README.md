@@ -1,14 +1,16 @@
 # The host program
 
-Runs a game: serves its display, keeps its game server sealed, and passes messages between the two. A maker uses it to play a game on their own computer while making it, and to let friends anywhere join. It is also the relay those friends come through. The formats are in "Game servers" and "Relays" in [specs/PROTOCOL.md](../specs/PROTOCOL.md); what is still to come is in [PLAN.md](../PLAN.md).
+Runs a game: serves its display, keeps its game server sealed, and passes messages between the two. A maker uses it to play a game on their own computer while making it, and to let friends anywhere join. On a server it hosts a game for good, and is a relay and an EntryPortal for others. The formats are in "Game servers" and "Relays" in [specs/PROTOCOL.md](../specs/PROTOCOL.md); what is still to come is in [PLAN.md](../PLAN.md).
 
-| File        | What it is                                                                            |
-| ----------- | ------------------------------------------------------------------------------------- |
-| `main.js`   | The command line                                                                      |
-| `host.js`   | `runGame`: the web server, the sealed process, saved data, sign-in and records        |
-| `sealed.js` | Runs inside the seal: turns the host's messages into the calls a game server answers  |
-| `play.js`   | For the display: its line to the game server, served at `<base>endlessmind/play.js`   |
-| `relay.js`  | `runRelay`: a relay. `dial`: how a game reaches players through one                   |
+| File         | What it is                                                                           |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `main.js`    | The command line                                                                     |
+| `host.js`    | `runGame`: the web server, the sealed process, saved data, sign-in and records       |
+| `sealed.js`  | Runs inside the seal: turns the host's messages into the calls a game server answers |
+| `play.js`    | For the display: its line to the game server, served at `<base>endlessmind/play.js`  |
+| `relay.js`   | `runRelay`: a relay. `dial`: how a game reaches players through one                  |
+| `hosting.js` | `runHost`: one web server for a resident game, a relay and an EntryPortal            |
+| `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it                   |
 
 ## Use
 
@@ -51,7 +53,7 @@ deno task run <folder> --relay https://relay.example/
 
 A relay for trying this out runs at `https://relay.endlessmind.com/`. The link it prints, `https://<realm ID>.relay.example/`, works for anyone, for as long as this computer stays on and connected. It is the same link every time, since it holds the realm's ID, and the relay gives it only to whoever holds the realm's secret phrase. A relay can read and change what passes through it, so use one you would trust to host the game.
 
-To be a relay:
+A host is a relay too (see "Hosting" below). To run a relay and nothing else:
 
 ```
 deno task relay --base https://relay.example/
@@ -65,6 +67,38 @@ deno task relay --base https://relay.example/
 | `--games`    | `20`        | How many games it passes at once                     |
 
 The relay speaks plain HTTP, so a web server in front of it must provide HTTPS for the relay's name and for every name under it (`*.relay.example`), and pass both on with the name the player asked for. To try one with no setup, use `--base http://localhost:8100/`: browsers treat every name under `localhost` as this computer. Signing in does not work that way, since an EntryPortal accepts plain `http` only for `localhost` itself.
+
+## Hosting
+
+On a computer everyone can reach, such as a rented server, one command does every job:
+
+```
+deno task host --base https://myvps.example/ --game <folder>
+```
+
+| Name                         | What is there                                                     |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `myvps.example`              | The game in `<folder>`, the resident game                         |
+| `eportal.myvps.example`      | An EntryPortal: the published versions in `portal/`, nothing else |
+| `<realm ID>.myvps.example`   | Each game on another computer that was run with `--relay`         |
+
+| Option        | Default                           | What it sets                                            |
+| ------------- | --------------------------------- | ------------------------------------------------------- |
+| `--base`      |                                   | The host's main address: a site's root                  |
+| `--game`      |                                   | The resident game's folder; without it, a plain page    |
+| `--port`      | `8000`                            | The port to listen on                                   |
+| `--hostname`  | `127.0.0.1`                       | Who can reach it; the default is this computer only     |
+| `--data`      | `.data/` in the game's folder     | Where the resident game's secret phrase and data are    |
+| `--portal`    | `https://portal.endlessmind.com/` | The EntryPortal the resident game's sign-in codes name  |
+| `--games`     | `20`                              | How many games it relays at once                        |
+| `--no-relay`  |                                   | Do not relay                                            |
+| `--no-portal` |                                   | Do not serve an EntryPortal                             |
+
+**Names.** The main name and every name under it must lead to the server. With a domain, that is two DNS records: `myvps.example` and `*.myvps.example`. Without one, a free name made from the server's number works with no setup at all: for the server at `203.0.113.7`, use `--base https://203-0-113-7.sslip.io/`.
+
+**HTTPS.** The host program speaks plain HTTP on this computer only, and [Caddy](Caddyfile) in front of it provides HTTPS: it gets a certificate for each name the first time someone asks for it, after checking with the host program that the name is one of its own. Certificate authorities ration certificates by parent name. For a free name that ration is shared with everyone who uses the naming service; with a domain of one's own, a single certificate for `*.myvps.example` avoids it (see [deploy/README.md](../deploy/README.md) for how the relay at relay.endlessmind.com does that).
+
+To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer.
 
 ## The seal
 

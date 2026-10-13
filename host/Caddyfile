@@ -1,0 +1,18 @@
+# For a host (`deno task host`): Caddy in front provides HTTPS for the host's main name and for every
+# name under it, getting a certificate for each name the first time someone asks for it. Before it
+# does, it asks the host program whether the name is one of its own, so nobody can make it fetch
+# certificates for names that lead nowhere. Install Caddy with the system's package manager, put this
+# in /etc/caddy/Caddyfile and reload Caddy. See host/README.md.
+
+{
+	on_demand_tls {
+		ask http://127.0.0.1:8000/endlessmind/known
+	}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:8000
+}

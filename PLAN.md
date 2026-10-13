@@ -4,7 +4,7 @@ The parts of the design in [specs/DESIGN.md](specs/DESIGN.md) that are not built
 
 ## The goal
 
-Someone who cannot code, but has an AI coding agent, has an idea for a game. They describe it, play it alone, play it with friends, and release it. After that, people all over the world play it while its maker is asleep with every device switched off. The maker never rents a server.
+Jane, who cannot code, describes a game to her AI coding agent and points it at this repository. The agent writes the game and runs it on her computer, and her friends anywhere join by a link, through a relay. She likes the game, so she rents a cheap server and runs the same program there: it hosts her game with no relay, and without being told it is also a relay and an EntryPortal for others. Someone else likes her game and gives its ID to the same program on their own server, or on their computer at home through a relay. People all over the world play it while Jane sleeps with every device switched off. Players only ever need a browser.
 
 ## Every step ends the same way
 
@@ -21,13 +21,15 @@ The documents are brought up to date so that they describe only what is so now:
 
 Everything between a player and a game on its maker's computer passes through the relay, so each message crosses the internet twice. [Monster Maze](examples/monster/README.md) is the game to judge that with: it shows the round trip to the game server while it is played. People playing it through a relay decide whether it feels good enough. If it does not, add direct connections between the players and the maker's computer, with the relay making the introduction.
 
-### 2. Hosting many games
+### 2. Releases
 
-The host program runs one game today. To host for others it needs: several games at once, each on a site of its own; a resident game at the main address; relaying as a switch beside them, not a separate command; its own HTTPS certificates; a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; and stopping a game that nobody is playing, which needs the host to keep its timer.
+A game is packed into a release with an ID, and the host program runs a game given only that ID: on a server, at a name made from its realm's ID, or at home through a relay. This covers signing a release, making the torrent, fetching and checking it, and loading games by the admin's rules. A release names the version of the calls its game server was written for.
 
-### 3. Releases
+Running strangers' games also needs: a limit on each game's share of the processor, since today a game is stopped only when it stops answering or takes too much memory; and stopping a game that nobody is playing, which needs the host to keep its timer.
 
-Signing a release, making the torrent, fetching and checking it on a host, and loading games by the admin's rules. A release names the version of the calls its game server was written for.
+### 3. Finding each other
+
+Hosts find other hosts, and a maker at home finds a relay, without being told an address, in the way torrent programs find each other. Players in browsers ask any host they know.
 
 ### 4. Records, notes and boards
 
@@ -35,7 +37,7 @@ Records signed by hosts, players' notes on them, then a board that adds up play 
 
 ### 5. The package
 
-One download for Mac, Windows and Linux, installable with brew, apt, winget and pacman, so that nobody needs Deno installed first. For a host it asks three questions: the web address, the resident game, the rules for loading. Serves the spare EntryPortal.
+One download for Mac, Windows and Linux, installable with brew, apt, winget and pacman, so that nobody needs Deno installed first. For a host it asks three questions: the web address, the resident game, the rules for loading. On a server it also sets up HTTPS, which today means installing Caddy and giving it `host/Caddyfile`.
 
 ### 6. The EntryPortal's messages
 
@@ -51,6 +53,5 @@ Each is described under "Not decided yet" in [specs/DESIGN.md](specs/DESIGN.md).
 
 | Question                                          | Needed for |
 | ------------------------------------------------- | ---------- |
-| Whether a host needs a domain name                | Step 2     |
-| Which games a host loads                          | Step 3     |
+| Which games a host loads                          | Step 2     |
 | How hosts and players find hosts                  | Step 3     |

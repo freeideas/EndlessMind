@@ -108,6 +108,10 @@ class Realm:
         self.options = options
         self.base = _normalize_base(options["base"])
         self.base_path = urlsplit(self.base).path
+        # A realm with an HTTPS site to itself uses a name that browsers accept only from that exact
+        # site, so a page at a neighbouring name cannot plant a session.
+        own_site = self.base.startswith("https:") and self.base_path == "/"
+        self.cookie_name = "__Host-" + COOKIE if own_site else COOKIE
         self.portal = options.get("portal") or DEFAULT_PORTAL
         self.signer = signer
         self.id = signer.id
@@ -187,7 +191,7 @@ class Realm:
     async def player(self, request: Any) -> str | None:
         """The signed-in player's ID, or None for a guest. `request` is anything with the request's
         headers: a Starlette or FastAPI request, an ASGI scope, a headers mapping, or the Cookie header."""
-        session = self.data["sessions"].get(_cookie(request, COOKIE) or "")
+        session = self.data["sessions"].get(_cookie(request, self.cookie_name) or "")
         if not session or self.now() - session["created"] > SESSION_MS:
             return None
         if await self.is_burned(session["player"]):
@@ -352,7 +356,7 @@ class Realm:
         }
 
     def _sign_out(self, headers: Headers) -> Response:
-        self.data["sessions"].pop(_cookie(headers, COOKIE) or "", None)
+        self.data["sessions"].pop(_cookie(headers, self.cookie_name) or "", None)
         self._save()
         return _json({"ok": True}, 200, {"set-cookie": self._cookie("", 0)})
 
@@ -505,7 +509,7 @@ class Realm:
 
     def _cookie(self, value: str, ms: int) -> str:
         secure = "; Secure" if self.base.startswith("https:") else ""
-        return f"{COOKIE}={value}; Path={self.base_path}; Max-Age={ms // 1000}; HttpOnly; SameSite=Lax{secure}"
+        return f"{self.cookie_name}={value}; Path={self.base_path}; Max-Age={ms // 1000}; HttpOnly; SameSite=Lax{secure}"
 
     def _new_session(self, player: str) -> str:
         """A new session for a player, kept until it expires or they sign out."""

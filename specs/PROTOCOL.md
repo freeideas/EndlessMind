@@ -247,6 +247,18 @@ The reference relay passes a body of at most 1 MB from a player, a message of at
 
 **What a relay can do.** Everything passes through it, so it can read and change what a game and its players say to each other. It cannot learn a secret phrase or make a record, because the realm's secret stays with the game's host and a player's proofs come from their EntryPortal.
 
+## Hosts
+
+A host has a main address that is a site's root, such as `https://host.example/`, and answers at every name under it:
+
+| Name                       | What is there                                                        |
+| -------------------------- | -------------------------------------------------------------------- |
+| `host.example`             | The host's resident game, and `endlessmind/relay` for games to dial  |
+| `eportal.host.example`     | An EntryPortal: published versions only, and nothing else            |
+| `<realm ID>.host.example`  | Each other game                                                      |
+
+No two games share a name, and no game is ever at a path under another's name or at the EntryPortal's. A realm whose address is an HTTPS site's root names its session cookie `__Host-endlessmind`, which browsers accept only from that exact name; any other realm names it `endlessmind`.
+
 ## Burning an identity
 
 Revealing the secret phrase or the private key burns the identity; either has the same effect. The usual way is a burn notice:
