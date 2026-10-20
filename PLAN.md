@@ -16,7 +16,7 @@ Every host program starts looking for other hosts at `https://relay.endlessmind.
 
 ### 2. Publish the package
 
-`uv run deploy/package.py` builds every download and nothing is published yet, so the install commands in `README.md` do not work. Follow "To publish a version" in [deploy/README.md](deploy/README.md): a GitHub release, the Homebrew tap, the AUR package and the winget pull request. Only the macOS arm64 archive has been run; install each of the others once.
+`uv run deploy/package.py` builds every download and nothing is published yet, so the install commands in `README.md` do not work. Follow "To publish a version" in [deploy/README.md](deploy/README.md): a GitHub release, the Homebrew tap, the AUR package and the winget pull request. Only the macOS arm64 and Windows archives have been run; install each of the others once.
 
 ### 3. Try it from nothing
 

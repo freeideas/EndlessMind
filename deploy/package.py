@@ -121,7 +121,7 @@ def windows_launcher(flags):
     out = CACHE / "endlessmind.exe"
     if shutil.which("deno") is None:
         raise SystemExit("Building for Windows needs `deno` on this computer (it compiles the launcher)")
-    subprocess.run(["deno", "compile", "--quiet", "--target", "x86_64-pc-windows-msvc", "-o", str(out), str(source)], check=True)
+    subprocess.run(["deno", "compile", "--quiet", "--allow-run", "--target", "x86_64-pc-windows-msvc", "-o", str(out), str(source)], check=True)
     return out.read_bytes()
 
 
