@@ -382,7 +382,7 @@ Both files carry the header `Access-Control-Allow-Origin: *`, so any web page ma
 2. Its `address` is a site's root over `https`, at a name rather than a number, with no user name, query or fragment. A program that is itself at a name under `localhost`, or was started from one, also accepts names under `localhost`, over `http` too.
 3. `endlessmind/host.json` under that address answers `200` with a card signed by the same ID that names the same address. This is what shows that the signer is at the address, so nobody can list an address that is not theirs. A redirect is never followed.
 
-A newer card from an ID replaces its older one, and a card at an address replaces a card by any other ID at that address. A card is forgotten a day after its `time`. The reference host holds at most 1000 cards, reads a list of at most 4 MB, waits five seconds for any one host, and keeps what it holds across a restart.
+A newer card from an ID replaces its older one, and a card at an address replaces a card by any other ID at that address. A card is forgotten a day after its `time`. The reference host holds at most 1000 cards, reads a list of at most 4 MB, waits five seconds for any one host, and keeps what it holds across a restart. It also asks again, for 30 days, every address where a host last answered with its card, even after that card is forgotten.
 
 **Finding hosts.** A host program starts from a few addresses it is given. It reads `endlessmind/hosts.json` from each, then from each address those lists name, until it has asked every host it has heard of; it does this again every hour. A program with no address of its own, such as a game on a computer at home, publishes no card and only reads.
 

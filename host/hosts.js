@@ -20,12 +20,16 @@ import { isId, signerFromWords } from "../shared/keys.js";
 import { addSignature, canonical, isComplete } from "../shared/signed.js";
 import { secretWords } from "../realm/realm.js";
 
-/** Where a host program starts looking unless it is told otherwise. */
-export const STARTING_HOSTS = ["https://relay.endlessmind.com/"];
+/**
+ * Where a host program starts looking unless it is told otherwise. Each package carries more: when it
+ * is built, the hosts these know are added to its copy of the file (see deploy/package.py).
+ */
+export const STARTING_HOSTS = JSON.parse(await Deno.readTextFile(new URL("./starting-hosts.json", import.meta.url)));
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR; // a card is forgotten this long after its time
+const REMEMBER = 30 * DAY; // an address where a host once answered is asked again for this long
 const AHEAD = 10 * MINUTE; // a card may be dated this far ahead of this computer's clock
 const MAX_KNOWN = 1000; // how many hosts are kept
 const MAX_CARD = 16 * 1024; // the longest card, as canonical JSON
@@ -138,6 +142,13 @@ export async function openHosts(options) {
 
   /** The hosts known now, by ID. @type {Map<string, HostCard>} */
   const known = new Map();
+  /**
+   * Where a host answered with its card, and when it last did. A card is believed for a day, but its
+   * address is worth asking for longer: after this program was off for a while, any one host still
+   * there brings it back among the rest, whatever became of the starting ones.
+   * @type {Map<string, number>}
+   */
+  const seen = new Map();
   /** @type {HostCard | null} */
   let mine = null;
   let stale = true;
@@ -165,12 +176,13 @@ export async function openHosts(options) {
 
   function forget() {
     for (const [id, card] of known) if (card.time <= now() - DAY) known.delete(id);
+    for (const [address, time] of seen) if (time <= now() - REMEMBER) seen.delete(address);
   }
 
   function save() {
     saving = saving.then(async () => {
       await Deno.mkdir(options.store, { recursive: true });
-      await Deno.writeTextFile(file + ".new", JSON.stringify({ v: 1, type: "hosts", hosts: [...known.values()] }));
+      await Deno.writeTextFile(file + ".new", JSON.stringify({ v: 1, type: "hosts", hosts: [...known.values()], seen: Object.fromEntries(seen) }));
       await Deno.rename(file + ".new", file);
     }).catch((error) => log(`The known hosts could not be saved. ${error instanceof Error ? error.message : error}`));
     return saving;
@@ -186,7 +198,18 @@ export async function openHosts(options) {
     for (const [other, old] of known) if (old.address === card.address) known.delete(other);
     if (!before && known.size >= MAX_KNOWN) return false;
     known.set(id, card);
+    see(card.address, card.time);
     return true;
+  }
+
+  /** Remember that a host answered at an address, keeping the newest MAX_KNOWN. @param {string} address @param {number} time */
+  function see(address, time) {
+    seen.delete(address);
+    seen.set(address, Math.max(time, seen.get(address) ?? 0));
+    for (const [oldest] of seen) {
+      if (seen.size <= MAX_KNOWN) break;
+      seen.delete(oldest);
+    }
   }
 
   /**
@@ -223,7 +246,7 @@ export async function openHosts(options) {
     const until = Date.now() + ROUND_MS;
     /** @type {Set<string>} */
     const asked = new Set(own ? [own] : []);
-    let next = [...start, ...[...known.values()].map((card) => card.address)];
+    let next = [...start, ...[...known.values()].map((card) => card.address), ...seen.keys()];
     while (next.length) {
       const round = [...new Set(next)].filter((address) => !asked.has(address)).slice(0, MAX_KNOWN);
       next = [];
@@ -321,7 +344,12 @@ export async function openHosts(options) {
   const json = (body) => new Response(JSON.stringify(body), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-cache" } });
 
   try {
-    for (const kept of JSON.parse(await Deno.readTextFile(file)).hosts) if (await isCard(kept)) keep(kept);
+    const kept = JSON.parse(await Deno.readTextFile(file));
+    for (const [address, time] of Object.entries(kept.seen ?? {})) {
+      if (hostAddress(address, local) === address && Number.isSafeInteger(time)) see(address, Math.min(/** @type {number} */ (time), now()));
+    }
+    for (const card of kept.hosts ?? []) if (await isCard(card)) keep(card);
+    forget();
   } catch {
     // Nothing kept yet.
   }

@@ -254,3 +254,35 @@ Deno.test("known hosts are remembered across a restart, and forgotten a day afte
     }
   });
 });
+
+Deno.test("a host off for days finds the others again where they last answered, though its starting host is gone", async () => {
+  await withTemp(async (temp) => {
+    const starting = await hosting(temp);
+    const other = await hosting(temp, { hosts: [starting.base] });
+    const store = join(temp, "away");
+    try {
+      const before = await openHosts({ store, start: [starting.base] });
+      await before.relays();
+      assert.equal(before.known().length, 2);
+      await before.stop();
+      await starting.stop();
+      // As if two days went by: every card kept is too old to believe, and the starting host is gone.
+      const file = join(store, "hosts.json");
+      const kept = JSON.parse(await Deno.readTextFile(file));
+      const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+      await Deno.writeTextFile(file, JSON.stringify({ ...kept, hosts: [], seen: Object.fromEntries(Object.keys(kept.seen).map((address) => [address, twoDaysAgo])) }));
+      const after = await openHosts({ store, start: [starting.base] });
+      assert.deepEqual(after.known(), []);
+      assert.deepEqual(await after.relays(), [other.base]);
+      await after.stop();
+    } finally {
+      await other.stop();
+    }
+  });
+});
+
+Deno.test("the starting hosts come from a file a package can add to", async () => {
+  const listed = JSON.parse(await Deno.readTextFile(new URL("../host/starting-hosts.json", import.meta.url)));
+  assert.ok(listed.length >= 1);
+  for (const address of listed) assert.equal(hostAddress(address), address);
+});

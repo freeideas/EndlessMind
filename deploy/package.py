@@ -54,6 +54,10 @@ CODE = ["host", "realm", "shared", "portal", "examples"]
 LICENSES = ["LICENSE-MIT", "LICENSE-APACHE"]
 README = "This is Endless Mind. Run `endlessmind` for what it can do; see https://endlessmind.com/.\n"
 
+STARTING = "host/starting-hosts.json"  # where every host program starts looking for other hosts
+MORE_STARTING = 20  # how many hosts the starting ones know are added to each package's copy
+HOST_ADDRESS = re.compile(r"^https://([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*/$")
+
 DEB_WRAPPER = '#!/bin/sh\nexec /usr/lib/endlessmind/endlessmind "$@"\n'
 
 UNIX_LAUNCHER = """#!/bin/sh
@@ -121,7 +125,28 @@ def windows_launcher(flags):
     return out.read_bytes()
 
 
-def files_of_package(target, flags):
+def starting_hosts():
+    """The starting hosts for a package: the repository's, then hosts they know now, so that a package
+    never depends on one host. Every host program checks whatever it is told, so nothing here needs to
+    be trusted; a host that cannot be reached is skipped."""
+    starting = json.loads((ROOT / STARTING).read_text())
+    found = []
+    for address in starting:
+        try:
+            with urllib.request.urlopen(address + "endlessmind/hosts.json", timeout=10) as response:
+                listed = json.loads(response.read(4 * 1024 * 1024))
+        except Exception as error:  # gone or not answering: the rest still count
+            print(f"  {address} did not answer ({error}); its hosts are not added")
+            continue
+        for card in listed.get("hosts", []):
+            address = card.get("address") if isinstance(card, dict) else None
+            if isinstance(address, str) and HOST_ADDRESS.match(address) and address not in starting + found:
+                found.append(address)
+    print(f"  starting hosts: {len(starting)} from {STARTING}, {min(len(found), MORE_STARTING)} more that they know")
+    return starting + found[:MORE_STARTING]
+
+
+def files_of_package(target, flags, starting):
     """The package's files as {path: (bytes, executable)}, paths relative to its top folder."""
     triple = TARGETS[target][0]
     windows = target.startswith("windows")
@@ -138,6 +163,7 @@ def files_of_package(target, flags):
             relative = path.relative_to(ROOT)
             if path.is_file() and not any(part.startswith(".") or part == "__pycache__" for part in relative.parts):
                 files[f"lib/{relative.as_posix()}"] = (path.read_bytes(), False)
+    files[f"lib/{STARTING}"] = ((json.dumps(starting, indent=2) + "\n").encode(), False)
     for name in LICENSES:
         files[f"lib/{name}"] = ((ROOT / name).read_bytes(), False)
     files["lib/LICENSE-DENO.md"] = (download(DENO_LICENSE_URL, f"LICENSE-DENO-{DENO_VERSION}.md").read_bytes(), False)
@@ -322,9 +348,10 @@ def main():
             raise SystemExit(f"Unknown target {target}; the targets are {' '.join(TARGETS)}")
     DIST.mkdir(exist_ok=True)
     archives = {}
+    starting = starting_hosts()
     for target in targets:
         print(target)
-        files = files_of_package(target, flags)
+        files = files_of_package(target, flags, starting)
         prefix = f"endlessmind-{version}-{target}/"
         if target.startswith("windows"):
             path = DIST / f"endlessmind-{version}-{target}.zip"

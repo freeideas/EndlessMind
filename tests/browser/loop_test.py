@@ -10,7 +10,7 @@ own, the public list, "sign in on this computer", a typed address, and burning a
 EntryPortal and the realm run on different local addresses, like two sites. Then the heart of the loop
 again through a host: a game on "another computer" relayed by `deno task host`, played at a name of its
 own under the host's, with the host's EntryPortal, then found on the host's board and wished for. Run: uv run tests/browser/loop_test.py [--headed]
-(the first run may need: uv run --with playwright playwright install chromium)
+(it fetches the browser it needs first, which takes a while only the first time and after an update)
 """
 import base64, functools, http.client, http.server, json, os, re, socket, subprocess, sys, tempfile, threading, time
 from pathlib import Path
@@ -289,6 +289,8 @@ def main() -> None:
             shots.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=shots / f"{name}.png", full_page=True)
 
+    # The browser goes with the Playwright version, so fetch it in case that changed. A no-op when it is there.
+    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True, stdout=subprocess.DEVNULL)
     serve_portal()
     with tempfile.TemporaryDirectory() as data, sync_playwright() as pw:
         programs = [start_maze(data)]

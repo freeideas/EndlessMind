@@ -2,21 +2,22 @@
 
 Runs a game: serves its display, keeps its game server sealed, and passes messages between the two. A maker uses it to play a game on their own computer while making it, and to let friends anywhere join. On a server it hosts a game for good, and is a relay and an EntryPortal for others, with a board of the games the hosts it knows run. Hosts find each other, so no command needs another computer's address. The formats are in "Game servers", "Relays", "Hosts" and "Releases" in [specs/PROTOCOL.md](../specs/PROTOCOL.md); what is still to come is in [PLAN.md](../PLAN.md).
 
-| File         | What it is                                                                           |
-| ------------ | ------------------------------------------------------------------------------------ |
-| `main.js`    | The command line                                                                     |
-| `host.js`    | `runGame`: the web server, the sealed process, saved data, sign-in and records       |
-| `sealed.js`  | Runs inside the seal: turns the host's messages into the calls a game server answers |
-| `play.js`    | For the display: its line to the game server, served at `<base>endlessmind/play.js`  |
-| `relay.js`   | `openRelay`: a host's relay. `dial`: how a game reaches players through one          |
-| `hosting.js` | `runHost`: one web server for a resident game, releases, a relay and an EntryPortal  |
-| `release.js` | Releases: packing a game under an ID, checking one, fetching one from a host         |
-| `hosts.js`   | `openHosts`: a host's own card, the hosts it knows, and what each of them runs       |
-| `board.js`   | `openBoard`: the games the known hosts run, with the play and wishes on record       |
-| `board.html` | The board's page, served at `endlessmind/board` under a host's main address          |
-| `demand.js`  | `openDemand`: which games a host loads by itself, from the wishes on its board       |
-| `setup.js`   | `endlessmind setup`: turns a Linux server into a host                                |
-| `Caddyfile`  | For a server: HTTPS for a host's main name and every name under it; setup installs it |
+| File                  | What it is                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| `main.js`             | The command line                                                                     |
+| `host.js`             | `runGame`: the web server, the sealed process, saved data, sign-in and records       |
+| `sealed.js`           | Runs inside the seal: turns the host's messages into the calls a game server answers |
+| `play.js`             | For the display: its line to the game server, served at `<base>endlessmind/play.js`  |
+| `relay.js`            | `openRelay`: a host's relay. `dial`: how a game reaches players through one          |
+| `hosting.js`          | `runHost`: one web server for a resident game, releases, a relay and an EntryPortal  |
+| `release.js`          | Releases: packing a game under an ID, checking one, fetching one from a host         |
+| `starting-hosts.json` | Where finding other hosts starts; each package adds more                             |
+| `hosts.js`            | `openHosts`: a host's own card, the hosts it knows, and what each of them runs       |
+| `board.js`            | `openBoard`: the games the known hosts run, with the play and wishes on record       |
+| `board.html`          | The board's page, served at `endlessmind/board` under a host's main address          |
+| `demand.js`           | `openDemand`: which games a host loads by itself, from the wishes on its board       |
+| `setup.js`            | `endlessmind setup`: turns a Linux server into a host                                |
+| `Caddyfile`           | For a server: HTTPS for the host's main name and every name under it                 |
 
 ## Use
 
@@ -90,7 +91,7 @@ Every host is a relay (see "Hosting" below), unless its admin turns that off.
 
 ## Finding hosts
 
-Every host signs a card that says its address, the releases it runs and the games it relays, and hands out the cards of the hosts it knows. The host program reads those lists, starting from the addresses in `--hosts`, and a host sends its own card to every host it learns of, again every hour. A host that stops answering is forgotten within a day.
+Every host signs a card that says its address, the releases it runs and the games it relays, and hands out the cards of the hosts it knows. The host program reads those lists, starting from the addresses in `--hosts` (by default those in `starting-hosts.json`) and from every address where a host answered in the last 30 days, and a host sends its own card to every host it learns of, again every hour. A host that stops answering is forgotten within a day, but its address is still asked for a month, so a program that was off for a while finds the others again through any one that is still there.
 
 That is how `--relay` finds a relay and how a release is fetched from its ID alone. `--hosts ""` starts nowhere: the program then knows only the hosts that send it their cards. A game at home has no address of its own, so it only reads.
 

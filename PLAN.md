@@ -25,4 +25,4 @@ On a freshly rented Linux server, install the package and run `sudo endlessmind 
 ### 4. Decide
 
 - **`realm-py/`.** A second copy of the realm library for tied realms in Python. Does it earn its upkeep? Every change to `realm/realm.js` is made twice.
-- **A name for the host on ordinarydata.** It lives at `relay.endlessmind.com`, a name chosen when it only relayed, and that name is now built into every host program (`STARTING_HOSTS` in `host/hosts.js`). Renaming it means new DNS records and a new certificate (see `deploy/README.md`), and is cheapest before the package is published.
+- **A name for the host on ordinarydata.** It lives at `relay.endlessmind.com`, a name chosen when it only relayed, and that name is the starting address in every host program (`host/starting-hosts.json`). Renaming it means new DNS records and a new certificate (see `deploy/README.md`), and is cheapest before the package is published.
