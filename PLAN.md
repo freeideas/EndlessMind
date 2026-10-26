@@ -10,19 +10,15 @@ What is left to do. Everything in [specs/DESIGN.md](specs/DESIGN.md) is built; t
 
 ## Steps
 
-### 1. Update the host on ordinarydata
-
-Every host program starts looking for other hosts at `https://relay.endlessmind.com/`, so nobody finds anybody until that host runs the current code. Publish the sites and restart it as [deploy/README.md](deploy/README.md) says, then check that `https://relay.endlessmind.com/endlessmind/hosts.json` and `https://relay.endlessmind.com/endlessmind/board` answer.
-
-### 2. Publish the package
+### 1. Publish the package
 
 `uv run deploy/package.py` builds every download and nothing is published yet, so the install commands in `README.md` do not work. Follow "To publish a version" in [deploy/README.md](deploy/README.md): a GitHub release, the Homebrew tap, the AUR package and the winget pull request. Only the macOS arm64 and Windows archives have been run; install each of the others once.
 
-### 3. Try it from nothing
+### 2. Try it from nothing
 
 On a freshly rented Linux server, install the package and run `sudo endlessmind setup`. It has never run on a real server: only the files it writes are tested. Fix what it gets wrong.
 
-### 4. Decide
+### 3. Decide
 
 - **`realm-py/`.** A second copy of the realm library for tied realms in Python. Does it earn its upkeep? Every change to `realm/realm.js` is made twice.
 - **A name for the host on ordinarydata.** It lives at `relay.endlessmind.com`, a name chosen when it only relayed, and that name is the starting address in every host program (`host/starting-hosts.json`). Renaming it means new DNS records and a new certificate (see `deploy/README.md`), and is cheapest before the package is published.
