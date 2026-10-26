@@ -96,7 +96,7 @@ const hidden = (path) => path.split(/[\\/]/).some((part) => part.startsWith(".")
  * @param {string} folder
  */
 async function checkImports(entry, folder) {
-  const info = await new Deno.Command(Deno.execPath(), { args: ["info", "--json", ...SEAL.slice(1), entry], stderr: "piped" }).output();
+  const info = await new Deno.Command(Deno.execPath(), { args: ["info", "--json", ...SEAL.slice(1), pathToFileURL(entry).href], stderr: "piped" }).output();
   if (!info.success) throw new Error(new TextDecoder().decode(info.stderr).trim());
   const graph = JSON.parse(new TextDecoder().decode(info.stdout));
   // Only what the code loads counts. A file named just for its types, in a comment, is never loaded
