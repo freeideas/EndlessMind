@@ -118,10 +118,14 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
 } else if (command === "setup" && names.length === 0) {
   await (await import("./setup.js")).setup(flags);
 } else {
-  console.error("Usage: run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay [<address>]] [--hosts <address>,...] [--portal <address>] [--data <folder>] [--store <folder>] [--no-watch]");
-  console.error("       run <release ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--portal <address>]");
-  console.error("       pack <folder> [--store <folder>] [--data <folder>]");
-  console.error("       host --base <address> [--game <folder>] [--load <release ID>,...] [--auto <n>] [--trust <ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]");
-  console.error("       setup [--base <address>] [--game <folder>] [--yes]    (a Linux server, as root)");
-  Deno.exit(2);
+  // Asked for (no command, or help) the usage is the answer; after a mistake it is an error.
+  const asked = command === undefined || command === "help" || "help" in flags || command === "--help";
+  (asked ? console.log : console.error)([
+    "Usage: endlessmind run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay [<address>]] [--hosts <address>,...] [--portal <address>] [--data <folder>] [--store <folder>] [--no-watch]",
+    "       endlessmind run <release ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--portal <address>]",
+    "       endlessmind pack <folder> [--store <folder>] [--data <folder>]",
+    "       endlessmind host --base <address> [--game <folder>] [--load <release ID>,...] [--auto <n>] [--trust <ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]",
+    "       endlessmind setup [--base <address>] [--game <folder>] [--yes]    (a Linux server, as root)",
+  ].join("\n"));
+  Deno.exit(asked ? 0 : 2);
 }
