@@ -16,6 +16,8 @@ const MAX_MESSAGE = 64 * 1024; // the longest message on a display's line, in ch
 const MAX_OPEN = 200; // how many requests and lines one game may have open at once
 const ANSWER_MS = 60 * 1000; // how long a relay waits for a game to start answering a request
 const BUFFER = 1024 * 1024; // the game waits while this many bytes are still on their way to the relay
+const CHECK_MS = 20 * 1000; // how often a game with a quiet connection asks whether the relay still hears it
+const QUIET_MS = 45 * 1000; // a connection that has heard nothing for this long is taken for dead and dialed again
 
 /** Headers that belong to one connection and are never passed on. */
 const OWN = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade", "host", "content-length", "te", "trailer"]);
@@ -139,6 +141,7 @@ export function openRelay(options) {
 
   /** What a game sent back. @param {Passage} game @param {any} m */
   function heard(game, m) {
+    if (m.t === "ping") return tell(game, { t: "pong" });
     const open = game.open.get(m.n);
     if (!open) return;
     if (m.t === "response") {
@@ -296,6 +299,7 @@ export function dial(options) {
   const patient = options.patient !== false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let again;
+  let heardAt = Date.now();
   /** @type {(accepted: boolean) => void} */
   let isReady = () => {};
   /** @type {Promise<boolean>} */
@@ -400,7 +404,10 @@ export function dial(options) {
 
   function open() {
     const mine = (socket = new WebSocket(relay.replace(/^http/, "ws") + "endlessmind/relay"));
+    heardAt = Date.now();
     mine.onmessage = (event) => {
+      if (mine !== socket) return;
+      heardAt = Date.now();
       try {
         hear(mine, JSON.parse(event.data));
       } catch {
@@ -408,22 +415,39 @@ export function dial(options) {
       }
     };
     mine.onerror = () => {};
-    mine.onclose = () => {
-      for (const entry of seats.values()) entry.seat.then((seat) => seat?.close());
-      seats.clear();
-      answering.clear();
-      if (stopped) return;
-      if (!patient && !accepted) {
-        stopped = true;
-        return isReady(false);
-      }
-      if (!quiet) log(`The relay at ${relay} is not answering. Still trying.`);
-      quiet = true;
-      again = setTimeout(open, wait);
-      wait = Math.min(wait * 2, 10000);
-    };
+    mine.onclose = () => mine === socket && lost();
+  }
+
+  /** The connection to the relay ended: what it carried is gone, and the relay is dialed again. */
+  function lost() {
+    for (const entry of seats.values()) entry.seat.then((seat) => seat?.close());
+    seats.clear();
+    answering.clear();
+    if (stopped) return;
+    if (!patient && !accepted) {
+      stopped = true;
+      return isReady(false);
+    }
+    if (!quiet) log(`The relay at ${relay} is not answering. Still trying.`);
+    quiet = true;
+    again = setTimeout(open, wait);
+    wait = Math.min(wait * 2, 10000);
   }
   open();
+
+  // A connection can die without closing, when a network between here and the relay forgets it: the
+  // relay would still list the game, and players would reach nothing. So a quiet connection asks
+  // whether the relay still hears it, and one that stays quiet is replaced.
+  const checking = setInterval(() => {
+    const mine = socket;
+    if (stopped || mine.readyState !== WebSocket.OPEN) return;
+    const quietFor = Date.now() - heardAt;
+    if (quietFor >= QUIET_MS) {
+      mine.onclose = null;
+      mine.close();
+      lost();
+    } else if (quietFor >= CHECK_MS) send(mine, { t: "ping" });
+  }, CHECK_MS / 4);
 
   return {
     /** The address players use. */
@@ -433,6 +457,7 @@ export function dial(options) {
     stop() {
       stopped = true;
       clearTimeout(again);
+      clearInterval(checking);
       socket.close();
     },
   };

@@ -469,6 +469,8 @@ export async function openGame(options) {
         tell({ t: "join", p: { conn, who: id ? "player:" + id : "guest:" + guest, id, name: id ? realm.playerName(id) : "Guest", guest: "guest:" + guest, records } });
       },
       message(text) {
+        // The display asking whether its line still works; the host answers, the game server never sees it.
+        if (text === "ping") return mine?.send("pong");
         if (text.length > MAX_MESSAGE || !seated.has(conn)) return;
         try {
           tell({ t: "message", conn, data: JSON.parse(text) });

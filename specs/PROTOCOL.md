@@ -286,7 +286,7 @@ There is no call to load a value and none to list players: what was saved arrive
 | What it saved, as JSON                       | 4 MB                                     |
 | One message, as JSON                         | 64 KB                                    |
 
-**The display's line.** The display opens a WebSocket to `endlessmind/play?guest=<32 random hex characters>` under the game's address and sends and receives JSON text messages. The host learns who is playing from the session the browser sends with that connection, so the display connects again after its player signs in or out. Hosts accept the connection only from the game's own pages, and serve a helper for all of this at `endlessmind/play.js`.
+**The display's line.** The display opens a WebSocket to `endlessmind/play?guest=<32 random hex characters>` under the game's address and sends and receives JSON text messages. The host learns who is playing from the session the browser sends with that connection, so the display connects again after its player signs in or out. Hosts accept the connection only from the game's own pages, and serve a helper for all of this at `endlessmind/play.js`. A line can die without closing, so a display may send the text `ping` (not JSON); the host answers `pong` itself, and the game server never sees either. The helper asks after 15 quiet seconds and whenever the page comes back into view, and opens a new line when no answer comes within 5 seconds.
 
 ## Relays
 
@@ -303,7 +303,7 @@ A relay lets players reach a game that runs on a computer they cannot connect to
 
 3. The relay checks the signature, that `relay` is its own address and that `nonce` is the one it just sent. It answers `{ "t": "ready", "base": "<the game's address>" }`, or `{ "t": "full" }` if it has no room, and then closes. A host that is offered any address but the one above stops using that relay.
 
-An ID that asks again takes the place of its earlier connection. A relay that is also a host refuses an ID whose name it already uses for a release. The game is at its address for as long as the connection stays open.
+An ID that asks again takes the place of its earlier connection. A relay that is also a host refuses an ID whose name it already uses for a release. The game is at its address for as long as the connection stays open. The host sends `{ "t": "ping" }` after 20 quiet seconds and the relay answers `{ "t": "pong" }`; a host that has heard nothing for 45 seconds takes the connection for dead and dials again.
 
 **Finding a relay.** A host that relays says so in its host card (see "Hosts"), so a game that is told of no relay reads the cards of the hosts it knows and asks each one that relays, in turn, until one says `ready`.
 

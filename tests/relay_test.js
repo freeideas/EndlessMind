@@ -167,6 +167,17 @@ Deno.test("a relay passes big files, posted bodies and refusals unchanged", asyn
     assert.deepEqual(await line.next(), { hello: "there" });
     await line.close();
 
+    // A display asking whether its line still works hears from the host itself, through the relay
+    // and straight; the game server never sees the question.
+    for (const where of [game.base, `http://localhost:${game.port}/`]) {
+      const asking = new WebSocket(where.replace(/^http/, "ws") + "endlessmind/play?guest=0123456789abcdef0123456789abcdef");
+      await new Promise((done) => (asking.onopen = done));
+      asking.send("ping");
+      assert.equal(await new Promise((done) => (asking.onmessage = (event) => done(event.data))), "pong");
+      asking.close();
+      await new Promise((done) => (asking.onclose = done));
+    }
+
     // The browser's session travels both ways, so the game knows a signed-in player through a relay.
     const out = await fetch(game.base + "endlessmind/signout", { method: "POST" });
     await out.body?.cancel();
