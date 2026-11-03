@@ -93,7 +93,7 @@ def open_realm(
     if not signin.is_file():
         raise FileNotFoundError(
             f"{signin} is missing: install endlessmind as an editable path dependency from a checkout of "
-            "the EveryGame repository, or pass signin_file"
+            "the EndlessMind repository, or pass signin_file"
         )
     options = dict(base=base, card=dict(card), portal=portal, now=now, is_burned=is_burned, on_record=on_record)
     realm = Realm(options, signer, store, store.load() or {}, signin)

@@ -14,11 +14,11 @@ What a tied realm (one that runs on its maker's own server) written in Python in
 
 ## Install
 
-The package is `endlessmind`. A game in another repository adds it as a path dependency on a checkout of this one, with `uv add --editable ../EveryGame/realm-py`, which writes this to its `pyproject.toml`:
+The package is `endlessmind`. A game in another repository adds it as a path dependency on a checkout of this one, with `uv add --editable ../EndlessMind/realm-py`, which writes this to its `pyproject.toml`:
 
 ```toml
 [tool.uv.sources]
-endlessmind = { path = "../EveryGame/realm-py", editable = true }
+endlessmind = { path = "../EndlessMind/realm-py", editable = true }
 ```
 
 Keep it editable: the realm serves `realm/signin.js` from the checkout, so the page always gets the same file the Deno realms serve. (Without the checkout, pass `signin_file=` to `open_realm`.)
