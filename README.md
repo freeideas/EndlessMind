@@ -6,6 +6,14 @@ AI coding agents now let anyone make a game just by describing it. Endless Mind 
 
 **Try it:** [Endless Maze](https://relay.endlessmind.com/) is a small example realm, and [portal.endlessmind.com](https://portal.endlessmind.com/) is an EntryPortal.
 
+## Project status
+
+Keep this section current: at the end of each work session, replace these three lines (don't append). If there is nothing left to do, say so and why, e.g. `none (finished)` or `none (parked: reason)`. `../misc/scripts/rundown.py` collects this section from every project.
+
+- Next step: Publish the download package (GitHub release, Homebrew, AUR, winget) per PLAN.md
+- Waiting on: Owner: accounts, a server and decisions
+- Last action: 2026-10-26, game pages and relay connections reopen lines that died silently
+
 ## Your secret phrase
 
 You are your **secret phrase**: 24 ordinary words. They are your one identity in every realm (a game, a place, anything you can enter). There is no account, password or email address.
