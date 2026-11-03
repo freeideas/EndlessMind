@@ -14,6 +14,8 @@ Keep this section current: at the end of each work session, replace these three 
 - Waiting on: Owner: accounts, a server and decisions
 - Last action: 2026-10-26, game pages and relay connections reopen lines that died silently
 
+To do: create a YouTube channel to match. The domain endlessmind.com is already ours (Cloudflare, renews 2027-06-25). The handle @EndlessMind is taken ("endlessmind", channel UCQ4n877vlUDqvbwIOl2PnBQ; probably not ours, check). Free on 2026-11-03: @EndlessMindGames, @EndlessMindRealms, @PlayEndlessMind. Once the channel exists, the goal is a new video every day.
+
 ## Your secret phrase
 
 You are your **secret phrase**: 24 ordinary words. They are your one identity in every realm (a game, a place, anything you can enter). There is no account, password or email address.
