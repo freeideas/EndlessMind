@@ -8,7 +8,7 @@ AI coding agents now let anyone make a game just by describing it. Endless Mind 
 
 ## Project status
 
-Keep this section current: at the end of each work session, replace these three lines (don't append). If there is nothing left to do, say so and why, e.g. `none (finished)` or `none (parked: reason)`. `../misc/scripts/rundown.py` collects this section from every project.
+Keep this section current: at the end of each work session, replace these three lines (don't append). If there is nothing left to do, say so and why, e.g. `none (finished)` or `none (parked: reason)`. `../LifeStaff/scripts/rundown.py` collects this section from every project.
 
 - Next step: Publish the download package (GitHub release, Homebrew, AUR, winget) per PLAN.md
 - Waiting on: Owner: accounts, a server and decisions
