@@ -2,6 +2,8 @@
 
 A script for one video of about five minutes. It says every word to be spoken and, briefly, what is on screen while it is. The real screens it needs are recorded (see "Footage" at the end); the video itself is made by [VidFact](../../VidFact/README.md). The advice it follows is in [VidFact](../../VidFact/specs/making-videos.md) and its [checks](../../VidFact/specs/quality.md).
 
+The video project is in [explainer/](explainer/): `script.md` (the narration, with the marks the pictures are timed to), `scenes.js` (the drawings) and `video.json` (voice and look). It is all drawings and uses none of the footage. To render it, run `uv run ../../VidFact/tools/explainer/explainroo.py render explainer` in this folder; the video lands in `explainer/out/video.mp4`.
+
 ## The plan
 
 - **Who it is for:** someone who can make a game with an AI coding agent, or can imagine doing it, and has never heard of Endless Mind.

@@ -12,3 +12,6 @@ __pycache__/
 # deploy/package.py builds the packages here.
 dist/
 video/footage/
+# The explainer video: its voice and frames, and the rendered video.
+video/explainer/build/
+video/explainer/out/
