@@ -1,13 +1,13 @@
 # Explainer video: how Endless Mind works
 
-A script for one video of about four and a half minutes. It says every word to be spoken and, briefly, what is on screen while it is. Nothing is recorded or rendered until the owner approves the words. The advice it follows is in [VidFact](../../VidFact/specs/making-videos.md) and its [checks](../../VidFact/specs/quality.md).
+A script for one video of about five minutes (707 spoken words). It says every word to be spoken and, briefly, what is on screen while it is. Nothing is recorded or rendered until the owner approves the words. The advice it follows is in [VidFact](../../VidFact/specs/making-videos.md) and its [checks](../../VidFact/specs/quality.md).
 
 ## The plan
 
 - **Who it is for:** someone who has used an AI coding agent, or heard of one, and has never heard of Endless Mind.
 - **The one idea:** describe a game tonight, and the whole world can play it from a link, with no company in the middle.
 - **Order:** the result first, then how to make a game, then who you are, then reputation, then the network. Each part answers the question the part before it raises.
-- **Pace:** about 2.8 words a second, with something new on screen every 2 to 4 seconds. The times below are spoken time; allow about a fifth more for pauses.
+- **Pace:** about 2.8 words a second, with something new on screen every 2 to 4 seconds. The times below include short pauses between scenes.
 - **The example game:** Lantern Tag, an original game of tag in a dark maze. Each player carries a lantern, and whoever is "it" carries a red one. It is small, clearly for several players, and reads well with the sound off.
 - **Sound off:** every scene has a short line of text on screen that carries its point alone.
 
