@@ -73,7 +73,7 @@ To run someone else's game at home, give its realm's ID in place of a folder; wi
 deno task run <realm ID> --relay
 ```
 
-Its newest release is fetched from whichever known host runs it, or the one already in the store is used, and runs until the program is started again. Everything fetched is checked against its ID and signed by the realm, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
+Its newest release is fetched from whichever known host runs it, or the one already in the store is used if it still checks out, and runs until the program is started again. Everything fetched is checked against its ID and signed by the realm, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
 
 The host program keeps releases, the data of the games it runs from them, the hosts it knows, which games it loaded by itself and its own secret phrase in `.endlessmind/` in the folder it is started from; `--store` names another place.
 

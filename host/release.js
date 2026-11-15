@@ -7,8 +7,9 @@
 //   pack({ folder, store })          make a release from a game's folder; returns its ID
 //   checkRelease(store, id)          check a release in the store, every byte of it
 //   fetchRelease({ store, id, from }) copy a release from one of the addresses that hand it out, then check it
-//   findRelease({ store, realm, hosts })  the newest release of a realm in the store; if there is none,
-//                                    the newest the known hosts offer, fetched
+//   findRelease({ store, realm, hosts })  the newest release of a realm in the store that checks out (one
+//                                    that does not is removed); if there is none, the newest the known
+//                                    hosts offer, fetched
 //   newerRelease({ store, than, hosts, passed })  a release of the same realm newer than `than`, fetched,
 //                                    or null
 //   serveRelease(store, ids, request) answer another host that asks for a release
@@ -247,7 +248,8 @@ export async function fetchRelease({ store, id, from }) {
 }
 
 /**
- * The newest release of a realm in the store, checked, or null if there is none.
+ * The newest release of a realm in the store, checked, or null if there is none. One of the realm's
+ * that fails the check is removed, so that it is fetched again.
  * @param {string} store @param {string} realm
  */
 async function storedRelease(store, realm) {
@@ -259,9 +261,14 @@ async function storedRelease(store, realm) {
       try {
         const note = JSON.parse(await Deno.readTextFile(join(placeOf(store, entry.name), "files", NOTE)));
         if (note?.signers?.[0] !== realm || (best && note.time <= best.note.time)) continue;
-        best = await checkRelease(store, entry.name);
+        try {
+          best = await checkRelease(store, entry.name);
+        } catch {
+          // Damaged: removed, so that it is fetched again from the known hosts.
+          await removeRelease(store, entry.name);
+        }
       } catch {
-        // Damaged: as if it were not there.
+        // No readable note, so whose it is cannot be told here. If a known host offers it, it is checked then.
       }
     }
   } catch {
@@ -287,8 +294,11 @@ async function newestRelease({ store, realm, hosts, than = null, passed = new Se
   for (const [id, { time, from }] of offered) {
     if (best && best !== than && time !== null && time <= best.note.time) continue;
     // One already in the store is running here, or was already weighed: fetching it again could only
-    // disturb it.
-    if (await Deno.stat(placeOf(store, id)).then(() => true, () => false)) continue;
+    // disturb it. One that is damaged is removed and fetched again.
+    if (await Deno.stat(placeOf(store, id)).then(() => true, () => false)) {
+      if (await checkRelease(store, id).then(() => true, () => false)) continue;
+      await removeRelease(store, id);
+    }
     let release;
     try {
       release = await fetchRelease({ store, id, from });

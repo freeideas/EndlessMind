@@ -217,6 +217,17 @@ Deno.test("what a host sends is believed only as far as it matches the ID", asyn
     // The honest host after the liar gives the real thing.
     const release = await fetchRelease({ store, id, from: [`http://localhost:${liar}/`, jane.base] });
     assert.equal(release.id, id);
+    // A release in the store that was damaged since is removed when opened, and fetched again.
+    const realm = /** @type {string} */ (jane.realm?.id);
+    const offers = { releases: () => Promise.resolve(new Map([[id, { time: release.note.time, from: [jane.base] }]])) };
+    const words = join(release.folder, "words.js");
+    await Deno.writeTextFile(words, `export const greeting = "damaged";\n`);
+    assert.equal((await findRelease({ store, realm, hosts: offers })).id, id);
+    assert.equal(await Deno.readTextFile(words), `export const greeting = "hello ";\n`);
+    // So is one whose note cannot be read, once a known host offers its ID.
+    await Deno.writeTextFile(join(release.folder, NOTE), "{");
+    assert.equal((await findRelease({ store, realm, hosts: offers })).id, id);
+    await checkRelease(store, id);
     // A host hands out only the releases it runs, and nothing beside them.
     assert.equal(await status(`${jane.base}endlessmind/release/${"0".repeat(64)}.json`), 404);
     assert.equal(await status(`${jane.base}endlessmind/release/${id}.json`), 200);
