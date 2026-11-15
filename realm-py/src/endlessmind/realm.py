@@ -475,7 +475,7 @@ class Realm:
         if not completed:
             return self._page("Nothing signed", "No records were signed. Go back to your screen.")
         portal = (self.data["players"].get(player) or {}).get("portal", self.portal)
-        # `back` lets the EntryPortal offer a way back to the game, for a player who claimed on this device.
+        # `back` lets the EntryPortal offer a way back to the page the claim came from, for a player who claimed on this device.
         return _redirect(portal + "#sign=" + _encode(to_json({"records": completed, "back": self.base + claim["back"]})))
 
     def _countersign(self, claim: dict, record: Any) -> dict | None:
@@ -570,14 +570,17 @@ class Realm:
 
     def _back_link(self, back: str) -> dict:
         """The button that leads a player who signed in on this device back to the page they came from:
-        the game, or the board of a host whose realm this is."""
-        text = "Back to the board" if back == "endlessmind/board" else f"Play {self.card['name']} here"
-        return {"href": self.base + back, "text": text}
+        the game, or the board of a host whose realm this is. `place` names that page on the page with the button."""
+        href = self.base + back
+        if back == "endlessmind/board":
+            return {"href": href, "text": "Back to the board", "place": f"{urlsplit(self.base).netloc} board"}
+        return {"href": href, "text": f"Play {self.card['name']} here", "place": self.card["name"]}
 
     def _page(self, title: str, message: str, status: int = 200, link: dict | None = None, headers: dict | None = None) -> Response:
-        """A small page for the browser that sent a form here."""
-        name = _escape(self.card["name"])
+        """A small page for the browser that sent a form here. `link` is a button to show, if any, and the
+        name of the page it leads to, which names this page too (the game's name if none)."""
         link = link or {"href": "", "text": ""}
+        name = _escape(link.get("place") or self.card["name"])
         button = (
             f'<p><a href="{_escape(link["href"])}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none;overflow-wrap:anywhere">{_escape(link["text"])}</a></p>'
             if link["href"]

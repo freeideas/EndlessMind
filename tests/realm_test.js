@@ -59,6 +59,9 @@ Deno.test("a phone that signs in is led back to the page that asked: the game, o
     const page = await answer.text();
     assert.ok(page.includes(`href="${href}"`), back);
     assert.match(page, text, back);
+    // A board sign-in names the board, not the game, as the page's title and below the button.
+    const place = back === "endlessmind/board" ? "garden.example board" : "Test Realm";
+    assert.ok(page.includes(`| ${place}</title>`) && page.includes(`<small>${place}</small>`), back);
   }
 });
 

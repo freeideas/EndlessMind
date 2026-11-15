@@ -92,6 +92,9 @@ def test_a_phone_is_led_back_to_the_page_that_asked():
         page = call(realm, f"join/{code['code']}", form={"enter": json.dumps(note(code["address"], clock.now))}).text()
         assert f'href="{href}"' in page, back
         assert text in page, back
+        # A board sign-in names the board, not the game, as the page's title and below the button.
+        place = "garden.example board" if back == "endlessmind/board" else "Test Realm"
+        assert f"| {place}</title>" in page and f"<small>{place}</small>" in page, back
 
 
 def test_sign_in_lets_in_the_waiting_screen_once():

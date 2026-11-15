@@ -473,7 +473,7 @@ export class Realm {
     for (const record of completed) this.options.onRecord?.(record);
     if (!completed.length) return this.#page("Nothing signed", "No records were signed. Go back to your screen.");
     const portal = this.data.players[claim.player]?.portal ?? this.portal;
-    // `back` lets the EntryPortal offer a way back to the game, for a player who claimed on this device.
+    // `back` lets the EntryPortal offer a way back to the page the claim came from, for a player who claimed on this device.
     return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: completed, back: this.base + claim.back })));
   }
 
@@ -578,22 +578,24 @@ export class Realm {
 
   /**
    * The button that leads a player who signed in on this device back to the page they came from: the
-   * game, or the board of a host whose realm this is.
+   * game, or the board of a host whose realm this is. `place` names that page on the page with the button.
    * @param {string} back
    */
   #backLink(back) {
-    const text = back === "endlessmind/board" ? "Back to the board" : `Play ${this.card.name} here`;
-    return { href: this.base + back, text };
+    const href = this.base + back;
+    if (back === "endlessmind/board") return { href, text: "Back to the board", place: `${new URL(this.base).host} board` };
+    return { href, text: `Play ${this.card.name} here`, place: this.card.name };
   }
 
   /**
    * A small page for the browser that sent a form here.
    * @param {string} title @param {string} message @param {number} [status]
-   * @param {{ href: string, text: string }} [link] a button to show, if any
+   * @param {{ href: string, text: string, place?: string }} [link] a button to show, if any, and the name
+   *   of the page it leads to, which names this page too (the game's name if none)
    * @param {Record<string, string>} [headers]
    */
   #page(title, message, status = 200, link = { href: "", text: "" }, headers = {}) {
-    const name = escapeHtml(this.card.name);
+    const name = escapeHtml(link.place || this.card.name);
     const button = link.href
       ? `<p><a href="${escapeHtml(link.href)}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none;overflow-wrap:anywhere">${escapeHtml(link.text)}</a></p>`
       : "";

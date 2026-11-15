@@ -348,8 +348,35 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     phone.locator("#sign-ok").click()
     expect(phone.locator("#message-title")).to_have_text("Records kept")
     expect(game).to_contain_text("1 wish.")
+    expect(pc.get_by_role("button", name="Get my records back")).to_have_count(0)
     phone.context.close()
     pc.context.close()
+
+
+def board_on_phone(browser, watch, portal: str, host: str, shot=no_shot) -> None:
+    """A narrow phone alone signs in on the host's board and wishes: each page names the board, not a game."""
+    site = host.split("/")[2]
+    phone = watch(browser.new_context(viewport={"width": 360, "height": 780}, device_scale_factor=2, is_mobile=True, has_touch=True).new_page())
+    set_up_new_phrase(phone, portal)
+    phone.goto(host + "endlessmind/board")
+    phone.get_by_role("button", name="Sign in", exact=True).click()
+    phone.locator("#enter-ok").click()
+    expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+    expect(phone).to_have_title(f"You're in | {site} board")
+    expect(phone.locator("small")).to_have_text(f"{site} board")
+    shot(phone, "6-phone-board-signed-in")
+    phone.get_by_role("link", name="Back to the board").click()
+    game = phone.locator("#games li").filter(has_text="Endless Maze")
+    game.get_by_role("button", name="Wish for this game").click()
+    expect(phone.locator("#sign-records")).to_contain_text("I want to play Endless Maze (realm ")
+    phone.locator("#sign-ok").click()
+    expect(phone.locator("#message-title")).to_have_text("Records kept")
+    expect(phone.locator("#message-text")).to_contain_text(f"You can close this page, or go back to {site}.")
+    shot(phone, "7-phone-board-wish-kept")
+    phone.get_by_role("link", name=f"Back to {site}").click()
+    expect(phone.locator(".em-name")).to_be_visible()  # a wish counts only from a player with play on record
+    expect(phone.get_by_role("button", name="Get my records back")).to_have_count(0)
+    phone.context.close()
 
 
 def main() -> None:
@@ -553,6 +580,7 @@ def main() -> None:
             relayed, relayed_maze, host_portal, host = start_relayed_maze(data)
             programs += relayed
             relayed_loop(browser, watch, relayed_maze, host_portal, host)
+            board_on_phone(browser, watch, host_portal, host, shot)
 
             browser.close()
             assert not errors, "errors in the browsers:\n" + "\n".join(errors)

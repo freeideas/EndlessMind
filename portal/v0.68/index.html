@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MOITwbLn+EjA87R20V1XYJK1vMOGA4VnU5CJtKzQOtc='; style-src 'sha256-JtZ1q202v0JiP3rIK6mgJFpi2gwqixWqCrdYF+HmmE4='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-c4KbatoMPYl2DY2kitk2dTDpa2lXpt8zhvX2X/LwGvE='; style-src 'sha256-JtZ1q202v0JiP3rIK6mgJFpi2gwqixWqCrdYF+HmmE4='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <title>EntryPortal | Endless Mind</title>
 <!--
-  Endless Mind EntryPortal, version 0.67. https://github.com/freeideas/EndlessMind
+  Endless Mind EntryPortal, version 0.68. https://github.com/freeideas/EndlessMind
   Served at https://portal.endlessmind.com/, a site that serves nothing else: any script on the same
   site could use the stored key, so nothing else may ever run there.
 
@@ -68,7 +68,7 @@ summary { cursor: pointer; font-weight: 600; }
 </head>
 <body>
 <main>
-<div class="brand">Endless Mind EntryPortal, version 0.67</div>
+<div class="brand">Endless Mind EntryPortal, version 0.68</div>
 <p class="warn" id="in-app" hidden>This page is open inside another app, whose browser may forget your identity. Open it in your usual browser instead: look in this app's menu for "Open in browser" or "Open in Safari".</p>
 
 <input type="file" id="picture-input" accept="image/*" hidden>
@@ -6690,23 +6690,29 @@ async function showSign(payload) {
   if (completed.length) await keep(completed);
 
   if (!items.length) {
+    // A way back to the page the records came from (a game, or a host's board), offered only for a
+    // site the player signed in to through this EntryPortal, so that no other page can make this page
+    // link somewhere.
+    /** @type {URL | null} */
+    let way = null;
+    try {
+      const address = new URL(checkAddress(String(payload?.back ?? "")));
+      const realms = (await load("realms")) ?? [];
+      if (realms.some((/** @type {any} */ r) => r.origin === address.origin)) way = address;
+    } catch {
+      // No way back offered.
+    }
     const done = completed.length === 1 ? "1 record is" : `${completed.length} records are`;
     message(
       completed.length ? "Records kept" : "Nothing to sign",
-      completed.length ? `${done} now complete and kept in this EntryPortal. You can close this page, or go back to the game.` : "There were no records here that you can sign or keep.",
+      completed.length
+        ? `${done} now complete and kept in this EntryPortal. You can close this page${way ? `, or go back to ${way.host}` : ""}.`
+        : "There were no records here that you can sign or keep.",
     );
-    // A way back to the game, offered only for a site the player signed in to through this EntryPortal,
-    // so that no other page can make this page link somewhere.
-    try {
-      const back = new URL(checkAddress(String(payload?.back ?? "")));
-      const realms = (await load("realms")) ?? [];
-      if (realms.some((/** @type {any} */ r) => r.origin === back.origin)) {
-        $("message-back").href = back.href;
-        $("message-back").textContent = "Back to " + back.host;
-        $("message-back").hidden = false;
-      }
-    } catch {
-      // No way back offered.
+    if (way) {
+      $("message-back").href = way.href;
+      $("message-back").textContent = "Back to " + way.host;
+      $("message-back").hidden = false;
     }
     return;
   }
