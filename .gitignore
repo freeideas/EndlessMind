@@ -11,3 +11,4 @@ __pycache__/
 .claude/worktrees/
 # deploy/package.py builds the packages here.
 dist/
+video/footage/
