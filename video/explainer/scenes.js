@@ -205,19 +205,20 @@ export default {
   // 1. I made a game. Now what?
   s01(s) {
     s.text('I made a game. *Now what?*', { x: s.cx, y: 150, size: 84, font: 'display', at: 0, enter: 'none' });
+    const hard = s.time('#hard');
     D(s, 0, (c) => {
-      maze(c, 150, 300, 720, 470, { t: s.t, colors: [C.maker, '#cfd6ff', '#cfd6ff'] });
-      fig(c, 1010, 880, 1.15, { color: C.maker, hat: 'cap', t: s.t, mood: s.t > s.time('#hard') ? 0 : 1, look: s.t > s.time('#hard') ? 1 : -1 });
+      maze(c, 110, 290, 860, 540, { t: s.t, colors: [C.maker, '#cfd6ff', '#cfd6ff'] });
+      fig(c, 1130, 900, 1.15, { color: C.maker, hat: 'cap', t: s.t, mood: s.t > hard ? 0 : 1, look: 1, up: s.t < hard - 0.3 });
     }, { enter: 'none' });
-    lab(s, 'Lantern Tag, on your computer', 510, 830, { at: '#here' });
-    lab(s, 'made with AI,\nin one evening', 1010, 300, { at: 'AI', size: 40 });
-    D(s, '#hard', (c) => fig(c, 1560, 880, 1, { color: C.blue, t: s.t, wave: true }));
-    s.text('Looks great.\nHow do I play it?', { x: 1500, y: 470, size: 44, bg: 'surface', border: 'ink', at: '#hard', enter: 'pop' });
+    s.text('A multi-player game,\nmade with AI,\nin one evening.', { x: 1540, y: 470, size: 50, bg: '#fbe2c6', border: 'ink', at: 0, out: hard - 0.35, outDur: 0.3, enter: 'none' });
+    lab(s, 'Lantern Tag, on your computer', 540, 885, { at: '#here' });
+    D(s, '#hard', (c) => fig(c, 1500, 900, 1, { color: C.blue, t: s.t, wave: true }));
+    s.text('Looks great.\nHow do I play it?', { x: 1560, y: 470, size: 48, bg: 'surface', border: 'ink', at: '#hard', enter: 'pop' });
     D(s, '#friends', (c) => {
-      fig(c, 1740, 880, 1, { color: C.pink, t: s.t + 1 });
-      arrowTo(c, 1130, 960, 1440, 960, 1, INK, 4, [14, 12]); arrowTo(c, 1440, 960, 1130, 960, 1, INK, 4, [14, 12]);
+      fig(c, 1720, 900, 1, { color: C.pink, t: s.t + 1 });
+      arrowTo(c, 1230, 800, 1400, 800, 1, INK, 4, [14, 12]); arrowTo(c, 1400, 800, 1230, 800, 1, INK, 4, [14, 12]);
     });
-    lab(s, 'somewhere else', 1650, 955, { at: '#friends' });
+    lab(s, 'somewhere else', 1610, 965, { at: '#friends' });
   },
 
   // 2. The name.
@@ -343,6 +344,7 @@ export default {
         fig(c, x, y, 0.8, { color: col, hat, t: s.t + i, look: x < 960 ? 1 : -1 });
       });
     });
+    s.text('Keeping players in step:\nnormally the hard part of a game.', { x: s.cx, y: 820, size: 50, at: 0.4, out: s.time('#e1') - 0.5, enter: 'fade' });
     s.box('game server', { x: 960, y: 430, w: 330, h: 150, size: 46, color: 'orange', at: 0.2 });
     const ev = [['started', 'play'], ['joined', 'user-plus'], ['left', 'user-minus'], ['message', 'message-square'], ['timer', 'timer']];
     ev.forEach(([n, icon], i) => s.box(n, { x: 400 + i * 280, y: 830, w: 250, h: 150, size: 40, icon, color: 'teal', at: `#e${i + 1}`, enter: 'pop' }));
@@ -437,11 +439,13 @@ export default {
     D(s, '#notyou', (c) => { arrowTo(c, 520, 500, 660, 500, s.p('#notyou', 0.4), INK, 6); if (s.p('#notyou', 0.4) >= 1) cross(c, 690, 500, 20); });
     s.icon('building-2', { x: 1640, y: 480, size: 150, color: 'purple', label: 'us', labelSize: 40, at: '#notus' });
     D(s, '#notus', (c) => { arrowTo(c, 1540, 500, 1280, 500, s.p('#notus', 0.4), INK, 6); if (s.p('#notus', 0.4) >= 1) cross(c, 1250, 500, 20); });
-    D(s, '#phone', (c) => {
+    D(s, 0.2, (c) => {
       const safe = s.p('#never', 0.5);
       if (safe > 0) { c.save(); c.globalAlpha *= safe; c.setLineDash([18, 14]); rr(c, 716, 196, 488, 778, 60, null, C.green, 7); c.restore(); }
       phone(c, 740, 220, 440, 730);
+      if (s.t < s.time('#phrase')) fig(c, 960, 640, 1.2, { color: C.player, hat: 'star', t: s.t });
     });
+    lab(s, "the player's identity", 960, 720, { at: 0.3, out: '#phrase', exit: 'none', size: 36 });
     s.text('secret phrase', { x: 960, y: 320, size: 50, font: 'display', at: '#phrase' });
     D(s, '#phrase', (c) => {
       for (let i = 0; i < 24; i++) {
@@ -536,9 +540,11 @@ export default {
     lab(s, 'Lantern Tag', 960, 440, { at: '#want', size: 46, bold: true });
     lab(s, 'new, no players yet', 960, 620, { at: '#want', size: 34, color: 'muted' });
     D(s, '#never', (c) => [[960, C.blue], [820, C.pink], [1100, C.yellow]].forEach(([x, col], i) => { if (s.t > s.time('#never') + i * 0.35) fig(c, x, 905, 0.95, { color: col, t: s.t + i, shrug: s.t > s.time('#nobody'), mood: s.t > s.time('#nobody') ? 0 : 1 }); }));
-    D(s, '#stars', (c) => { fake(c, 370); fake(c, 1550); });
-    s.icon('bot', { x: 600, y: 850, size: 100, color: 'gray', at: '#ai' });
-    lab(s, 'free to fake', 400, 850, { at: '#ai', size: 40 });
+    D(s, 0.2, (c) => { fake(c, 370); fake(c, 1550); });
+    lab(s, 'other games', 370, 835, { at: 0.2, out: '#stars', exit: 'none', color: 'muted' });
+    lab(s, 'easy to fake', 370, 835, { at: '#stars', out: '#ai', exit: 'none', size: 40 });
+    s.icon('bot', { x: 620, y: 860, size: 100, color: 'gray', at: '#ai' });
+    lab(s, 'free to fake', 370, 835, { at: '#ai', size: 40, color: 'accent' });
     D(s, '#nobody', (c) => { const p = s.p('#nobody', 0.5); seg(c, 150, 320, 150 + 440 * p, 320 + 440 * p, C.red, 12); seg(c, 1330, 320, 1330 + 440 * p, 320 + 440 * p, C.red, 12); });
     s.text('Nobody believes them.', { x: 1500, y: 870, size: 54, font: 'display', at: '#nobody' });
   },
@@ -553,13 +559,13 @@ export default {
     });
     lab(s, 'your game', 310, 575, { at: 0.2 });
     s.icon('trophy', { x: 390, y: 760, size: 120, color: 'yellow', at: '#does', enter: 'pop' });
-    D(s, '#offer', (c) => {
-      const p = s.p('#offer', 0.6, 'out');
+    D(s, '#records', (c) => {
+      const p = s.p('#records', 0.6, 'out');
       c.save(); c.translate(-420 * (1 - p), 0);
       card(c, 970, 440, 660, 400);
       c.restore();
     });
-    lab(s, 'RECORD', 720, 290, { at: '#offer', align: 'left', size: 32, color: 'muted' });
+    lab(s, 'RECORD', 720, 290, { at: s.time('#records') + 0.5, align: 'left', size: 32, color: 'muted' });
     s.text('Won a round of\nLantern Tag.', { x: 970, y: 400, size: 58, font: 'display', at: s.time('#offer') + 0.4 });
     lab(s, 'Sign this record?', 1620, 320, { at: '#words', size: 34, color: 'muted' });
     s.text('Won a round of\nLantern Tag.', { x: 1620, y: 455, size: 36, bold: true, at: '#words', enter: 'fade' });
@@ -597,11 +603,11 @@ export default {
       seg(c, 300, 930, 1200, 930, INK, 6);
     });
     lab(s, 'their records go where they go', 750, 980, { at: '#go' });
+    D(s, 0.2, (c) => { tile(c, 1560, 470, 420, 300); lanternBadge(c, 1560, 410, 50); });
     D(s, '#point', (c) => {
-      tile(c, 1560, 470, 420, 300); lanternBadge(c, 1560, 410, 50);
       arrowTo(c, 1150, 470, 1330, 470, s.p('#point', 0.5), C.maker, 8);
     });
-    lab(s, 'your game', 1560, 530, { at: '#point', size: 44, bold: true });
+    lab(s, 'your game', 1560, 530, { at: 0.2, size: 44, bold: true });
     lab(s, 'every record points back', 1560, 680, { at: '#point', size: 36, maxWidth: 420 });
   },
 
@@ -628,10 +634,11 @@ export default {
       if (p > 0) { arrowTo(c, 1110, 850, 1110 + 200 * p, 850 - 140 * p, 1, '#8f887b', 6, [14, 12]); if (p >= 1) cross(c, 1340, 690, 22); }
     });
     lab(s, 'a thousand invented players', 800, 985, { at: '#thousand', size: 36 });
-    lab(s, 'add nothing', 1150, 690, { at: s.time('#thousand') + 1.4, size: 40, color: 'accent' });
-    s.box('a game that is\nalready trusted', { x: 330, y: 440, w: 400, h: 200, size: 40, color: 'green', icon: 'shield-check', at: '#because' });
+    lab(s, 'add nothing', 1320, 865, { at: s.time('#thousand') + 1.4, size: 40, color: 'accent' });
+    s.box('a game that is\nalready trusted', { id: 'trusted', x: 330, y: 440, w: 400, h: 200, size: 40, color: 'green', icon: 'shield-check', at: 0.2 });
+    s.annotate('trusted', { type: 'box', color: 'green', padding: 14, at: '#because' });
     D(s, '#record', (c) => arrowTo(c, 545, 440, 545 + 185 * s.p('#record', 0.6), 440, 1, C.green, 8));
-    lab(s, 'has their play\non record', 640, 340, { at: '#record', size: 34, color: '#2f7a48', bold: true });
+    lab(s, 'has their play\non record', 690, 335, { at: '#record', size: 34, color: '#2f7a48', bold: true });
     s.icon('coins', { id: 'coins', x: 330, y: 760, size: 110, color: 'yellow', at: '#bought' });
     lab(s, 'cannot be bought', 330, 860, { at: '#bought', size: 36 });
     s.annotate('coins', { type: 'cross', color: 'red', at: s.time('#bought') + 0.3 });
@@ -674,7 +681,8 @@ export default {
   s17(s) {
     top(s, 'Anyone can run a host', '#host');
     hosts(s, '#others', 0);
-    lab(s, 'the same program, on a small rented server', 400, 985, { at: 'same', size: 34, maxWidth: 640 });
+    s.icon('server', { x: 1185, y: 500, size: 240, color: 'purple', at: '#host', out: '#board' });
+    s.text('the same program,\non a small rented server', { x: 1185, y: 720, size: 46, at: 'same', out: '#board', enter: 'fade' });
     board(s, '#board', 0);
   },
 
@@ -693,6 +701,7 @@ export default {
     top(s, 'Every game server is sealed', '#sealed');
     D(s, '#why', (c) => { fig(c, 230, 930, 1, { color: C.host, hat: 'glasses', t: s.t, mood: s.t > s.time('#sealed') ? 1 : 0, look: 1 }); server(c, 400, 860, 1); });
     s.text("Run a stranger's\ncode?", { x: 290, y: 640, size: 42, bg: 'surface', border: 'ink', at: '#why', out: '#talk', enter: 'pop' });
+    s.icon('file-code', { x: 960, y: 450, size: 220, color: 'orange', label: 'your code, on their server', labelSize: 44, at: 0.3, out: s.time('#sealed') - 0.3 });
     D(s, '#sealed', (c) => {
       rr(c, 660, 270, 600, 430, 30, 'rgba(160,205,225,0.28)', '#3c6fa8', 7);
       rr(c, 676, 286, 568, 398, 22, null, '#3c6fa899', 3);
@@ -818,7 +827,7 @@ function hosts(s, at, wishing) {
       if (!wishing && s.t < s.time('#others') + i * 0.3) return;
       fig(c, x, y, 0.8, { color: col, hat: 'glasses', t: s.t + i });
       server(c, x + 150, y - 62, 0.95, { color: col });
-      seg(c, x + 205, y - 62, 760, 560, '#8f887b', 3, [10, 10]);
+      if (wishing || s.t >= s.time('#board')) seg(c, x + 205, y - 62, 760, 560, '#8f887b', 3, [10, 10]);
       if (wishing) {
         const p = s.p(s.time('#load') + 0.5 + i * 0.9, 0.5, 'outBack');
         if (i < 2 && p > 0) lanternBadge(c, x + 300 - 60 * (1 - p), y - 62, 34 * p);
