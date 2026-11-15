@@ -299,11 +299,11 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     type_number(pc, phone)
     expect(pc.locator(".em-name")).to_have_text(name)
 
-    # The host's board lists the game with its play on record, and the player wishes for it.
+    # The host's board lists the game with its play on record and the player's public visit, and the player wishes for it.
     pc.goto(host + "endlessmind/board")
     game = pc.locator("#games li").filter(has_text="Endless Maze")
     expect(game).to_contain_text("No host runs this game yet.")
-    expect(game).to_contain_text("1 player has 1 public record here. 0 wishes.")
+    expect(game).to_contain_text("1 player has 1 public record here. 1 player came by in the last week. 0 wishes.")
     expect(game.locator("blockquote")).to_have_text("Relayed, and still mine.")
     sign_in_by_code(pc, phone, portal, host.split("/")[2])
     game.get_by_role("button", name="Wish for this game").click()

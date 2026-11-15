@@ -12,7 +12,7 @@ Keep this section current: at the end of each work session, replace these three 
 
 - Next step: Publish the download package (GitHub release, Homebrew, AUR, winget) per PLAN.md
 - Waiting on: Carl's decisions before publishing (PLAN.md step 3): keep `realm-py/` or drop it, and keep the host name `relay.endlessmind.com` or rename it (cheapest before publishing); then an AUR account for the Arch package and a rented Linux server for the first real `endlessmind setup`
-- Last action: 2026-10-26, game pages and relay connections reopen lines that died silently
+- Last action: 2026-11-15, the board counts only trusted play and keeps reputation by realm, releases without BitTorrent, public visits (counted on the board as recent visitors), relay controls, optional number from the phone at sign-in
 
 To do: create a YouTube channel to match. The domain endlessmind.com is already ours (Cloudflare, renews 2027-06-25). The handle @EndlessMind is taken ("endlessmind", channel UCQ4n877vlUDqvbwIOl2PnBQ; probably not ours, check). Free on 2026-11-03: @EndlessMindGames, @EndlessMindRealms, @PlayEndlessMind. Once the channel exists, the goal is a new video every day.
 

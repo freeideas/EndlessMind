@@ -417,6 +417,7 @@ A newer card from an ID replaces its older one, and a card at an address replace
     }],
     "players": 12,
     "records": 40,
+    "visitors": 7,
     "wishes": 3,
     "notes": [{ "player": "<player ID>", "text": "Harder than it looks.", "time": 1790000000000 }]
   }]
@@ -433,6 +434,7 @@ A newer card from an ID replaces its older one, and a card at an address replace
 | `relayed`  | Where that release is played through a relay, on a computer that is no host         |
 | `players`  | How many players who count have play on record with the realm, in every place       |
 | `records`  | How many records of play those players have with it                                 |
+| `visitors` | How many players who count have a newest visit, less than a week old, to it         |
 | `wishes`   | How many players who count have a newest wish, less than a week old, that names it  |
 | `notes`    | The three newest notes those players wrote on those records                         |
 
@@ -446,8 +448,9 @@ A host builds its board from its own host card and the cards it holds, and from 
 4. **The records.** A record in the list counts only if it is complete, its `public` is `true`, and its `signers` are that ID and one other, the player. A record that is not a wish is play. It counts toward the realm the place's realm card speaks for (its `realm`, or its signer), unless the record itself names another `realm`.
 5. **Who counts.** A player counts only if they have play on record at a place whose signer the host trusts. All play by a player who counts is added up, wherever it happened; anyone else's play, notes and wishes are left out. So a crowd of made-up players counts for nothing, however many places sign for it.
 6. **The wishes.** Counted as "Wishes" under "Finding realms" says, from every place, for players who count.
+7. **The visits.** A visit in a place's list counts as "Public list" under "Finding realms" says, checked against that place's realm card, and toward the realm that card speaks for. The host keeps each player's newest visit to each realm, from every place, and leaves out any dated more than ten minutes ahead of its clock, any by an ID the host treats as burned (the reference host asks the realm at its main address), and anything not a sign-in note. `visitors` counts the players who count whose newest visit is less than a week old. A visit is never play and never a record: it never makes a player count, never makes a wish count and never earns trust, so a crowd of made-up players that only signs in adds nothing.
 
-Games are ordered by `players`, then `records`, then `wishes`; a game with nothing counted is listed all the same. The reference host reads each place at most once in ten minutes, a realm card of at most 128 KB and a list of at most 2 MB, and waits five seconds for any one answer; it reads the lists of the games it runs itself where it keeps them.
+Games are ordered by `players`, then `records`, then `visitors`, then `wishes`; a game with nothing counted is listed all the same. The reference host reads each place at most once in ten minutes, a realm card of at most 128 KB and a list of at most 2 MB, and waits five seconds for any one answer; it reads the lists of the games it runs itself where it keeps them.
 
 **Wishing.** The board's page lets a signed-in player wish for a game it lists. It sends a `POST` to `endlessmind/wish` under the host's main address with the JSON body `{ "realm": "<realm ID>" }`, and with the player's session at the realm there: the resident game's, or the host's own. The realm then offers that player the wish, to claim as any record is claimed. The answer is `401` for a guest, `404` for a realm the board does not list, and `403` for a page at any other site.
 

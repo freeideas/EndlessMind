@@ -49,10 +49,10 @@ async function gameFolder(temp, name) {
 
 const newPlayer = async () => signerFromWords(await newWords());
 
-/** Sign in to the realm at an address, as a player's EntryPortal would, and return the session. @param {string} base @param {Signer} player */
-async function signIn(base, player) {
+/** Sign in to the realm at an address, as a player's EntryPortal would, and return the session. A visible sign-in is marked public: a visit. @param {string} base @param {Signer} player @param {boolean} [visible] */
+async function signIn(base, player, visible = false) {
   const code = await (await fetch(base + "endlessmind/start", { method: "POST" })).json();
-  const note = await addSignature({ v: 1, type: "enter", player: player.id, address: code.address, time: Date.now(), nonce: hex(crypto.getRandomValues(new Uint8Array(16))) }, player);
+  const note = await addSignature({ v: 1, type: "enter", player: player.id, address: code.address, time: Date.now(), nonce: hex(crypto.getRandomValues(new Uint8Array(16))), ...(visible ? { public: true } : {}) }, player);
   const told = await fetch(code.address, { method: "POST", body: new URLSearchParams({ enter: JSON.stringify(note) }) });
   assert.equal(told.status, 200, await told.text());
   const wait = await fetch(`${base}endlessmind/wait/${code.code}?token=${code.token}`);
@@ -95,10 +95,10 @@ async function claim(base, cookie, player, words) {
   return JSON.parse(decodeURIComponent(/** @type {string} */ (back.headers.get("location")).split("#sign=")[1])).records;
 }
 
-/** Play a game as a new player and claim the record it offers. @param {string} base @param {string} [words] */
-async function newcomer(base, words) {
+/** Play a game as a new player and claim the record it offers. @param {string} base @param {string} [words] @param {boolean} [visible] */
+async function newcomer(base, words, visible = false) {
   const player = await newPlayer();
-  const cookie = await signIn(base, player);
+  const cookie = await signIn(base, player, visible);
   await play(base, cookie);
   await claim(base, cookie, player, words);
   return { player, cookie };
@@ -152,11 +152,12 @@ Deno.test("a board adds up a realm's play across the hosts that run any release 
         releases: [{ release: id, time: jane.release?.note.time, hosts: [{ id: jane.hosts.id, address: jane.base, play: jane.base }, { id: other.hosts.id, address: other.base, play: there }], relayed: [] }],
         players: 1,
         records: 2,
+        visitors: 0,
         wishes: 0,
       });
       assert.deepEqual([note.player, note.text], [first.player.id, "Lovely."]);
       // A game no host runs gives no time for its release: only a host's card says it.
-      assert.deepEqual(cellar, { realm: home.realm.id, name: "Cellar", description: "Cellar, a game for tests.", releases: [{ release: home.release?.id, hosts: [], relayed: [home.base] }], players: 0, records: 0, wishes: 0, notes: [] });
+      assert.deepEqual(cellar, { realm: home.realm.id, name: "Cellar", description: "Cellar, a game for tests.", releases: [{ release: home.release?.id, hosts: [], relayed: [home.base] }], players: 0, records: 0, visitors: 0, wishes: 0, notes: [] });
       assert.equal(listed.length, 2);
       // The other host signed both players' play, so its board counts them both.
       const [same] = await games(other.base);
@@ -248,6 +249,58 @@ Deno.test("a wish is claimed like any record and shows on another host's board; 
       assert.deepEqual(await wishes(plain), { Garden: 0, Pond: 0 });
     } finally {
       await plain.stop();
+      await john.stop();
+      await jane.stop();
+    }
+  });
+});
+
+Deno.test("a board counts the public visits of players who count as visitors, a weaker number than play; a visit never makes a player count", async () => {
+  await withTemp(async (temp) => {
+    let clock = Date.now();
+    const jane = await hosting(temp, { game: await gameFolder(temp, "Garden"), now: () => clock });
+    const john = await hosting(temp, { game: await gameFolder(temp, "Pond"), hosts: [jane.base] });
+    const kim = await hosting(temp, { game: await gameFolder(temp, "Lake"), hosts: [jane.base] });
+    try {
+      const lake = /** @type {string} */ (kim.realm?.id);
+      const garden = /** @type {NonNullable<typeof jane.realm>} */ (jane.realm);
+      // A player with play at Jane's game, who signs in there in public, then comes to Pond in public
+      // without playing, and wishes for Lake.
+      const known = await newcomer(jane.base, undefined, true);
+      await signIn(john.base, known.player, true);
+      await wish(jane.base, known.cookie, known.player, lake);
+      // A second player with play at Jane's game, who comes to Lake without marking it public.
+      const quiet = await newcomer(jane.base);
+      await signIn(kim.base, quiet.player);
+      // A player who only ever comes in public, and wishes: neither makes them count.
+      const visitor = await newPlayer();
+      await signIn(john.base, visitor, true);
+      await wish(jane.base, await signIn(jane.base, visitor, true), visitor, lake);
+      // Visits that do not count: one made at another address, one whose proof does not check out, and junk.
+      const nonce = () => hex(crypto.getRandomValues(new Uint8Array(16)));
+      const elsewhere = await addSignature({ v: 1, type: "enter", player: quiet.player.id, address: "http://elsewhere.test/join/X", time: clock, nonce: nonce(), public: true }, quiet.player);
+      const unsure = await addSignature({ v: 1, type: "enter", player: quiet.player.id, address: jane.base + "join/X", time: clock, nonce: nonce() }, quiet.player);
+      Object.assign(garden.data.visits, { a: elsewhere, b: { ...unsure, public: true }, c: "junk", d: null });
+
+      /** @param {{ base: string }} host */
+      const counts = async (host) => (await games(host.base)).map((game) => [game.name, game.players, game.records, game.visitors, game.wishes]);
+      // Pond, with one visitor, comes before Lake, with one wish.
+      assert.deepEqual(await counts(jane), [["Garden", 2, 2, 1, 0], ["Pond", 0, 0, 1, 0], ["Lake", 0, 0, 0, 1]]);
+
+      // A burned player's visits count no more.
+      garden.data.burned[known.player.id] = {};
+      clock += 11 * MINUTE;
+      await jane.board.refresh();
+      assert.deepEqual((await counts(jane)).map((game) => game[3]), [0, 0, 0]);
+      delete garden.data.burned[known.player.id];
+      clock += MINUTE;
+      assert.deepEqual((await counts(jane)).map((game) => game[3]), [1, 1, 0]);
+      // After a week a visit counts no more.
+      clock += 7 * 24 * 60 * MINUTE;
+      await jane.board.refresh();
+      assert.deepEqual((await counts(jane)).map((game) => game[3]), [0, 0, 0]);
+    } finally {
+      await kim.stop();
       await john.stop();
       await jane.stop();
     }

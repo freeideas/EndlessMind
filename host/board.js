@@ -1,5 +1,6 @@
 // A host's board: the realms the known hosts run, each with its releases, the play on record for it
-// added up across every place that runs any of them, and the wishes players have made for it. Only players the host has reason
+// added up across every place that runs any of them, the wishes players have made for it, and, as a weaker
+// number, the players who came there lately (their public visits). Only players the host has reason
 // to believe count: those with play on record signed by an ID it trusts. It is built from the host
 // cards that finding holds (hosts.js) and from each game's realm card and public list. See "The board"
 // in specs/PROTOCOL.md.
@@ -11,14 +12,14 @@
 //   board.games()           the realms, most played first, as the board's data holds them
 
 import { isId } from "../shared/keys.js";
-import { isComplete, validNotes } from "../shared/signed.js";
+import { isComplete, validNotes, validSigners } from "../shared/signed.js";
 import { ask, capped, each } from "./hosts.js";
 import { isReleaseId } from "./release.js";
 
 const MINUTE = 60 * 1000;
 const EVERY = 10 * MINUTE; // a list on another computer is read no more often than this
-const WEEK = 7 * 24 * 60 * MINUTE; // how long a wish counts
-const AHEAD = 10 * MINUTE; // a wish may be dated this far ahead of this computer's clock
+const WEEK = 7 * 24 * 60 * MINUTE; // how long a wish or a visit counts
+const AHEAD = 10 * MINUTE; // a wish or a visit may be dated this far ahead of this computer's clock
 const ROUND_MS = 30 * 1000; // how long one round of reading may take
 const MAX_CARD = 128 * 1024; // the longest realm card read
 const MAX_LIST = 2 * 1024 * 1024; // the longest public list read
@@ -29,11 +30,13 @@ const PAGE = new URL("./board.html", import.meta.url);
  * @typedef {import("../realm/realm.js").Realm} Realm
  * @typedef {{ player: string, time: number, key: string, wish?: string, realm?: string, note?: string }} Counted
  * One record that counts: who the player is, and what marks it as one record. A wish names a realm.
- * @typedef {{ signer: string, realm: string, release: string | null, name: string, description: string, records: Counted[] }} Place
+ * @typedef {{ player: string, time: number }} Visit
+ * One visit that counts: a player's public sign-in note at one of the place's `play` addresses.
+ * @typedef {{ signer: string, realm: string, release: string | null, name: string, description: string, records: Counted[], visits: Visit[] }} Place
  * One address where a game is played: who signs there, what its realm card says, and its list.
  * @typedef {{ release: string, time?: number, hosts: { id: string, address: string, play: string }[], relayed: string[] }} Version
  * One release of a realm: when its note says it was made, as a host's card gives it, and where it is played.
- * @typedef {{ realm: string, name: string, description: string, releases: Version[], players: number, records: number, wishes: number, notes: { player: string, text: string, time: number }[] }} Game
+ * @typedef {{ realm: string, name: string, description: string, releases: Version[], players: number, records: number, visitors: number, wishes: number, notes: { player: string, text: string, time: number }[] }} Game
  * One realm, as the board's data holds it.
  * @typedef {ReturnType<typeof openBoard>} Board
  */
@@ -59,6 +62,8 @@ export function openBoard(options) {
   const read = new Map();
   /** Records already checked, so that a list kept here is checked once. @type {WeakMap<object, Counted | null>} */
   const checked = new WeakMap();
+  /** Sign-in notes already checked for their player's proof. @type {WeakMap<object, boolean>} */
+  const signed = new WeakMap();
   let reads = 0;
   /** @type {Promise<void> | null} */
   let reading = null;
@@ -128,6 +133,26 @@ export function openBoard(options) {
   }
 
   /**
+   * A visit that counts: a sign-in note marked public, signed by its player, made at one of the
+   * place's `play` addresses. Never play, never a record.
+   * @param {any} note @param {string[]} play @returns {Promise<Visit | null>}
+   */
+  async function visit(note, play) {
+    if (!note || typeof note !== "object") return null;
+    let good = signed.get(note);
+    if (good === undefined) {
+      try {
+        good = note.v === 1 && note.type === "enter" && isId(note.player) && note.public === true && typeof note.address === "string" &&
+          Number.isSafeInteger(note.time) && (await validSigners(note)).includes(note.player);
+      } catch {
+        good = false;
+      }
+      signed.set(note, good);
+    }
+    return good && play.some((address) => note.address.startsWith(address)) ? { player: note.player, time: note.time } : null;
+  }
+
+  /**
    * What one address holds, from its realm card and its public list, or null if the card is not signed
    * by an ID that may sign there or the list is not that signer's.
    * @param {any} card @param {any} list @param {Set<string>} ids @returns {Promise<Place | null>}
@@ -142,6 +167,13 @@ export function openBoard(options) {
       const one = await count(record, signer);
       if (one) records.push(one);
     }
+    const play = Array.isArray(card.play) ? card.play.filter((/** @type {unknown} */ address) => typeof address === "string" && /^https?:\/\/[^/]+\//.test(address)) : [];
+    /** @type {Visit[]} */
+    const visits = [];
+    for (const note of Array.isArray(list.visits) ? list.visits : []) {
+      const one = await visit(note, play);
+      if (one) visits.push(one);
+    }
     return {
       signer,
       realm: isId(card.realm) ? card.realm : signer,
@@ -149,6 +181,7 @@ export function openBoard(options) {
       name: String(card.name ?? "").slice(0, 80),
       description: String(card.description ?? "").slice(0, 500),
       records,
+      visits,
     };
   }
 
@@ -178,7 +211,10 @@ export function openBoard(options) {
   async function build() {
     const all = await cards();
     const local = here();
-    const stamp = [reads, Math.floor(now() / MINUTE), all.map((card) => card.time), [...local.values()].map((one) => one.list().records.length)].join("|");
+    const stamp = [reads, Math.floor(now() / MINUTE), all.map((card) => card.time), [...local.values()].map((one) => {
+      const list = one.list();
+      return [list.records.length, list.visits.reduce((sum, note) => sum + (Number(note?.time) || 0), 0)];
+    })].join("|");
     if (built?.stamp === stamp) return built;
 
     /** @type {Place[]} */
@@ -192,7 +228,7 @@ export function openBoard(options) {
     }
 
     /**
-     * @typedef {Game & { who: Set<string>, seen: Set<string>, named: number }} Sum a realm while it is added up
+     * @typedef {Game & { who: Set<string>, seen: Set<string>, came: Map<string, number>, named: number }} Sum a realm while it is added up
      * @type {Map<string, Sum>}
      */
     const games = new Map();
@@ -201,7 +237,7 @@ export function openBoard(options) {
       const before = games.get(realmId);
       if (before) return before;
       /** @type {Sum} */
-      const made = { realm: realmId, name: "", description: "", releases: [], players: 0, records: 0, wishes: 0, notes: [], who: new Set(), seen: new Set(), named: -Infinity };
+      const made = { realm: realmId, name: "", description: "", releases: [], players: 0, records: 0, visitors: 0, wishes: 0, notes: [], who: new Set(), seen: new Set(), came: new Map(), named: -Infinity };
       games.set(realmId, made);
       return made;
     };
@@ -256,18 +292,30 @@ export function openBoard(options) {
         one.who.add(record.player);
         if (record.note) one.notes.push({ player: record.player, text: record.note, time: record.time });
       }
+      // Each player's newest visit to the realm, from any place where it is played.
+      for (const seen of place.visits) {
+        if (one && seen.time <= now() + AHEAD && !((one.came.get(seen.player) ?? -Infinity) >= seen.time)) one.came.set(seen.player, seen.time);
+      }
     }
     for (const wish of newest.values()) {
       const one = games.get(/** @type {string} */ (wish.wish));
       if (one && known.has(wish.player) && wish.time > now() - WEEK) one.wishes++;
     }
+    // Visitors: players who count, not burned, whose newest visit is less than a week old.
+    for (const one of games.values()) {
+      for (const [player, time] of one.came) {
+        if (known.has(player) && time > now() - WEEK && !(await realm.isBurned(player))) one.visitors++;
+      }
+    }
 
-    const ranked = [...games.values()].map(({ who, seen, named: _, notes, ...one }) => ({
+    const ranked = [...games.values()].map(({ who, seen, came: _came, named: _, notes, ...one }) => ({
       ...one,
       players: who.size,
       records: seen.size,
       notes: notes.sort((a, b) => b.time - a.time).slice(0, NOTES),
-    })).sort((a, b) => b.players - a.players || b.records - a.records || b.wishes - a.wishes || (a.name + a.realm < b.name + b.realm ? -1 : 1));
+    })).sort((a, b) =>
+      b.players - a.players || b.records - a.records || b.visitors - a.visitors || b.wishes - a.wishes || (a.name + a.realm < b.name + b.realm ? -1 : 1)
+    );
     return (built = { stamp, games: ranked });
   }
 
