@@ -15,8 +15,8 @@ A script for one video of about five minutes. It says every word to be spoken an
 | Problem, in the maker's words                               | Fix                                        | Scenes |
 | ----------------------------------------------------------- | ------------------------------------------ | ------ |
 | "I made a game. How does anyone else play it?"              | A link that works anywhere, with no server | 3-7    |
-| "Players want to be someone, and nobody wants an account."  | Scan a code, tap once                      | 8-11   |
-| "AI makes a million games and fake fans. Who finds mine?"   | Records of real play                       | 12-15  |
+| "Players want to keep their progress and who they are."     | One identity for every game: scan and tap  | 8-11   |
+| "I want my game to earn a real reputation."                 | Records of real play                       | 12-15  |
 | "My game stops when my computer does."                      | Hosts pick up the games people wish for    | 16-20  |
 | "A platform could switch my game off."                      | No center                                  | 21-22  |
 
@@ -61,16 +61,16 @@ A script for one video of about five minutes. It says every word to be spoken an
 - Show: the game server in the middle of the four players. Five small labels arrive: started, joined, left, message, timer. Messages go back out, and the lanterns stay in step.
 - Say: "Keeping several players in step is normally the hard part of a game. Here your agent only has to answer five things: the game started, a player joined, a player left, a message came in, a timer went off. That is enough for tag, for chess, for a whole world."
 
-### Problem 2: "Players want to be someone, and nobody wants another account."
+### Problem 2: "Players want to keep their progress and who they are, in every game."
 
 **8. The problem (1:24, 15 s)**
 
-- Show: a player's lantern labeled "Guest" loses its progress when the page closes. Then a sign-up form: email, password, confirm password, "forgot your password?". Text: the problem line.
-- Say: "Second problem. People who like your game want to be someone in it: keep their progress, have a name. Normally you would build sign-up, passwords and password resets, and every player would make one more account to forget."
+- Show: a player with a level, a trophy and a name they chose. They step into a second game and all of it is stripped away at the door: level 1, "Guest". Behind them, a sign-up form: email, password, "forgot your password?". Text: the problem line.
+- Say: "Second problem. Players want to keep what they earn and what makes them unique: their progress, their name, their style. And they want it in every game, not locked inside one. Normally each game builds its own sign-up and passwords, and everything a player earned stays behind."
 
 **9. Scan and tap (1:39, 13 s)**
 
-- Show: the sign-up form is replaced by a square code on the game screen. A phone scans it, names the site, one tap. "Guest" becomes "Witty Clover". Text: "Scan. Tap. In."
+- Show: the sign-up form is replaced by a square code on the game screen. A phone scans it, names the site, one tap. "Guest" becomes "Witty Clover", with their progress beside the name. Text: "Scan. Tap. In."
 - Say: "Here, your game shows a code. The player scans it with their phone and taps once. They are in. The first time, the phone sets them up in about a minute. You built nothing."
 
 **10. Why nobody can take it away (1:52, 18 s)**
@@ -80,30 +80,30 @@ A script for one video of about five minutes. It says every word to be spoken an
 
 **11. One identity, every game (2:10, 17 s)**
 
-- Show: "Witty Clover" walks from Lantern Tag into three other, different games and is greeted by name in each. Then a lost phone, a screenshot, and a new phone with the same name on it.
-- Say: "The same identity works in every game on the network, so a new player arrives in your game with a name and a history, not as a stranger. Lose the phone, and a screenshot of the phrase brings it all back. If it is stolen, burn it and start again."
+- Show: on the phone, the player changes the name "Witty Clover" to "Rockstar 812". Rockstar 812 walks from Lantern Tag into three other, different games and is greeted by that name in each, trophies still in hand. Then a lost phone, a screenshot, and a new phone with the same name on it.
+- Say: "The same identity works in every game on the network. The name is theirs to choose: Witty Clover can become Rockstar 812, everywhere at once. So a player arrives in your game with a name and a history, not as a stranger. And if the phone is lost, a screenshot of the phrase brings it all back."
 
-### Problem 3: "AI makes a million games and a million fake fans. Who finds mine?"
+### Problem 3: "I want my game to earn a real reputation, so people want to play it."
 
-**12. The problem (2:27, 13 s)**
+**12. The problem (2:27, 14 s)**
 
-- Show: a shelf of games multiplies until it fills the screen. Under each, rows of identical five-star reviews from identical gray faces. Lantern Tag is lost among them. Text: the problem line.
-- Say: "Third problem. AI can make a million games, and a million fake players to praise them. So how does a good game get found? And how does a player show that they are real?"
+- Show: Lantern Tag, new, with no stars and no players beside it. Around it, other games with rows of identical five-star reviews from identical gray faces. A passer-by looks at the stars and shrugs. Text: the problem line.
+- Say: "Third problem. You want your game to earn a real reputation, so that people who have never heard of it want to play. But stars and reviews are easy to fake, and AI makes faking them free. So nobody believes them."
 
 **13. Records of real play (2:40, 18 s)**
 
 - Show: a game offers a card: "Finished the Glass Maze in 4 minutes 12 seconds." The phone shows the same words. The player approves, and two marks appear: the player's and the game's. Another game checks the card and lights up; a copy with one word changed goes dark. Text: "Proof of play."
-- Say: "With records. When a player does something worth remembering, the game offers them a record. Their phone shows the exact words, and if they agree, both sign it. Anyone can check it. Nobody can fake it, or change a word."
+- Say: "Here, a reputation is made of records. When a player does something worth remembering, your game offers them a record. Their phone shows the exact words, and if they agree, both sign it. Anyone can check it. Nobody can fake it, or change a word."
 
-**14. A reputation that is yours (2:58, 11 s)**
+**14. Reviews that mean something (2:58, 11 s)**
 
-- Show: the player's shelf of records from many games. They keep most and drop one.
-- Say: "Players keep the records they like, so a reputation only grows. It is what you really did, in every game you played, and it goes where you go."
+- Show: the player's shelf of records from many games. On one, they type a few words: "Harder than it looks." The words attach to the record.
+- Say: "A player can add words of their own: a review that sits on proof that they really played. Their records go where they go, and every one of them points back at your game."
 
-**15. Fake crowds count for nothing (3:09, 19 s)**
+**15. A reputation nobody can buy (3:09, 19 s)**
 
-- Show: the star reviews and gray faces from scene 12 fade to zero. Light spreads from one trusted game, to the players who really played there, to the next game they spend time in. Lantern Tag rises on a list. Text: "No likes. No votes. Play."
-- Say: "Games are found the same way: by real play, not likes or votes. A thousand invented players count for nothing, because a player counts only when a game that is already trusted has their play on record. Trust spreads outward from real play."
+- Show: the star reviews and gray faces from scene 12 fade to zero. Light spreads from one trusted game, to the players who really played there, to Lantern Tag when they spend time in it. Lantern Tag rises on a list. Text: "No likes. No votes. Play."
+- Say: "That is your game's reputation: real play, by real players, not likes or votes. A thousand invented players add nothing to it, because a player counts only when a game that is already trusted has their play on record. It cannot be bought, so people believe it."
 
 ### Problem 4: "My game stops when my computer does."
 
