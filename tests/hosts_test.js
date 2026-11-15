@@ -126,7 +126,7 @@ Deno.test("a card is kept only if its address answers with a card by the same ID
         assert.equal(await send(here.base, await signed({ address })), 400, address);
       }
       // Far too long, or not JSON at all.
-      assert.equal(await send(here.base, await signed({ runs: Array.from({ length: 300 }, () => ({ realm: stranger.id, release: "0".repeat(40), time: 1, name: "x".repeat(80), play: "https://host.example/" })) })), 400);
+      assert.equal(await send(here.base, await signed({ runs: Array.from({ length: 300 }, () => ({ realm: stranger.id, release: "0".repeat(64), time: 1, name: "x".repeat(80), play: "https://host.example/" })) })), 400);
       assert.equal(await send(here.base, "x".repeat(100000)), 400);
       assert.deepEqual(knows(here), []);
 

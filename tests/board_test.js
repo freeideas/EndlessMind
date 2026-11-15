@@ -217,7 +217,7 @@ Deno.test("a wish is claimed like any record and shows on another host's board; 
       const strangerCookie = await signIn(plain.base, stranger);
       assert.equal(await ask(plain.base, garden), 401, "a guest cannot wish");
       const cookie = await signIn(plain.base, player);
-      assert.equal(await ask(plain.base, "0".repeat(40), { cookie }), 404, "only a game on the board can be wished for");
+      assert.equal(await ask(plain.base, "a".repeat(52), { cookie }), 404, "only a game on the board can be wished for");
       assert.equal(await ask(plain.base, garden, { cookie, origin: jane.base.slice(0, -1) }), 403, "only the board's own page may ask");
       const [record] = await wish(plain.base, cookie, player, garden);
       assert.deepEqual([record.signers, record.text, record.data, record.public], [[plain.hosts.id, player.id], `I want to play Garden (realm ${garden}).`, { wish: garden }, true]);

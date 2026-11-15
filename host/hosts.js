@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { isId, signerFromWords } from "../shared/keys.js";
 import { addSignature, canonical, isComplete } from "../shared/signed.js";
 import { secretWords } from "../realm/realm.js";
+import { isReleaseId } from "./release.js";
 
 /**
  * Where a host program starts looking unless it is told otherwise. Each package carries more: when it
@@ -38,7 +39,6 @@ const MAX_REALM_CARD = 128 * 1024; // the longest realm card read from a relayed
 const WAIT_MS = 5000; // how long one host is waited for
 const ROUND_MS = 30 * 1000; // how long one round of reading lists may take
 const AT_ONCE = 20; // how many hosts are asked at once, and how many sent cards are checked at once
-const RELEASE = /^[0-9a-f]{40}$/;
 const NAME = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*$/;
 const PRIVATE = /\.(local|localdomain|internal|lan|home|arpa)$/;
 
@@ -167,7 +167,7 @@ export async function openHosts(options) {
         Number.isSafeInteger(card.time) && card.time <= now() + AHEAD && card.time > now() - DAY &&
         typeof card.address === "string" && hostAddress(card.address, local) === card.address &&
         (card.relay === undefined || card.relay === true) && (card.portal === undefined || typeof card.portal === "string") &&
-        Array.isArray(card.runs) && card.runs.every((/** @type {any} */ run) => isId(run?.realm) && RELEASE.test(run.release) && Number.isSafeInteger(run.time) && typeof run.name === "string" && typeof run.play === "string") &&
+        Array.isArray(card.runs) && card.runs.every((/** @type {any} */ run) => isId(run?.realm) && isReleaseId(run.release) && Number.isSafeInteger(run.time) && typeof run.name === "string" && typeof run.play === "string") &&
         (card.relays === undefined || (Array.isArray(card.relays) && card.relays.every((/** @type {any} */ game) => isId(game?.id) && typeof game.play === "string"))) &&
         canonical(body).length <= MAX_CARD && (await isComplete(card));
     } catch {
@@ -400,7 +400,7 @@ export async function openHosts(options) {
       await each(games, async (play) => {
         if (!play) return;
         const realmCard = await ask(play + "endlessmind-card.json", MAX_REALM_CARD).catch(() => null);
-        if (typeof realmCard?.release === "string" && RELEASE.test(realmCard.release)) add(realmCard.release, null, play);
+        if (isReleaseId(realmCard?.release)) add(realmCard.release, null, play);
       });
       return found;
     },

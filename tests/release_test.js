@@ -8,7 +8,7 @@ import { openHosts } from "../host/hosts.js";
 import { relayedBase } from "../host/relay.js";
 import { checkRelease, fetchRelease, findRelease, NOTE, pack } from "../host/release.js";
 import { hex, newWords, signerFromWords } from "../shared/keys.js";
-import { addSignature, isComplete } from "../shared/signed.js";
+import { addSignature, isComplete, signedBytes } from "../shared/signed.js";
 
 let nextPort = 20100 + Math.floor(Math.random() * 400);
 
@@ -55,7 +55,7 @@ Deno.test("packing a game gives a release whose ID covers every file, signed by 
     const folder = await gameFolder(temp);
     const store = join(temp, "store");
     const release = await pack({ folder, store });
-    assert.match(release.id, /^[0-9a-f]{40}$/);
+    assert.match(release.id, /^[0-9a-f]{64}$/);
     assert.deepEqual(release.note.card, { name: "Packed", description: "A game for tests.", tags: ["test"] });
     assert.equal(release.note.signers[0], release.realm);
     assert(await isComplete(release.note));
@@ -72,10 +72,12 @@ Deno.test("packing a game gives a release whose ID covers every file, signed by 
     assert.notEqual(second.id, release.id);
     assert.equal(second.realm, release.realm);
 
-    // The ID is the torrent's ID: SHA-1 of the "info" part of the torrent file, as any torrent program computes it.
-    const torrent = await Deno.readFile(join(store, "releases", release.id, "release.torrent"));
-    assert.equal(new TextDecoder("latin1").decode(torrent.subarray(0, 8)), "d4:infod");
-    assert.equal(hex(new Uint8Array(await crypto.subtle.digest("SHA-1", torrent.subarray(7, torrent.length - 1)))), release.id);
+    // The ID is the SHA-256 of the note's signed bytes, and the note's `content` is the SHA-256 of the
+    // list of every other file, which is handed to other hosts as it is.
+    assert.equal(hex(new Uint8Array(await crypto.subtle.digest("SHA-256", signedBytes(release.note)))), release.id);
+    const list = await Deno.readFile(join(store, "releases", release.id, "files.json"));
+    assert.equal(hex(new Uint8Array(await crypto.subtle.digest("SHA-256", list))), release.note.content);
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(list)).map((/** @type {any[]} */ row) => row[0]), ["art/big.bin", "card.json", "game.js", "index.html", "words.js"]);
   } finally {
     await Deno.remove(temp, { recursive: true });
   }
@@ -112,7 +114,7 @@ Deno.test("a release that was changed, added to, or signed by someone else is re
     const stranger = await signerFromWords(await newWords());
     const forged = await addSignature({ ...JSON.parse(note), sigs: undefined }, stranger);
     await refused("a forged note", () => Deno.writeTextFile(join(files, NOTE), JSON.stringify(forged)), () => Deno.writeTextFile(join(files, NOTE), note));
-    await assert.rejects(() => checkRelease(store, "0".repeat(40)));
+    await assert.rejects(() => checkRelease(store, "0".repeat(64)));
     await assert.rejects(() => checkRelease(store, "../../etc"));
   } finally {
     await Deno.remove(temp, { recursive: true });
@@ -216,9 +218,10 @@ Deno.test("what a host sends is believed only as far as it matches the ID", asyn
     const release = await fetchRelease({ store, id, from: [`http://localhost:${liar}/`, jane.base] });
     assert.equal(release.id, id);
     // A host hands out only the releases it runs, and nothing beside them.
-    assert.equal(await status(`${jane.base}endlessmind/release/${"0".repeat(40)}.torrent`), 404);
+    assert.equal(await status(`${jane.base}endlessmind/release/${"0".repeat(64)}.json`), 404);
+    assert.equal(await status(`${jane.base}endlessmind/release/${id}.json`), 200);
     assert.equal(await status(`${jane.base}endlessmind/release/${id}/.secret-notes.txt`), 404);
-    assert.equal(await status(`${jane.base}endlessmind/release/${id}/..%2Frelease.torrent`), 404);
+    assert.equal(await status(`${jane.base}endlessmind/release/${id}/..%2Ffiles.json`), 404);
   } finally {
     await lying.shutdown();
     await jane.stop();
