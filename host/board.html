@@ -19,7 +19,7 @@ button.wish { font: inherit; cursor: pointer; padding: .35rem .9rem; border-radi
 </head>
 <body>
 <h1>Games</h1>
-<p class="small">The games this host knows of, those with the most players on record first. A wish asks hosts to run a game: sign in, then wish. Your newest wish counts, for a week.</p>
+<p class="small">The games this host knows of, those with the most players on record first. Only players with play this host trusts are counted. A wish asks hosts to run a game: sign in, then wish. Your newest wish counts, for a week.</p>
 <div id="signin"></div>
 <p id="said" role="status"></p>
 <ol id="games"></ol>
@@ -44,9 +44,12 @@ const link = (address, text) => (/^https?:\/\//.test(address) ? el("a", { href: 
 async function draw() {
   const board = await (await fetch("./board.json", { cache: "no-store" })).json();
   list.replaceChildren(...board.games.map((game) => {
-    const places = game.hosts.flatMap((host) => [link(host.play, new URL(host.address).host), ", "]).slice(0, -1);
-    const home = game.relayed.flatMap((play) => [link(play, "its maker's computer"), ", "]).slice(0, -1);
-    const where = game.hosts.length
+    // Every release of the game is the same game: show each place it is played.
+    const hosts = game.releases.flatMap((release) => release.hosts);
+    const relayed = game.releases.flatMap((release) => release.relayed);
+    const places = hosts.flatMap((host) => [link(host.play, new URL(host.address).host), ", "]).slice(0, -1);
+    const home = relayed.flatMap((play) => [link(play, "its maker's computer"), ", "]).slice(0, -1);
+    const where = hosts.length
       ? el("p", {}, ["Play at ", ...places, ...(home.length ? [", or on ", ...home] : []), "."])
       : el("p", {}, ["No host runs this game yet. Play it on ", ...home, " while that computer is on."]);
     const play = game.players
@@ -70,7 +73,7 @@ async function wish(game) {
     document.querySelector("#signin").scrollIntoView();
     return;
   }
-  const answer = await fetch("./wish", { method: "POST", body: JSON.stringify({ release: game.release }) });
+  const answer = await fetch("./wish", { method: "POST", body: JSON.stringify({ realm: game.realm }) });
   if (!answer.ok) {
     said.textContent = (await answer.json()).error;
     return;

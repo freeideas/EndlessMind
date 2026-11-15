@@ -104,34 +104,36 @@ async function newcomer(base, words) {
   return { player, cookie };
 }
 
-/** Ask a host's board for a wish, and return the status of its answer. @param {string} base @param {string} release @param {Record<string, string>} [headers] */
-async function ask(base, release, headers = {}) {
-  const answer = await fetch(base + "endlessmind/wish", { method: "POST", headers, body: JSON.stringify({ release }) });
+/** Ask a host's board for a wish, and return the status of its answer. @param {string} base @param {string} realm @param {Record<string, string>} [headers] */
+async function ask(base, realm, headers = {}) {
+  const answer = await fetch(base + "endlessmind/wish", { method: "POST", headers, body: JSON.stringify({ realm }) });
   await answer.body?.cancel();
   return answer.status;
 }
 
-/** Wish for a release on a host's board, and claim the wish. @param {string} base @param {string} cookie @param {Signer} player @param {string} release */
-async function wish(base, cookie, player, release) {
-  assert.equal(await ask(base, release, { cookie }), 200);
+/** Wish for a realm on a host's board, and claim the wish. @param {string} base @param {string} cookie @param {Signer} player @param {string} realm */
+async function wish(base, cookie, player, realm) {
+  assert.equal(await ask(base, realm, { cookie }), 200);
   return claim(base, cookie, player);
 }
 
 /** A host's board, as any web page reads it. @param {string} base @returns {Promise<any[]>} */
 const games = async (base) => (await (await fetch(base + "endlessmind/board.json")).json()).games;
 
-Deno.test("a board adds up the play on record across the hosts that run a release, and lists a game no host runs", async () => {
+Deno.test("a board adds up a realm's play across the hosts that run any release of it, counting only players with play the host trusts, and a host follows a realm to its newest release", async () => {
   await withTemp(async (temp) => {
-    const jane = await hosting(temp, { game: await gameFolder(temp, "Garden") });
+    const folder = await gameFolder(temp, "Garden");
+    let jane = await hosting(temp, { game: folder });
     const id = /** @type {string} */ (jane.release?.id);
     const realm = /** @type {string} */ (jane.realm?.id);
-    const other = await hosting(temp, { load: [id], hosts: [jane.base] });
+    const other = await hosting(temp, { load: [realm], hosts: [jane.base] });
     // A game on its maker's computer, reached through Jane's relay: no host runs it.
     const home = await runGame({ folder: await gameFolder(temp, "Cellar"), relay: true, hosts: await openHosts({ store: join(temp, "home"), start: [jane.base] }), store: join(temp, "home"), port: nextPort++, log() {} });
     try {
       const there = other.hosted()[0].base;
       const first = await newcomer(jane.base, "Lovely.");
-      // The same player plays on the other host too, and so does a second one.
+      // The same player plays on the other host too, and so does a second one, who never plays where
+      // Jane's host trusts the signer: her board leaves that player out.
       const again = await signIn(there, first.player);
       await play(there, again);
       await claim(there, again, first.player);
@@ -145,22 +147,40 @@ Deno.test("a board adds up the play on record across the hosts that run a releas
       const [{ notes: [note], ...garden }, cellar] = listed;
       assert.deepEqual(garden, {
         realm,
-        release: id,
         name: "Garden",
         description: "Garden, a game for tests.",
-        hosts: [{ id: jane.hosts.id, address: jane.base, play: jane.base }, { id: other.hosts.id, address: other.base, play: there }],
-        relayed: [],
-        players: 2,
-        records: 3,
+        releases: [{ release: id, time: jane.release?.note.time, hosts: [{ id: jane.hosts.id, address: jane.base, play: jane.base }, { id: other.hosts.id, address: other.base, play: there }], relayed: [] }],
+        players: 1,
+        records: 2,
         wishes: 0,
       });
       assert.deepEqual([note.player, note.text], [first.player.id, "Lovely."]);
-      assert.deepEqual(cellar, { realm: home.realm.id, release: home.release?.id, name: "Cellar", description: "Cellar, a game for tests.", hosts: [], relayed: [home.base], players: 0, records: 0, wishes: 0, notes: [] });
+      // A game no host runs gives no time for its release: only a host's card says it.
+      assert.deepEqual(cellar, { realm: home.realm.id, name: "Cellar", description: "Cellar, a game for tests.", releases: [{ release: home.release?.id, hosts: [], relayed: [home.base] }], players: 0, records: 0, wishes: 0, notes: [] });
       assert.equal(listed.length, 2);
-      // The other host's board says the same of the game both run.
+      // The other host signed both players' play, so its board counts them both.
       const [same] = await games(other.base);
-      assert.deepEqual([same.release, same.players, same.records, same.hosts.length], [id, 2, 3, 2]);
+      assert.deepEqual([same.realm, same.players, same.records, same.releases[0].hosts.length], [realm, 2, 3, 2]);
       assert(second.player.id !== first.player.id);
+
+      // Jane changes her game, and her host packs it again as it starts: a new release of the same realm.
+      await Deno.writeTextFile(join(folder, "index.html"), "<!doctype html><title>Garden</title><p>Now with a pond.");
+      await jane.stop();
+      jane = await hosting(temp, { port: jane.port, game: folder });
+      const newer = /** @type {string} */ (jane.release?.id);
+      assert.notEqual(newer, id);
+      // Still one entry for the realm, its releases newest first, and the play on the older one counts.
+      const [both] = await games(jane.base);
+      assert.deepEqual(both.releases.map((/** @type {any} */ one) => [one.release, one.hosts.map((/** @type {any} */ host) => host.id)]), [[newer, [jane.hosts.id]], [id, [other.hosts.id]]]);
+      assert.deepEqual([both.realm, both.players, both.records], [realm, 1, 2]);
+      // The other host follows the realm to its newest release, at the same name; its players' records stay.
+      await other.round();
+      assert.deepEqual(other.hosted().map((game) => [game.id, game.base]), [[newer, there]]);
+      assert.match(await (await fetch(there)).text(), /Now with a pond/);
+      assert.match(other.said.join("\n"), /Garden has a newer release/);
+      await assert.rejects(() => Deno.stat(join(temp, "host-" + other.port, "releases", id)), "the older release leaves the store");
+      const [followed] = await games(other.base);
+      assert.deepEqual([followed.releases.length, followed.players, followed.records], [1, 2, 3]);
 
       // The page itself, at the host's main address beside the resident game.
       const page = await fetch(jane.base + "endlessmind/board");
@@ -182,31 +202,37 @@ Deno.test("a wish is claimed like any record and shows on another host's board; 
     let clock = Date.now();
     const jane = await hosting(temp, { game: await gameFolder(temp, "Garden"), now: () => clock });
     const john = await hosting(temp, { game: await gameFolder(temp, "Pond"), hosts: [jane.base] });
-    // A host with no game of its own: players sign in to a realm it opens under its own ID.
-    const plain = await hosting(temp, { hosts: [jane.base], now: () => clock });
+    // A host with no game of its own: players sign in to a realm it opens under its own ID. It trusts
+    // the play signed by Jane's game.
+    const plain = await hosting(temp, { hosts: [jane.base], trust: [/** @type {string} */ (jane.realm?.id)], now: () => clock });
     try {
-      const [garden, pond] = [jane, john].map((host) => /** @type {string} */ (host.release?.id));
+      const [garden, pond] = [jane, john].map((host) => /** @type {string} */ (host.realm?.id));
       const card = await (await fetch(plain.base + "endlessmind-card.json")).json();
       assert.deepEqual([card.signers, card.name], [[plain.hosts.id], new URL(plain.base).host]);
       assert.match(await (await fetch(plain.base)).text(), /href="endlessmind\/board"/);
 
-      const player = await newPlayer();
+      // A player with play at Jane's game, and a stranger with none.
+      const { player } = await newcomer(jane.base);
+      const stranger = await newPlayer();
+      const strangerCookie = await signIn(plain.base, stranger);
       assert.equal(await ask(plain.base, garden), 401, "a guest cannot wish");
       const cookie = await signIn(plain.base, player);
-      assert.equal(await ask(plain.base, "0".repeat(40), { cookie }), 404, "only a game on the board can be wished for");
+      assert.equal(await ask(plain.base, "a".repeat(52), { cookie }), 404, "only a game on the board can be wished for");
       assert.equal(await ask(plain.base, garden, { cookie, origin: jane.base.slice(0, -1) }), 403, "only the board's own page may ask");
       const [record] = await wish(plain.base, cookie, player, garden);
-      assert.deepEqual([record.signers, record.text, record.data, record.public], [[plain.hosts.id, player.id], `I want to play Garden (release ${garden}).`, { wish: garden }, true]);
+      assert.deepEqual([record.signers, record.text, record.data, record.public], [[plain.hosts.id, player.id], `I want to play Garden (realm ${garden}).`, { wish: garden }, true]);
       assert(await isComplete(record));
       assert.deepEqual((await (await fetch(plain.base + "endlessmind-list.json")).json()).records, [record]);
+      await wish(plain.base, strangerCookie, stranger, garden);
 
       // The host where it was made shows it at once, and any other host once it reads that host's list.
+      // The stranger's wish counts for nothing: nobody trusted has signed play with them.
       /** @param {{ base: string }} host */
       const wishes = async (host) => Object.fromEntries((await games(host.base)).map((game) => [game.name, game.wishes]));
       assert.deepEqual(await wishes(plain), { Garden: 1, Pond: 0 });
       assert.deepEqual(await wishes(jane), { Garden: 1, Pond: 0 });
       // A wish is not play.
-      assert.deepEqual((await games(jane.base)).map((game) => game.players), [0, 0]);
+      assert.deepEqual((await games(jane.base)).map((game) => game.players), [1, 0]);
 
       // A newer wish takes the older one's place. Jane's host reads the list again after ten minutes.
       await new Promise((done) => setTimeout(done, 5));
@@ -232,7 +258,8 @@ Deno.test("a host loads the most wished-for game by itself and drops it for one 
   await withTemp(async (temp) => {
     const jane = await hosting(temp, { game: await gameFolder(temp, "Garden") });
     const john = await hosting(temp, { game: await gameFolder(temp, "Pond"), hosts: [jane.base] });
-    const [garden, pond] = [jane, john].map((host) => /** @type {string} */ (host.release?.id));
+    const [garden, pond] = [jane, john].map((host) => /** @type {string} */ (host.realm?.id));
+    const [gardenRelease, pondRelease] = [jane, john].map((host) => /** @type {string} */ (host.release?.id));
     const port = nextPort++;
     const mine = { port, game: await gameFolder(temp, "Lobby"), hosts: [jane.base] };
     let host = await hosting(temp, { ...mine, auto: 1 });
@@ -246,21 +273,18 @@ Deno.test("a host loads the most wished-for game by itself and drops it for one 
       }));
       for (const { player, cookie } of crowd) await wish(host.base, cookie, player, pond);
       await wish(host.base, known[0].cookie, known[0].player, garden);
-      const trust = [/** @type {string} */ (host.realm?.id)];
-      assert.deepEqual([...(await host.board.wishes(trust))], [[garden, 1]]);
-      assert.deepEqual([...(await host.board.wishes([/** @type {string} */ (jane.realm?.id)]))], [], "nobody here has play signed by Jane's game");
-      assert.deepEqual(Object.fromEntries((await host.board.games()).map((game) => [game.name, game.wishes])), { Lobby: 0, Garden: 1, Pond: 5 });
+      assert.deepEqual(Object.fromEntries((await host.board.games()).map((game) => [game.name, game.wishes])), { Lobby: 0, Garden: 1, Pond: 0 });
 
       // One wish that counts beats five that do not.
       await host.round();
       assert.deepEqual(host.loaded(), [garden]);
       const [running] = host.hosted();
-      assert.deepEqual([running.id, running.name], [garden, "Garden"]);
+      assert.deepEqual([running.id, running.realm, running.name], [gardenRelease, garden, "Garden"]);
       assert.match(await (await fetch(running.base)).text(), /Garden/);
-      assert.match(host.said.join("\n"), /Loaded Garden \(release [0-9a-f]{40}\) by itself: 1 wish from players with play this host trusts, and 1 other host runs it\./);
+      assert.match(host.said.join("\n"), /Loaded Garden \(realm [a-z2-7]{52}\) by itself: 1 wish from players this host counts, and 1 other host runs it\./);
       assert.deepEqual((await host.hosts.card())?.runs.map((run) => run.name), ["Lobby", "Garden"]);
       // The hosts it knows were told, so their boards say who runs the game now.
-      assert.deepEqual((await games(jane.base)).find((game) => game.release === garden).hosts.map((/** @type {any} */ one) => one.id), [jane.hosts.id, host.hosts.id]);
+      assert.deepEqual((await games(jane.base)).find((game) => game.realm === garden).releases[0].hosts.map((/** @type {any} */ one) => one.id), [jane.hosts.id, host.hosts.id]);
       // A player there leaves something behind.
       await newcomer(running.base);
       const kept = join(temp, "host-" + port, "games", running.realm, "realm-data.json");
@@ -275,8 +299,8 @@ Deno.test("a host loads the most wished-for game by itself and drops it for one 
       await host.round();
       assert.deepEqual(host.loaded(), [pond]);
       assert.deepEqual(host.hosted().map((game) => game.name), ["Pond"]);
-      assert.match(host.said.join("\n"), /Dropped Garden \(release [0-9a-f]{40}\): Pond has more wishes per host\./);
-      await assert.rejects(() => Deno.stat(join(temp, "host-" + port, "releases", garden)), "the dropped release leaves the store");
+      assert.match(host.said.join("\n"), /Dropped Garden \(realm [a-z2-7]{52}\): Pond has more wishes per host\./);
+      await assert.rejects(() => Deno.stat(join(temp, "host-" + port, "releases", gardenRelease)), "the dropped release leaves the store");
       assert.equal(JSON.parse(await Deno.readTextFile(kept)).public.length, 1, "what its players saved is kept");
       assert.equal(await fetch(running.base).then((answer) => (answer.body?.cancel(), answer.status)), 503, "no game is at that name now");
 
@@ -288,7 +312,7 @@ Deno.test("a host loads the most wished-for game by itself and drops it for one 
       host = await hosting(temp, mine);
       assert.deepEqual(host.loaded(), []);
       assert.deepEqual(host.hosted(), []);
-      await assert.rejects(() => Deno.stat(join(temp, "host-" + port, "releases", pond)));
+      await assert.rejects(() => Deno.stat(join(temp, "host-" + port, "releases", pondRelease)));
     } finally {
       await host.stop();
       await john.stop();
@@ -297,4 +321,5 @@ Deno.test("a host loads the most wished-for game by itself and drops it for one 
   });
   await assert.rejects(() => runHost({ base: "http://localhost:1/", trust: ["someone"] }), /not the ID/);
   await assert.rejects(() => runHost({ base: "http://localhost:1/", auto: -1 }), /whole number/);
+  await assert.rejects(() => runHost({ base: "http://localhost:1/", load: ["0".repeat(64)] }), /not the ID of a realm/);
 });

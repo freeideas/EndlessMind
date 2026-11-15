@@ -8,7 +8,7 @@ import { openHosts } from "../host/hosts.js";
 import { relayedBase } from "../host/relay.js";
 import { checkRelease, fetchRelease, findRelease, NOTE, pack } from "../host/release.js";
 import { hex, newWords, signerFromWords } from "../shared/keys.js";
-import { addSignature, isComplete } from "../shared/signed.js";
+import { addSignature, isComplete, signedBytes } from "../shared/signed.js";
 
 let nextPort = 20100 + Math.floor(Math.random() * 400);
 
@@ -55,7 +55,7 @@ Deno.test("packing a game gives a release whose ID covers every file, signed by 
     const folder = await gameFolder(temp);
     const store = join(temp, "store");
     const release = await pack({ folder, store });
-    assert.match(release.id, /^[0-9a-f]{40}$/);
+    assert.match(release.id, /^[0-9a-f]{64}$/);
     assert.deepEqual(release.note.card, { name: "Packed", description: "A game for tests.", tags: ["test"] });
     assert.equal(release.note.signers[0], release.realm);
     assert(await isComplete(release.note));
@@ -72,10 +72,12 @@ Deno.test("packing a game gives a release whose ID covers every file, signed by 
     assert.notEqual(second.id, release.id);
     assert.equal(second.realm, release.realm);
 
-    // The ID is the torrent's ID: SHA-1 of the "info" part of the torrent file, as any torrent program computes it.
-    const torrent = await Deno.readFile(join(store, "releases", release.id, "release.torrent"));
-    assert.equal(new TextDecoder("latin1").decode(torrent.subarray(0, 8)), "d4:infod");
-    assert.equal(hex(new Uint8Array(await crypto.subtle.digest("SHA-1", torrent.subarray(7, torrent.length - 1)))), release.id);
+    // The ID is the SHA-256 of the note's signed bytes, and the note's `content` is the SHA-256 of the
+    // list of every other file, which is handed to other hosts as it is.
+    assert.equal(hex(new Uint8Array(await crypto.subtle.digest("SHA-256", signedBytes(release.note)))), release.id);
+    const list = await Deno.readFile(join(store, "releases", release.id, "files.json"));
+    assert.equal(hex(new Uint8Array(await crypto.subtle.digest("SHA-256", list))), release.note.content);
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(list)).map((/** @type {any[]} */ row) => row[0]), ["art/big.bin", "card.json", "game.js", "index.html", "words.js"]);
   } finally {
     await Deno.remove(temp, { recursive: true });
   }
@@ -112,14 +114,14 @@ Deno.test("a release that was changed, added to, or signed by someone else is re
     const stranger = await signerFromWords(await newWords());
     const forged = await addSignature({ ...JSON.parse(note), sigs: undefined }, stranger);
     await refused("a forged note", () => Deno.writeTextFile(join(files, NOTE), JSON.stringify(forged)), () => Deno.writeTextFile(join(files, NOTE), note));
-    await assert.rejects(() => checkRelease(store, "0".repeat(40)));
+    await assert.rejects(() => checkRelease(store, "0".repeat(64)));
     await assert.rejects(() => checkRelease(store, "../../etc"));
   } finally {
     await Deno.remove(temp, { recursive: true });
   }
 });
 
-Deno.test("a host runs a game from its release's ID alone, fetched from whichever known host runs it", async () => {
+Deno.test("a host runs a game from its realm's ID alone, its newest release fetched from whichever known host runs it", async () => {
   const temp = await Deno.makeTempDir();
   const folder = await gameFolder(temp);
   const ports = [nextPort++, nextPort++, nextPort++];
@@ -127,11 +129,11 @@ Deno.test("a host runs a game from its release's ID alone, fetched from whicheve
   const jane = await runHost({ base: `http://localhost:${ports[0]}/`, port: ports[0], game: folder, store: join(temp, "jane"), log() {} });
   const id = /** @type {string} */ (jane.release?.id);
   const realm = /** @type {string} */ (jane.realm?.id);
-  // Someone else's server, given only the ID: it knows Jane's host, whose card says it runs that release.
-  const other = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [id], hosts: [jane.base], log() {} });
+  // Someone else's server, given only the realm's ID: it knows Jane's host, whose card says it runs a release of it.
+  const other = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [realm], hosts: [jane.base], log() {} });
   // And someone at home, who knows only the second server: it has the release, and it relays.
   const known = await openHosts({ store: join(temp, "home"), start: [other.base] });
-  const home = await runGame({ release: await findRelease({ store: join(temp, "home"), id, hosts: known }), secretFile: join(temp, "home", "host-secret.txt"), data: join(temp, "home", "data"), relay: true, hosts: known, store: join(temp, "home"), port: ports[2], log() {} });
+  const home = await runGame({ release: await findRelease({ store: join(temp, "home"), realm, hosts: known }), secretFile: join(temp, "home", "host-secret.txt"), data: join(temp, "home", "data"), relay: true, hosts: known, store: join(temp, "home"), port: ports[2], log() {} });
   try {
     assert.equal(jane.release?.realm, realm);
     const [hosted] = other.hosted();
@@ -162,7 +164,7 @@ Deno.test("a host runs a game from its release's ID alone, fetched from whicheve
     // (Sign-in itself is covered by the realm's own tests; here a session is put in place by hand.)
     await other.stop();
     await Deno.writeTextFile(join(temp, "other", "games", realm, "realm-data.json"), JSON.stringify({ ...there, sessions: { [session]: { player, created: Date.now() } } }));
-    const again = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [id], log() {} });
+    const again = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [realm], log() {} });
     try {
       // Told of no host this time, it still knows Jane's: the hosts it knows are kept in its store.
       assert.deepEqual(again.hosts.known().map((card) => card.address), [jane.base]);
@@ -211,14 +213,15 @@ Deno.test("what a host sends is believed only as far as it matches the ID", asyn
     const store = join(temp, "store");
     await assert.rejects(() => fetchRelease({ store, id, from: [`http://localhost:${liar}/`] }), /could not be fetched/);
     await assert.rejects(() => Deno.stat(join(store, "releases", id)), Deno.errors.NotFound, "nothing of a refused release is kept");
-    await assert.rejects(() => findRelease({ store, id, hosts: { sources: () => Promise.resolve([]) } }), /could not be fetched/);
+    await assert.rejects(() => findRelease({ store, realm: /** @type {string} */ (jane.realm?.id), hosts: { releases: () => Promise.resolve(new Map()) } }), /could not be fetched/);
     // The honest host after the liar gives the real thing.
     const release = await fetchRelease({ store, id, from: [`http://localhost:${liar}/`, jane.base] });
     assert.equal(release.id, id);
     // A host hands out only the releases it runs, and nothing beside them.
-    assert.equal(await status(`${jane.base}endlessmind/release/${"0".repeat(40)}.torrent`), 404);
+    assert.equal(await status(`${jane.base}endlessmind/release/${"0".repeat(64)}.json`), 404);
+    assert.equal(await status(`${jane.base}endlessmind/release/${id}.json`), 200);
     assert.equal(await status(`${jane.base}endlessmind/release/${id}/.secret-notes.txt`), 404);
-    assert.equal(await status(`${jane.base}endlessmind/release/${id}/..%2Frelease.torrent`), 404);
+    assert.equal(await status(`${jane.base}endlessmind/release/${id}/..%2Ffiles.json`), 404);
   } finally {
     await lying.shutdown();
     await jane.stop();

@@ -59,7 +59,7 @@ The display imports two files the host serves: `./endlessmind/play.js` for its l
 
 ## Releases
 
-A release is one exact version of a game that anyone can host. Its ID is all another host needs.
+A release is one exact version of a game that anyone can host. Its realm's ID is all another host needs: given that, it runs the newest release.
 
 ```
 deno task pack <folder>
@@ -67,13 +67,13 @@ deno task pack <folder>
 
 It prints the release's ID. The release is signed with the realm's secret phrase from the folder's `.data/`, and packing the same files again gives the same ID. A host packs its resident game by itself, so `pack` is only for seeing the ID beforehand.
 
-To run someone else's game at home, give its ID in place of a folder; with `--relay`, players anywhere can come:
+To run someone else's game at home, give its realm's ID in place of a folder; with `--relay`, players anywhere can come:
 
 ```
-deno task run <release ID> --relay
+deno task run <realm ID> --relay
 ```
 
-The release is fetched from whichever known host runs it. Everything fetched is checked against the ID, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
+Its newest release is fetched from whichever known host runs it, or the one already in the store is used, and runs until the program is started again. Everything fetched is checked against its ID and signed by the realm, so the host it comes from need not be trusted. The realm's secret is not on this computer, so the game runs under an ID of this computer's own, and its link holds that ID.
 
 The host program keeps releases, the data of the games it runs from them, the hosts it knows, which games it loaded by itself and its own secret phrase in `.endlessmind/` in the folder it is started from; `--store` names another place.
 
@@ -87,7 +87,7 @@ deno task run <folder> --relay
 
 It uses the first known host that relays and has room; `--relay https://relay.example/` names one instead. The link it prints, `https://<realm ID>.relay.example/`, works for anyone, for as long as this computer stays on and connected. With the same relay it is the same link every time, since it holds the realm's ID, and the relay gives it only to whoever holds the realm's secret phrase. A relay can read and change what passes through it, so name one you trust if that matters.
 
-A game run this way is packed as it starts, and prints its release's ID. While it is running, any host can fetch that release and run it, given only the ID.
+A game run this way is packed as it starts, and prints its release's ID. While it is running, any host can fetch that release and run it, given only the realm's ID.
 
 Every host is a relay (see "Hosting" below), unless its admin turns that off or relays only games they chose. A relay that will not carry a game says so, and the game stops asking it.
 
@@ -95,7 +95,7 @@ Every host is a relay (see "Hosting" below), unless its admin turns that off or 
 
 Every host signs a card that says its address, the releases it runs and the games it relays, and hands out the cards of the hosts it knows. The host program reads those lists, starting from the addresses in `--hosts` (by default those in `starting-hosts.json`) and from every address where a host answered in the last 30 days, and a host sends its own card to every host it learns of, again every hour. A host that stops answering is forgotten within a day, but its address is still asked for a month, so a program that was off for a while finds the others again through any one that is still there.
 
-That is how `--relay` finds a relay and how a release is fetched from its ID alone. `--hosts ""` starts nowhere: the program then knows only the hosts that send it their cards. A game at home has no address of its own, so it only reads.
+That is how `--relay` finds a relay and how a game is fetched from its realm's ID alone. `--hosts ""` starts nowhere: the program then knows only the hosts that send it their cards. A game at home has no address of its own, so it only reads.
 
 Anyone can read what a host knows: `https://myvps.example/endlessmind/host.json` is its own card, and `https://myvps.example/endlessmind/hosts.json` the cards of the hosts it knows.
 
@@ -111,16 +111,16 @@ deno task host --base https://myvps.example/ --game <folder>
 | ---------------------------- | ----------------------------------------------------------------- |
 | `myvps.example`              | The game in `<folder>`, the resident game, and the board          |
 | `eportal.myvps.example`      | An EntryPortal: the published versions in `portal/`, nothing else |
-| `<realm ID>.myvps.example`   | Each release given with `--load` or loaded by demand              |
+| `<realm ID>.myvps.example`   | Each realm given with `--load` or loaded by demand                |
 | `<ID>.myvps.example`         | Each game on another computer that was run with `--relay`         |
 
 | Option         | Default                           | What it sets                                            |
 | -------------- | --------------------------------- | ------------------------------------------------------- |
 | `--base`       |                                   | The host's main address: a site's root                  |
 | `--game`       |                                   | The resident game's folder; without it, a plain page    |
-| `--load`       |                                   | IDs of releases to run, with commas between them        |
+| `--load`       |                                   | IDs of realms to run, with commas between them          |
 | `--auto`       | `0`                               | How many more games it loads by itself, by demand       |
-| `--trust`      |                                   | IDs whose records it trusts besides its own             |
+| `--trust`      |                                   | IDs whose players its board counts, besides its own          |
 | `--hosts`      | `https://relay.endlessmind.com/`  | Where finding hosts starts, with commas between them    |
 | `--store`      | `.endlessmind/`                   | Releases, their data, known hosts, the host's secret    |
 | `--port`       | `8000`                            | The port to listen on                                   |
@@ -142,13 +142,13 @@ deno task host --base https://myvps.example/ --game <folder>
 - `endlessmind refuse <ID>` never relays that ID again: it is written to `refused.txt` in the store (`--store` names the store; on a server set up by `setup`, `/var/lib/endlessmind/.endlessmind`), and a running host drops the game within seconds. Delete its line from the file to allow it again.
 - `--games` caps how many games are relayed at once: 20 unless given. The log names each game as it comes and goes, and `endlessmind/host.json` lists the ones relayed now.
 
-**Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID to their own: `deno task host --base https://other.example/ --load <release ID>`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
+**Other people's games.** When it starts, the host prints its resident game's realm ID. Anyone can host that game by giving the ID to their own: `deno task host --base https://other.example/ --load <realm ID>`. A host runs each realm at its newest release: every ten minutes it looks for a newer one among the known hosts, and runs it in place of the older one at the same name, keeping what its players saved; the log says so. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
 
-**The board.** `https://myvps.example/endlessmind/board` lists every game that this host and the hosts it knows run: which hosts run it and where to play, how many players have play on record with it on all of them together, and the newest words players wrote on those records. A game that only runs on its maker's computer, through a relay, is listed as run by no host. The same facts are at `endlessmind/board.json` for any program. The host reads each other host's lists at most once in ten minutes. No game's page links to the board by itself; a game that wants its players to find more games links to `endlessmind/board`. With no resident game, the plain page at the main address does.
+**The board.** `https://myvps.example/endlessmind/board` lists every game that this host and the hosts it knows run, one entry for each realm whatever its versions: which hosts run it and where to play, how many players have play on record with it on all of them together, and the newest words players wrote on those records. Play with every release of a realm adds up, so a new version keeps what the old ones earned. Only players this host has reason to believe count: those with play on record signed by this host, by its resident game, or by an ID in `--trust` (a realm's or a host's). All play by such a player counts, wherever it happened; anyone else's play and wishes are left out, but every game is still listed. A game that only runs on its maker's computer, through a relay, is listed as run by no host. The same facts are at `endlessmind/board.json` for any program. The host reads each other host's lists at most once in ten minutes. No game's page links to the board by itself; a game that wants its players to find more games links to `endlessmind/board`. With no resident game, the plain page at the main address does.
 
-**Wishes.** A player signs in on the board's page and presses "Wish for this game". The wish is a record: the player claims it through their EntryPortal like any other, and it is then in this host's public list, where every host's board reads it. Players sign in to the resident game's realm; a host with no resident game opens a realm of its own at its main address for this, under the host's ID. Only a player's newest wish counts, for a week.
+**Wishes.** A player signs in on the board's page and presses "Wish for this game". The wish is a record that names the realm, so it holds for every version: the player claims it through their EntryPortal like any other, and it is then in this host's public list, where every host's board reads it. Players sign in to the resident game's realm; a host with no resident game opens a realm of its own at its main address for this, under the host's ID. Only a player's newest wish counts, for a week.
 
-**Loading by demand.** With `--auto <n>` the host also runs the `n` most wished-for games it can fetch, besides its resident game and those named with `--load`. Every ten minutes it counts the wishes on its board that come from players it has reason to believe: those with play on record signed by this host, by its resident game, or by an ID in `--trust` (a realm's or a host's). Each game's wishes are divided by the number of hosts that run it, this one included, so a wanted game that no host runs comes first. A game it loaded leaves when another has more wishes per host, never for an equal one; its release is then removed from the store, and what its players saved is kept. The log says what was loaded or dropped, and why. Without `--auto`, nothing is loaded without being asked.
+**Loading by demand.** With `--auto <n>` the host also runs the `n` most wished-for games it can fetch, besides its resident game and those named with `--load`. Every ten minutes it counts the wishes on its board, which come only from players it has reason to believe. Each game's wishes are divided by the number of hosts that run it, this one included, so a wanted game that no host runs comes first. A game it loaded leaves when another has more wishes per host, never for an equal one; its release is then removed from the store, and what its players saved is kept. The log says what was loaded or dropped, and why. Without `--auto`, nothing is loaded without being asked.
 
 To try a host with no setup, use `--base http://localhost:8000/`: browsers treat every name under `localhost` as this computer, and an EntryPortal accepts plain `http` at those names. The host's own EntryPortal is then at `http://eportal.localhost:8000/`; a game relayed through the host names it with `--portal http://eportal.localhost:8000/`. A second host started with `--hosts http://localhost:8000/` finds the first.
 

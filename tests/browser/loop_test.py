@@ -84,11 +84,16 @@ def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str, s
     card = json.loads(Path(maze, "card.json").read_text(encoding="utf-8"))
     Path(maze, "card.json").write_text(json.dumps({**card, "confirmSignIn": True}), encoding="utf-8")
     portal = f"http://eportal.localhost:{port}/"
+    # The host trusts the play the maze signs, so its board counts the maze's players. Packing the maze
+    # first makes its secret phrase and says its realm's ID.
+    data = os.path.join(folder, "relayed")
+    packed = host_program("pack", "examples/maze", "--data", data, "--store", os.path.join(folder, "packed"))
+    realm = re.search(r"realm ID ([a-z2-7]{52})", packed.communicate(timeout=60)[0]).group(1)
     host = host_program("host", "--base", f"http://localhost:{port}/", "--port", str(port), "--store", os.path.join(folder, "host"),
-                        "--portal", portal, "--hosts", "")
+                        "--portal", portal, "--hosts", "", "--trust", realm)
     wait_for(port)
     game = host_program("run", maze, "--relay", f"http://localhost:{port}/", "--portal", portal,
-                        "--port", str(free_port()), "--data", os.path.join(folder, "relayed"), "--no-watch")
+                        "--port", str(free_port()), "--data", data, "--no-watch")
     said = ""
     while "Play at " not in said:
         line = game.stdout.readline()
@@ -305,7 +310,7 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     claim = read_qr(pc)
     assert claim.startswith(host + "claim/")
     phone.goto(claim)
-    expect(phone.locator("#sign-records")).to_contain_text("I want to play Endless Maze (release ")
+    expect(phone.locator("#sign-records")).to_contain_text("I want to play Endless Maze (realm ")
     phone.locator("#sign-ok").click()
     expect(phone.locator("#message-title")).to_have_text("Records kept")
     expect(game).to_contain_text("1 wish.")

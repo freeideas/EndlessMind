@@ -8,7 +8,7 @@
 //   hosts.known()       the cards of the hosts known now
 //   hosts.card()        this host's own card, signed, or null for a program with no address
 //   hosts.relays()      the addresses of the known hosts that relay
-//   hosts.sources(id)   the addresses a release can be fetched from
+//   hosts.releases(realm)  the releases of a realm the known hosts offer, and where to fetch each
 //   hosts.place(card, address)  a game's address from a card, if the card's host may speak for it
 //   hosts.refresh()     read the known hosts' lists, then send them this host's card
 //   hosts.changed()     what this host runs has changed: its card is signed again when next asked for
@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { isId, signerFromWords } from "../shared/keys.js";
 import { addSignature, canonical, isComplete } from "../shared/signed.js";
 import { secretWords } from "../realm/realm.js";
+import { isReleaseId } from "./release.js";
 
 /**
  * Where a host program starts looking unless it is told otherwise. Each package carries more: when it
@@ -38,13 +39,13 @@ const MAX_REALM_CARD = 128 * 1024; // the longest realm card read from a relayed
 const WAIT_MS = 5000; // how long one host is waited for
 const ROUND_MS = 30 * 1000; // how long one round of reading lists may take
 const AT_ONCE = 20; // how many hosts are asked at once, and how many sent cards are checked at once
-const RELEASE = /^[0-9a-f]{40}$/;
 const NAME = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*$/;
 const PRIVATE = /\.(local|localdomain|internal|lan|home|arpa)$/;
 
 /**
- * @typedef {{ realm: string, release: string, name: string, play: string }} Run
- * A release a host runs and hands on: whose it is, its ID, its name, and where it is played.
+ * @typedef {{ realm: string, release: string, time: number, name: string, play: string }} Run
+ * A release a host runs and hands on: whose it is, its ID, the `time` in its release note, its name,
+ * and where it is played.
  * @typedef {{ id: string, play: string }} Relayed
  * A game on another computer that a host relays now.
  * @typedef {{ v: 1, type: "host", signers: string[], time: number, address: string, relay?: true, portal?: string, runs: Run[], relays?: Relayed[], sigs: Record<string, string> }} HostCard
@@ -166,7 +167,7 @@ export async function openHosts(options) {
         Number.isSafeInteger(card.time) && card.time <= now() + AHEAD && card.time > now() - DAY &&
         typeof card.address === "string" && hostAddress(card.address, local) === card.address &&
         (card.relay === undefined || card.relay === true) && (card.portal === undefined || typeof card.portal === "string") &&
-        Array.isArray(card.runs) && card.runs.every((/** @type {any} */ run) => isId(run?.realm) && RELEASE.test(run.release) && typeof run.name === "string" && typeof run.play === "string") &&
+        Array.isArray(card.runs) && card.runs.every((/** @type {any} */ run) => isId(run?.realm) && isReleaseId(run.release) && Number.isSafeInteger(run.time) && typeof run.name === "string" && typeof run.play === "string") &&
         (card.relays === undefined || (Array.isArray(card.relays) && card.relays.every((/** @type {any} */ game) => isId(game?.id) && typeof game.play === "string"))) &&
         canonical(body).length <= MAX_CARD && (await isComplete(card));
     } catch {
@@ -376,22 +377,30 @@ export async function openHosts(options) {
       return [...known.values()].filter((other) => other.relay).map((other) => other.address);
     },
     /**
-     * The addresses a release can be fetched from: the hosts whose cards say they run it or, if none
-     * does, the relayed games whose realm cards name it. Whatever they send is checked against the ID.
-     * @param {string} id the release's ID
+     * The releases of a realm that the known hosts offer, by ID: the newest `time` a host's card gives
+     * for each (null where only a relayed game's realm card names it), and the addresses to fetch it
+     * from. Nothing here is believed: whatever is fetched is checked against its ID and its realm.
+     * @param {string} realm
      */
-    async sources(id) {
+    async releases(realm) {
       await fresh();
-      const running = [...known.values()].filter((other) => other.runs.some((run) => run.release === id)).map((other) => other.address);
-      if (running.length) return running;
-      /** @type {string[]} */
-      const found = [];
-      // A relay speaks only for the names under its own.
-      const games = [...known.values()].flatMap((other) => (other.relays ?? []).map((game) => place(other, game.play)));
+      /** @type {Map<string, { time: number | null, from: string[] }>} */
+      const found = new Map();
+      /** @param {string} id @param {number | null} time @param {string} from */
+      const add = (id, time, from) => {
+        const one = found.get(id) ?? { time: null, from: [] };
+        if (time !== null && (one.time === null || time > one.time)) one.time = time;
+        if (!one.from.includes(from)) one.from.push(from);
+        found.set(id, one);
+      };
+      for (const other of known.values()) for (const run of other.runs) if (run.realm === realm) add(run.release, run.time, other.address);
+      // A game on its maker's computer is relayed under its realm's ID, and its realm card names its
+      // release. A relay speaks only for the names under its own.
+      const games = [...known.values()].flatMap((other) => (other.relays ?? []).filter((game) => game.id === realm).map((game) => place(other, game.play)));
       await each(games, async (play) => {
         if (!play) return;
         const realmCard = await ask(play + "endlessmind-card.json", MAX_REALM_CARD).catch(() => null);
-        if (realmCard?.release === id) found.push(play);
+        if (isReleaseId(realmCard?.release)) add(realmCard.release, null, play);
       });
       return found;
     },

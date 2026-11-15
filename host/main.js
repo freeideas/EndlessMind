@@ -3,11 +3,11 @@
 //   deno run -A host/main.js run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>]
 //                                         [--relay [<address>]] [--hosts <address>,...] [--portal <address>]
 //                                         [--data <folder>] [--store <folder>] [--no-watch]
-//   deno run -A host/main.js run <release ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>]
-//                                             [--port 8000] [--hostname 127.0.0.1] [--base <address>]
-//                                             [--portal <address>]
+//   deno run -A host/main.js run <realm ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>]
+//                                           [--port 8000] [--hostname 127.0.0.1] [--base <address>]
+//                                           [--portal <address>]
 //   deno run -A host/main.js pack <folder> [--store <folder>] [--data <folder>]
-//   deno run -A host/main.js host --base <address> [--game <folder>] [--load <release ID>,...]
+//   deno run -A host/main.js host --base <address> [--game <folder>] [--load <realm ID>,...]
 //                                 [--auto <n>] [--trust <ID>,...] [--hosts <address>,...]
 //                                 [--store <folder>] [--port 8000] [--hostname 127.0.0.1]
 //                                 [--data <folder>] [--portal <address>] [--games 20]
@@ -18,22 +18,25 @@
 //
 // `run` plays one game on this computer: it prints the address to open, and starts the game server
 // again whenever a file in the folder changes. With `--relay`, players anywhere can join it, through
-// the relay named or one found among the known hosts. Given a release's ID instead of a folder, it runs
-// someone else's game, fetched from whichever known host runs it. `pack` makes a release from a game's
-// folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
-// releases, relays for games on other computers, serves a spare EntryPortal and a board of the games
-// the known hosts run. With `--auto <n>` it also loads the `n` most wished-for games by itself, counting
-// the wishes of players with play on record with it, its resident game, or an ID in `--trust`. It relays
-// any game that asks, up to `--games` at once, unless `--relay-only` names the only IDs to relay or
-// `--no-relay` turns relaying off. `refuse` makes a host on that store never relay an ID again, and drop
-// it at once. `--hosts` lists where finding other hosts starts; `--hosts ""` means nowhere. `setup`
-// turns a Linux server into such a host. See host/README.md.
+// the relay named or one found among the known hosts. Given a realm's ID instead of a folder, it runs
+// someone else's game: the newest release of it in the store, or else the newest a known host offers.
+// `pack` makes a release from a game's folder and prints its ID. `host` is for a computer everyone can
+// reach: it keeps a resident game, runs the newest release of each realm named with `--load`, relays
+// for games on other computers, serves a spare EntryPortal and a board of the games the known hosts
+// run, counting only players with play on record with it, its resident game, or an ID in `--trust`.
+// With `--auto <n>` it also loads the `n` most wished-for games by itself. It relays any game that
+// asks, up to `--games` at once, unless `--relay-only` names the only IDs to relay or `--no-relay`
+// turns relaying off. `refuse` makes a host on that store never relay an ID again, and drop it at
+// once. `--hosts` lists where
+// finding other hosts starts; `--hosts ""` means nowhere. `setup` turns a Linux server into such a
+// host. See host/README.md.
 
 import { runGame } from "./host.js";
 import { runHost } from "./hosting.js";
 import { openHosts, STARTING_HOSTS } from "./hosts.js";
 import { refuse } from "./relay.js";
-import { findRelease, isReleaseId, pack } from "./release.js";
+import { findRelease, pack } from "./release.js";
+import { isId } from "../shared/keys.js";
 import { join } from "node:path";
 
 const [command, ...rest] = Deno.args;
@@ -57,9 +60,9 @@ const start = "hosts" in flags ? listed(flags.hosts) : STARTING_HOSTS;
 // `--relay` alone finds a relay among the known hosts.
 const relay = "relay" in flags ? flags.relay || true : undefined;
 
-if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
+if (command === "run" && names.length === 1 && isId(names[0])) {
   const hosts = await openHosts({ store, start });
-  const release = await findRelease({ store, id: names[0], hosts });
+  const release = await findRelease({ store, realm: names[0], hosts });
   const running = await runGame({
     release,
     secretFile: join(store, "host-secret.txt"),
@@ -91,7 +94,7 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
     watch: !("no-watch" in flags),
   });
   console.log(`Play at ${running.base} (realm ID ${running.realm.id})`);
-  if (running.release) console.log(`Others can host it as release ${running.release.id}`);
+  if (running.release) console.log(`Others can host it by its realm ID; this is release ${running.release.id}`);
 } else if (command === "refuse" && names.length === 1) {
   await refuse(store, names[0]);
   console.log(`A host using ${store} never relays ${names[0]} again, and drops it within seconds if it relays it now.`);
@@ -123,7 +126,7 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
     entryPortal: !("no-portal" in flags),
   });
   console.log(`Hosting at ${host.base}`);
-  if (host.realm) console.log(`  The game here: ${host.realm.card.name} (realm ID ${host.realm.id}); others can host it as release ${host.release?.id}`);
+  if (host.realm) console.log(`  The game here: ${host.realm.card.name} (realm ID ${host.realm.id}); others can host it by that ID; this is release ${host.release?.id}`);
   for (const game of host.hosted()) console.log(`  ${game.name}: ${game.base} (release ${game.id})`);
   console.log(`  Board: ${host.base}endlessmind/board`);
   if (relaying) console.log(`  Relaying: a game on another computer joins with --relay ${host.base}`);
@@ -136,9 +139,9 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
   const asked = command === undefined || command === "help" || "help" in flags || command === "--help";
   (asked ? console.log : console.error)([
     "Usage: endlessmind run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay [<address>]] [--hosts <address>,...] [--portal <address>] [--data <folder>] [--store <folder>] [--no-watch]",
-    "       endlessmind run <release ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--portal <address>]",
+    "       endlessmind run <realm ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--portal <address>]",
     "       endlessmind pack <folder> [--store <folder>] [--data <folder>]",
-    "       endlessmind host --base <address> [--game <folder>] [--load <release ID>,...] [--auto <n>] [--trust <ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--relay-only <ID>,... | --no-relay] [--no-portal]",
+    "       endlessmind host --base <address> [--game <folder>] [--load <realm ID>,...] [--auto <n>] [--trust <ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--relay-only <ID>,... | --no-relay] [--no-portal]",
     "       endlessmind refuse <ID> [--store <folder>]    (never relay that game again)",
     "       endlessmind setup [--base <address>] [--game <folder>] [--yes]    (a Linux server, as root)",
   ].join("\n"));

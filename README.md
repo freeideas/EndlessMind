@@ -39,12 +39,13 @@ Only scan a sign-in code right after you pressed "Sign in" in a game yourself. I
 
 ## Your records
 
-A realm can give you signed **records**: "in good standing as of 1 December", "finished the Glass Maze in 4 minutes 12 seconds", or a trade, "P gives the helmet to Q, and Q gives 95 diamonds to P".
+A realm can give you signed **records**: "in good standing as of 1 December", or "finished the Glass Maze in 4 minutes 12 seconds".
 
 - Your EntryPortal shows you every record before you sign it.
 - When you sign a record you can add words of your own: a review, a boast. They travel with the record, and nobody else can change them.
 - Records are signed by everyone involved, so anyone you show them to can check them, and nobody can fake them.
 - You keep the records you want and drop the rest. Your reputation can only grow.
+- Records only add up, so they show what you did, not what you have now: if you give a helmet away, you still have the record of earning it. Things you can trade are kept by one realm, which knows who holds them now.
 - Your EntryPortal can save your records as a file, which any other EntryPortal can load.
 - Each record has a **public** switch, on unless you turn it off. Public records are how your reputation becomes visible, and how good realms get found. Turn it off for anything you would rather keep to yourself.
 - Want a separate identity for something private? Use a second secret phrase. Your player ID hides your name, but like any website, realms can see your connection, so this is privacy from other people, not a place to hide from the law.
@@ -71,7 +72,7 @@ The releases page is [github.com/freeideas/EndlessMind/releases](https://github.
 
 ## Making realms
 
-Describe your game to your AI coding agent and point it at this repository. The agent writes the game and starts it on your computer with [the host program](host/README.md) (`endlessmind run <folder>`), which gives you a link to play it; [Endless Maze](examples/maze/README.md) is a small example to start from, and [Monster Maze](examples/monster/README.md) a fast one for several players at once. A game server may also be written in another language, such as Rust, and compiled to WebAssembly: see [Shared Button](examples/counter/README.md). Friends anywhere can join while your computer is on, through a relay: a go-between on the web that anyone can run with the same program, and that the program finds by itself. From then on your game has an ID, and anyone who has that ID can host your game on their own server, or at home, with no address to give: hosts find each other. To put a game on the web for good, run the same program on a server of your own (`sudo endlessmind setup` does the whole job on Linux), which needs no domain name; there it is also a relay and an EntryPortal for others. A host whose admin allows it also loads the most wished-for games by itself, so a game people want finds a home without anyone asking a host's owner. A game with private server code can instead use the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md).
+Describe your game to your AI coding agent and point it at this repository. The agent writes the game and starts it on your computer with [the host program](host/README.md) (`endlessmind run <folder>`), which gives you a link to play it; [Endless Maze](examples/maze/README.md) is a small example to start from, and [Monster Maze](examples/monster/README.md) a fast one for several players at once. A game server may also be written in another language, such as Rust, and compiled to WebAssembly: see [Shared Button](examples/counter/README.md). Friends anywhere can join while your computer is on, through a relay: a go-between on the web that anyone can run with the same program, and that the program finds by itself. From then on your game has an ID, and anyone who has that ID can host your game on their own server, or at home, with no address to give: hosts find each other. When you change the game, the hosts that run it move to the new version by themselves, and it keeps every player and wish it had. To put a game on the web for good, run the same program on a server of your own (`sudo endlessmind setup` does the whole job on Linux), which needs no domain name; there it is also a relay and an EntryPortal for others. A host whose admin allows it also loads the most wished-for games by itself, so a game people want finds a home without anyone asking a host's owner. A game with private server code can instead use the realm library for [Deno](realm/README.md) or [Python](realm-py/README.md).
 
 Be original: do not make anything overly similar to someone else's game, and do not copy anyone's names, characters, art, music or logos.
 
