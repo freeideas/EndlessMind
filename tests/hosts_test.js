@@ -72,7 +72,7 @@ Deno.test("hosts find each other from one starting address, and each publishes a
         address: first.base,
         relay: true,
         portal: first.entryPortal,
-        runs: [{ realm: first.realm?.id, release: first.release?.id, name: "Endless Maze", play: first.base }],
+        runs: [{ realm: first.realm?.id, release: first.release?.id, time: first.release?.note.time, name: "Endless Maze", play: first.base }],
       });
       assert(await isComplete({ ...card, time, sigs }));
       assert(Math.abs(Date.now() - time) < 60000);
@@ -126,7 +126,7 @@ Deno.test("a card is kept only if its address answers with a card by the same ID
         assert.equal(await send(here.base, await signed({ address })), 400, address);
       }
       // Far too long, or not JSON at all.
-      assert.equal(await send(here.base, await signed({ runs: Array.from({ length: 300 }, () => ({ realm: stranger.id, release: "0".repeat(40), name: "x".repeat(80), play: "https://host.example/" })) })), 400);
+      assert.equal(await send(here.base, await signed({ runs: Array.from({ length: 300 }, () => ({ realm: stranger.id, release: "0".repeat(40), time: 1, name: "x".repeat(80), play: "https://host.example/" })) })), 400);
       assert.equal(await send(here.base, "x".repeat(100000)), 400);
       assert.deepEqual(knows(here), []);
 
@@ -156,7 +156,7 @@ Deno.test("only public https addresses, and names under localhost at home, can b
   assert.equal(hostAddress("http://host.example/", true), null);
 });
 
-Deno.test("a game on its maker's computer is found by its release's ID and fetched by a host", async () => {
+Deno.test("a game on its maker's computer is found by its realm's ID and fetched by a host", async () => {
   await withTemp(async (temp) => {
     const relay = await hosting(temp);
     const folder = await gameFolder(temp);
@@ -174,19 +174,20 @@ Deno.test("a game on its maker's computer is found by its release's ID and fetch
       assert.deepEqual(card.runs, []);
       assert(await isComplete(card));
 
-      // Another host is given the ID and nothing else but the relay's address to start from.
-      other = await hosting(temp, { load: [id], hosts: [relay.base] });
+      // Another host is given the realm's ID and nothing else but the relay's address to start from.
+      other = await hosting(temp, { load: [home.realm.id], hosts: [relay.base] });
       const [hosted] = other.hosted();
       assert.deepEqual(hosted, { id, realm: home.realm.id, name: "Found", base: `http://${home.realm.id}.${new URL(other.base).host}/` });
       assert.match(await (await fetch(hosted.base)).text(), /Found/);
       // From now on its own card says it runs that release, so the maker's computer is not needed.
-      assert.deepEqual((await other.hosts.card())?.runs, [{ realm: home.realm.id, release: id, name: "Found", play: hosted.base }]);
+      const time = /** @type {number} */ (home.release?.note.time);
+      assert.deepEqual((await other.hosts.card())?.runs, [{ realm: home.realm.id, release: id, time, name: "Found", play: hosted.base }]);
       await home.stop();
       const reader = await openHosts({ store: join(temp, "reader"), start: [relay.base] });
-      assert.deepEqual(await reader.sources(id), [other.base]);
+      assert.deepEqual([...(await reader.releases(home.realm.id))], [[id, { time, from: [other.base] }]]);
       // Once the game has left, the relay's card no longer names it.
       assert.equal((await (await fetch(relay.base + "endlessmind/host.json")).json()).relays, undefined);
-      assert.deepEqual(await reader.sources("0".repeat(40)), []);
+      assert.deepEqual([...(await reader.releases(home.realm.id))].length, 1, "and only the host that runs it offers it");
     } finally {
       await home.stop();
       await other?.stop();

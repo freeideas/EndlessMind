@@ -6,8 +6,10 @@
 //   pack({ folder, store })          make a release from a game's folder; returns its ID
 //   checkRelease(store, id)          check a release in the store, every byte of it
 //   fetchRelease({ store, id, from }) copy a release from one of the addresses that hand it out, then check it
-//   findRelease({ store, id, hosts }) the release from the store if it is there; if not, fetched from
-//                                    whichever known host runs it
+//   findRelease({ store, realm, hosts })  the newest release of a realm in the store; if there is none,
+//                                    the newest the known hosts offer, fetched
+//   newerRelease({ store, than, hosts, passed })  a release of the same realm newer than `than`, fetched,
+//                                    or null
 //   serveRelease(store, ids, request) answer another host that asks for a release
 //   removeRelease(store, id)         take a release out of the store
 //
@@ -318,17 +320,88 @@ export async function fetchRelease({ store, id, from }) {
 }
 
 /**
- * A release ready to run: checked if it is in the store; if it is not there, or is damaged, fetched
- * from whichever of the known hosts runs it, and checked.
- * @param {{ store: string, id: string, hosts: { sources(id: string): Promise<string[]> } }} options
+ * The newest release of a realm in the store, checked, or null if there is none.
+ * @param {string} store @param {string} realm
  */
-export async function findRelease({ store, id, hosts }) {
-  if (!isReleaseId(id)) throw new Error("A release's ID is 40 letters and digits.");
+async function storedRelease(store, realm) {
+  /** @type {Release | null} */
+  let best = null;
   try {
-    return await checkRelease(store, id);
+    for await (const entry of Deno.readDir(join(store, "releases"))) {
+      if (!isReleaseId(entry.name)) continue;
+      try {
+        const note = JSON.parse(await Deno.readTextFile(join(placeOf(store, entry.name), "files", NOTE)));
+        if (note?.signers?.[0] !== realm || (best && note.time <= best.note.time)) continue;
+        best = await checkRelease(store, entry.name);
+      } catch {
+        // Damaged: as if it were not there.
+      }
+    }
   } catch {
-    return fetchRelease({ store, id, from: await hosts.sources(id) });
+    // No releases yet.
   }
+  return best;
+}
+
+/**
+ * The newest release of a realm to be had, checked. Without `than`, one already in the store will do;
+ * if there is none, the newest that the known hosts offer is fetched, and an error is thrown if none can
+ * be. With `than`, only a release newer than that one is wanted, by the `time` in its note, and null
+ * comes back if none can be had. A release found to be no newer, or not the realm's, is removed from
+ * the store and its ID added to `passed`, which is never fetched again.
+ * @param {{ store: string, realm: string, hosts: Pick<import("./hosts.js").Hosts, "releases">, than?: Release | null, passed?: Set<string> }} options
+ * @returns {Promise<Release | null>}
+ */
+async function newestRelease({ store, realm, hosts, than = null, passed = new Set() }) {
+  const offered = [...(await hosts.releases(realm))].filter(([id, { time }]) => id !== than?.id && !passed.has(id) && (time === null || !than || time > than.note.time));
+  // The newest a host's card claims first; one only a relayed game names last, since nothing says how new it is.
+  offered.sort(([, a], [, b]) => (b.time ?? -Infinity) - (a.time ?? -Infinity));
+  let best = than;
+  for (const [id, { time, from }] of offered) {
+    if (best && best !== than && time !== null && time <= best.note.time) continue;
+    // One already in the store is running here, or was already weighed: fetching it again could only
+    // disturb it.
+    if (await Deno.stat(placeOf(store, id)).then(() => true, () => false)) continue;
+    let release;
+    try {
+      release = await fetchRelease({ store, id, from });
+    } catch {
+      continue; // Asked again next time.
+    }
+    if (release.realm !== realm || (best && release.note.time <= best.note.time)) {
+      passed.add(id);
+      await removeRelease(store, id);
+      continue;
+    }
+    if (best && best !== than) {
+      passed.add(best.id);
+      await removeRelease(store, best.id);
+    }
+    best = release;
+  }
+  return best === than ? null : best;
+}
+
+/**
+ * A release of a realm, ready to run: the newest in the store if there is one, or else the newest the
+ * known hosts offer, fetched and checked.
+ * @param {{ store: string, realm: string, hosts: Pick<import("./hosts.js").Hosts, "releases"> }} options
+ * @returns {Promise<Release>}
+ */
+export async function findRelease({ store, realm, hosts }) {
+  if (!isId(realm)) throw new Error(`${realm} is not a realm's ID.`);
+  const found = (await storedRelease(store, realm)) ?? (await newestRelease({ store, realm, hosts }));
+  if (!found) throw new Error(`A release of realm ${realm} could not be fetched from the known hosts.`);
+  return found;
+}
+
+/**
+ * A release of a realm newer than the one given, fetched and checked, or null if the known hosts offer
+ * none. `passed` collects the IDs of releases found to be no newer, so they are not fetched again.
+ * @param {{ store: string, than: Release, hosts: Pick<import("./hosts.js").Hosts, "releases">, passed: Set<string> }} options
+ */
+export function newerRelease({ store, than, hosts, passed }) {
+  return newestRelease({ store, realm: than.realm, hosts, than, passed });
 }
 
 /** Take a release out of the store. What its players saved is kept elsewhere. @param {string} store @param {string} id */

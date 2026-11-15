@@ -277,7 +277,7 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     claim = read_qr(pc)
     assert claim.startswith(host + "claim/")
     phone.goto(claim)
-    expect(phone.locator("#sign-records")).to_contain_text("I want to play Endless Maze (release ")
+    expect(phone.locator("#sign-records")).to_contain_text("I want to play Endless Maze (realm ")
     phone.locator("#sign-ok").click()
     expect(phone.locator("#message-title")).to_have_text("Records kept")
     expect(game).to_contain_text("1 wish.")

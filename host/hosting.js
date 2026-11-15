@@ -11,7 +11,7 @@
 // It also hands the releases it runs, its resident game's among them, to any host that asks, and takes
 // part in finding: it publishes a card of its own and the hosts it knows (see hosts.js). Under its main
 // address it serves a board of the games the known hosts run (see board.js), and it can load the most
-// wished-for of them by itself (see demand.js).
+// wished-for of them by itself (see demand.js). Each realm it runs follows that realm's newest release.
 
 import { join } from "node:path";
 import { isId } from "../shared/keys.js";
@@ -21,7 +21,7 @@ import { openDemand } from "./demand.js";
 import { openGame } from "./host.js";
 import { openHosts } from "./hosts.js";
 import { openRelay, page, relayedBase } from "./relay.js";
-import { findRelease, serveRelease } from "./release.js";
+import { findRelease, newerRelease, removeRelease, serveRelease } from "./release.js";
 
 const PORTAL_NAME = "eportal"; // the EntryPortal's name under the host's own
 const PORTAL_FILES = new URL("../portal/", import.meta.url);
@@ -77,9 +77,9 @@ async function portalFile(request) {
  * `base` is the host's main address, a site's root; every name under it must lead here too. `game` is
  * the resident game's folder, and `data` and `portal` are that game's, as in runGame. `relay` and
  * `entryPortal` are on unless false. `games` is how many games are relayed at once. `load` lists the
- * IDs of releases to run, each fetched from whichever known host runs it unless it is already in
- * `store`, the folder where this host keeps releases, their data, the hosts it knows and its own
- * secret phrase. `auto` is how many more games the host loads by itself, the most wished-for first:
+ * IDs of realms to run, each from its newest release in `store` or, if there is none there, the newest
+ * a known host offers. `store` is the folder where this host keeps releases, their data, the hosts it
+ * knows and its own secret phrase. `auto` is how many more games the host loads by itself, the most wished-for first:
  * none unless given. `trust` lists the IDs of realms and hosts whose records it trusts besides its own:
  * on its board, a player counts only with play on record signed by one of them. `hosts` lists the addresses of the hosts to start finding others
  * from. `now` is the clock the board reads lists by.
@@ -95,6 +95,7 @@ export async function runHost(options) {
   const auto = options.auto ?? 0;
   if (!Number.isInteger(auto) || auto < 0) throw new Error("How many games a host loads by itself is a whole number, 0 or more.");
   for (const id of options.trust ?? []) if (!isId(id)) throw new Error(`${id} is not the ID of a realm or a host.`);
+  for (const id of options.load ?? []) if (!isId(id)) throw new Error(`${id} is not the ID of a realm.`);
 
   const hosts = await openHosts({
     store,
@@ -127,12 +128,39 @@ export async function runHost(options) {
     hosts.changed();
     await running?.game.stop();
   }
-  /** The releases the admin named, which run whatever is wished. @type {string[]} */
-  const named = [];
-  for (const id of options.load ?? []) {
-    const release = await findRelease({ store, id, hosts });
-    await open(release);
-    named.push(release.id);
+  /** Stop the release run at a realm's name and take it out of the store. @param {string} realm */
+  async function drop(realm) {
+    const running = hosted.get(realm);
+    await close(realm);
+    if (running) await removeRelease(store, running.release.id);
+  }
+  /** The realms the admin named, which run whatever is wished. */
+  const named = options.load ?? [];
+  for (const realm of named) await open(await findRelease({ store, realm, hosts }));
+
+  /** Releases found to be no newer than the one running, or not their realm's: never fetched again. @type {Set<string>} */
+  const passed = new Set();
+  /** Move each realm run here to a newer release, if a known host offers one. Returns whether any moved. */
+  async function follow() {
+    let moved = false;
+    for (const [realm, { release }] of [...hosted]) {
+      const newer = await newerRelease({ store, than: release, hosts, passed });
+      if (!newer || hosted.get(realm)?.release !== release) continue;
+      try {
+        await open(newer);
+      } catch (error) {
+        log(`A newer release of ${newer.note.card.name} (${newer.id}) did not start, so ${release.id} runs on. ${error instanceof Error ? error.message : error}`);
+        passed.add(newer.id);
+        await removeRelease(store, newer.id);
+        await open(release);
+        continue;
+      }
+      passed.add(release.id);
+      await removeRelease(store, release.id);
+      moved = true;
+      log(`${newer.note.card.name} has a newer release: ${newer.id} runs in place of ${release.id}. What its players saved is kept.`);
+    }
+    return moved;
   }
 
   const relay = options.relay === false ? null : openRelay({ base: own.href, games: options.games, taken: (id) => hosted.has(id), changed: hosts.changed, log });
@@ -141,8 +169,8 @@ export async function runHost(options) {
 
   /** What this host's card says it runs: the resident game, then each release. @returns {import("./hosts.js").Run[]} */
   const runs = () => [
-    ...(resident?.release ? [{ realm: resident.realm.id, release: resident.release.id, name: resident.realm.card.name, play: own.href }] : []),
-    ...[...hosted.values()].map(({ release, game }) => ({ realm: release.realm, release: release.id, name: release.note.card.name, play: game.base })),
+    ...(resident?.release ? [{ realm: resident.realm.id, release: resident.release.id, time: resident.release.note.time, name: resident.realm.card.name, play: own.href }] : []),
+    ...[...hosted.values()].map(({ release, game }) => ({ realm: release.realm, release: release.id, time: release.note.time, name: release.note.card.name, play: game.base })),
   ];
   const games = () => relay?.games() ?? [];
 
@@ -167,10 +195,11 @@ export async function runHost(options) {
     auto,
     board,
     hosts,
-    fixed: () => [...named, ...(resident?.release ? [resident.release.id] : [])],
+    fixed: () => [...named, ...(resident ? [resident.realm.id] : [])],
     taken: (realm) => hosted.has(realm) || games().includes(realm),
+    find: (realm) => findRelease({ store, realm, hosts }),
     open,
-    close: (release) => close(release.realm),
+    close: drop,
     log,
   });
 
@@ -209,9 +238,10 @@ export async function runHost(options) {
   // Now that this host answers at its address, the hosts it knows are told of it.
   await hosts.refresh();
 
-  /** Choose again which games to run by demand, and tell the known hosts if that changed. */
+  /** Choose again which games to run by demand, move each realm to its newest release, and tell the known hosts if that changed anything. */
   async function round() {
-    if (await demand.round()) await hosts.refresh();
+    const chose = auto > 0 || demand.loaded().length ? await demand.round() : false;
+    if ((await follow()) || chose) await hosts.refresh();
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let next;
@@ -221,7 +251,7 @@ export async function runHost(options) {
     await round().catch((error) => log(`This round of choosing games did not finish. ${error instanceof Error ? error.message : error}`));
     if (!stopped) next = setTimeout(rounds, ROUND_MS * (1 + Math.random() / 10));
   }
-  if (auto > 0 || demand.loaded().length) await rounds();
+  if (auto > 0 || hosted.size) await rounds();
 
   return {
     base: own.href,
@@ -233,9 +263,9 @@ export async function runHost(options) {
     hosts,
     /** The board: the games the known hosts run, and the play and wishes on record for each. See board.js. */
     board,
-    /** Choose again which games to run by demand. */
+    /** Choose again which games to run by demand, and move each realm run here to its newest release. */
     round,
-    /** The IDs of the releases this host loaded by itself. */
+    /** The IDs of the realms this host loaded by itself. */
     loaded: demand.loaded,
     /** The releases run here: each one's ID, its realm, and where it is played. */
     hosted: () => [...hosted.values()].map(({ release, game }) => ({ id: release.id, realm: release.realm, name: release.note.card.name, base: game.base })),

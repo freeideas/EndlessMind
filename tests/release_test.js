@@ -119,7 +119,7 @@ Deno.test("a release that was changed, added to, or signed by someone else is re
   }
 });
 
-Deno.test("a host runs a game from its release's ID alone, fetched from whichever known host runs it", async () => {
+Deno.test("a host runs a game from its realm's ID alone, its newest release fetched from whichever known host runs it", async () => {
   const temp = await Deno.makeTempDir();
   const folder = await gameFolder(temp);
   const ports = [nextPort++, nextPort++, nextPort++];
@@ -127,11 +127,11 @@ Deno.test("a host runs a game from its release's ID alone, fetched from whicheve
   const jane = await runHost({ base: `http://localhost:${ports[0]}/`, port: ports[0], game: folder, store: join(temp, "jane"), log() {} });
   const id = /** @type {string} */ (jane.release?.id);
   const realm = /** @type {string} */ (jane.realm?.id);
-  // Someone else's server, given only the ID: it knows Jane's host, whose card says it runs that release.
-  const other = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [id], hosts: [jane.base], log() {} });
+  // Someone else's server, given only the realm's ID: it knows Jane's host, whose card says it runs a release of it.
+  const other = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [realm], hosts: [jane.base], log() {} });
   // And someone at home, who knows only the second server: it has the release, and it relays.
   const known = await openHosts({ store: join(temp, "home"), start: [other.base] });
-  const home = await runGame({ release: await findRelease({ store: join(temp, "home"), id, hosts: known }), secretFile: join(temp, "home", "host-secret.txt"), data: join(temp, "home", "data"), relay: true, hosts: known, store: join(temp, "home"), port: ports[2], log() {} });
+  const home = await runGame({ release: await findRelease({ store: join(temp, "home"), realm, hosts: known }), secretFile: join(temp, "home", "host-secret.txt"), data: join(temp, "home", "data"), relay: true, hosts: known, store: join(temp, "home"), port: ports[2], log() {} });
   try {
     assert.equal(jane.release?.realm, realm);
     const [hosted] = other.hosted();
@@ -162,7 +162,7 @@ Deno.test("a host runs a game from its release's ID alone, fetched from whicheve
     // (Sign-in itself is covered by the realm's own tests; here a session is put in place by hand.)
     await other.stop();
     await Deno.writeTextFile(join(temp, "other", "games", realm, "realm-data.json"), JSON.stringify({ ...there, sessions: { [session]: { player, created: Date.now() } } }));
-    const again = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [id], log() {} });
+    const again = await runHost({ base: `http://localhost:${ports[1]}/`, port: ports[1], store: join(temp, "other"), load: [realm], log() {} });
     try {
       // Told of no host this time, it still knows Jane's: the hosts it knows are kept in its store.
       assert.deepEqual(again.hosts.known().map((card) => card.address), [jane.base]);
@@ -211,7 +211,7 @@ Deno.test("what a host sends is believed only as far as it matches the ID", asyn
     const store = join(temp, "store");
     await assert.rejects(() => fetchRelease({ store, id, from: [`http://localhost:${liar}/`] }), /could not be fetched/);
     await assert.rejects(() => Deno.stat(join(store, "releases", id)), Deno.errors.NotFound, "nothing of a refused release is kept");
-    await assert.rejects(() => findRelease({ store, id, hosts: { sources: () => Promise.resolve([]) } }), /could not be fetched/);
+    await assert.rejects(() => findRelease({ store, realm: /** @type {string} */ (jane.realm?.id), hosts: { releases: () => Promise.resolve(new Map()) } }), /could not be fetched/);
     // The honest host after the liar gives the real thing.
     const release = await fetchRelease({ store, id, from: [`http://localhost:${liar}/`, jane.base] });
     assert.equal(release.id, id);
