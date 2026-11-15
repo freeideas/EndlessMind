@@ -208,10 +208,14 @@ Deno.test("a game at home finds a relay among the known hosts, passing over one 
     try {
       // It is told of one host only, which is full; that host's list names the others.
       const known = await openHosts({ store: join(temp, "home"), start: [full.base] });
-      assert.deepEqual(await known.relays(), [full.base, gone.base, free.base]);
+      // The hosts a list names are read at once, and kept in the order they answer, so no order is promised.
+      const order = [full.base, gone.base, free.base];
+      assert.deepEqual((await known.relays()).sort(), [...order].sort());
       assert.equal(await known.card(), null, "a game at home has no address, so it has no card");
       await gone.stop();
-      home = await runGame({ folder, relay: true, hosts: known, store: join(temp, "home"), port: nextPort++, log() {} });
+      // Asked in this order, the game must pass over the full host and the gone one to reach the free one.
+      const inOrder = { relays: async () => (await known.relays()).sort((a, b) => order.indexOf(a) - order.indexOf(b)) };
+      home = await runGame({ folder, relay: true, hosts: inOrder, store: join(temp, "home"), port: nextPort++, log() {} });
       assert.equal(home.base, relayedBase(free.base, home.realm.id));
       assert.deepEqual(free.games(), [home.realm.id]);
       assert.match(await (await fetch(home.base)).text(), /Found/);
