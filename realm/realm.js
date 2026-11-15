@@ -284,7 +284,7 @@ export class Realm {
     }
     return this.#page(
       "You're in",
-      "If the game is open on another screen, it is signed in there too, and you can close this page.",
+      `If the ${join.back === "endlessmind/board" ? "board" : "game"} is open on another screen, it is signed in there too, and you can close this page.`,
       200,
       back,
       { "set-cookie": this.#cookie(session, SESSION_MS) },

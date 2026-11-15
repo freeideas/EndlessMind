@@ -303,7 +303,8 @@ class Realm:
             )
         return self._page(
             "You're in",
-            "If the game is open on another screen, it is signed in there too, and you can close this page.",
+            f"If the {'board' if join.get('back') == 'endlessmind/board' else 'game'} is open on another screen, "
+            "it is signed in there too, and you can close this page.",
             200,
             back,
             {"set-cookie": self._cookie(session, SESSION_MS)},
