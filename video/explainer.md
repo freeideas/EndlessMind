@@ -70,7 +70,7 @@ A script for one video of about five minutes. It says every word to be spoken an
 
 **9. Scan and tap (1:40, 14 s)**
 
-- Show: the sign-up form is replaced by a square code on the game screen. A phone scans it, names the site, one tap. "Guest" becomes "Amber Teapot". Text: "Scan. Tap. In."
+- Show: the sign-up form is replaced by a square code on the game screen. A phone scans it, names the site, one tap. "Guest" becomes "Rosy Nebula". Text: "Scan. Tap. In."
 - Say: "Here, your game shows a code. The player scans it with their phone and taps once. They are in. The first time, the phone sets them up in about a minute. You built nothing."
 
 **10. Why nobody can take it away (1:54, 17 s)**
@@ -80,8 +80,8 @@ A script for one video of about five minutes. It says every word to be spoken an
 
 **11. One identity, every game (2:11, 22 s)**
 
-- Show: on the phone, the player changes the name "Amber Teapot" to "Rockstar 812". Rockstar 812 walks from Lantern Tag into three other, different games and is greeted by that name in each, trophies still in hand. Then a lost phone, a screenshot, and a new phone with the same name on it.
-- Say: "The same identity works in every game on the network. The name is theirs to choose: Amber Teapot can become Rockstar 812, everywhere at once. So a player arrives in your game with a name and a history, not as a stranger. And if the phone is lost, a screenshot of the phrase brings it all back."
+- Show: on the phone, the player changes the name "Rosy Nebula" to "Rockstar 812". Rockstar 812 walks from Lantern Tag into three other, different games and is greeted by that name in each, trophies still in hand. Then a lost phone, a screenshot, and a new phone with the same name on it.
+- Say: "The same identity works in every game on the network. The name is theirs to choose: Rosy Nebula can become Rockstar 812, everywhere at once. So a player arrives in your game with a name and a history, not as a stranger. And if the phone is lost, a screenshot of the phrase brings it all back."
 
 ### Problem 3: "I want my game to earn a real reputation, so people want to play it."
 
@@ -153,17 +153,36 @@ A script for one video of about five minutes. It says every word to be spoken an
 
 ## Footage
 
-Real screens, recorded on 2026-11-15 on a Linux desktop with the live network (relay.endlessmind.com). The clips are in `video/footage/` on the owner's Mac, which Git ignores: they are not in the repository. All are 1920x1080, 30 frames a second, H.264. Every clip shows the same Lantern Tag, the one the agent built in `s04-build.mp4`; its folder is `video/footage/LanternTag/`. An earlier take, with a different build, is in `video/footage/take1/`.
+Real screens, recorded on 2026-11-15 on a Linux desktop with the live network (relay.endlessmind.com). The clips are in `video/footage/` on the owner's Mac, which Git ignores: they are not in the repository. All are 1920x1080, 30 frames a second, H.264. Every clip shows the same Lantern Tag, the one the agent built in `s04-build.mp4`; its folder is `video/footage/LanternTag/`. An earlier take, with a different build, is in `video/footage/take1/`, and earlier phone clips (before the narrow-screen fixes) in `video/footage/take2-phone/`.
 
 | Clip                    | Scene  | Length | What it shows                                              |
 | ----------------------- | ------ | ------ | ---------------------------------------------------------- |
 | `s04-build.mp4`         | 4, 5   | 19:26  | The request, the whole build, the link, the game opened    |
 | `s01-one-lantern.mp4`   | 1      | 0:32   | One window, the player's lantern in the dark maze          |
 | `s06-four-players.mp4`  | 6      | 0:55   | Four windows from the relay link; the red lantern moves on |
-| `s09-phone-signin.mp4`  | 9      | 0:37   | Sign in, first-time setup on the phone, "Amber Teapot"     |
-| `s11-phone-rename.mp4`  | 11     | 0:22   | Renamed to "Rockstar 812" on the phone; the game shows it  |
-| `s13-round-won.mp4`     | 13     | 0:21   | The end of a real round: "You won the round!"              |
-| `s13-record-claim.mp4`  | 13, 14 | 0:29   | The record offered, words added on the phone, signed       |
+| `s09-phone-signin.mp4`  | 9      | 0:37   | Sign in, first-time setup on the phone, "Rosy Nebula"      |
+| `s11-phone-rename.mp4`  | 11     | 0:23   | Renamed to "Rockstar 812" on the phone; the game shows it  |
+| `s13-round-won.mp4`     | 13     | 0:20   | The end of a real round: "You won the round!"              |
+| `s13-record-claim.mp4`  | 13, 14 | 0:24   | The record offered, words added on the phone, signed       |
 | `s14-records-shelf.mp4` | 14     | 0:14   | The phone's records, with the player's words on this one   |
 | `s17-board.mp4`         | 17     | 0:25   | The board at relay.endlessmind.com, scrolling              |
-| `s18-wish.mp4`          | 18     | 0:41   | Signed in on the board, a wish for Lantern Tag, signed     |
+| `s18-wish.mp4`          | 18     | 0:37   | Signed in on the board, a wish for Lantern Tag, signed     |
+
+**Cutting `s04-build.mp4`** (one request, nothing typed after it):
+
+- 0:04 to 0:13: the request is typed and sent.
+- 0:17 to 12:18: the build. It fetches Endless Mind from GitHub at 0:21 and writes the first game file at 2:40. Speed this up.
+- 13:22: the agent starts the game with `--relay`; 13:46: it prints the link. From request to link took 13 minutes 33 seconds.
+- 13:50 to 18:30: nothing changes on screen. Cut it.
+- 18:32: the browser opens the link; 19:01 to 19:18: the player's lantern walks the maze.
+
+**Before using the clips:**
+
+- **Blur the secret phrase in `s09-phone-signin.mp4`.** It is a throwaway identity, but the setup screen shows its real 24 words and setup code, and anyone who reads them could act as it.
+- **The players are steered by a script.** In scenes 1, 6 and 13 they are real browser windows on the real game, moved by a script, not by people. The win in scene 13 is a real round, played with three more scripted players kept off screen; it is shared with one of them ("Guest 2"), and the game's line reads "You have won 1 of 14 rounds" because the lost tries count. Crop that line if it distracts.
+- **End `s18-wish.mp4` before its last page.** After the wish is signed, the phone's "Records kept" page says "go back to the game", although the player came from the board.
+- **Fewer than four people bring "wisps".** The game adds lanterns of its own, so scene 1 cannot show a single lantern alone.
+- **In `s04-build.mp4`**, Claude Code shows a tip at the top and "auto mode on" at the bottom, and a leftover window's name sits in the taskbar for the first seconds. Crop or cover them if they distract.
+- **Drawn, not filmed:** the arrows in scene 10, the card checks in scene 13, the spreading light in scene 15, the rising wish counts and hosts loading the game in scene 18, the sealed box in scene 19, and the network in scene 22. Scene 18's wish was real, but the board's count stayed at 0, because a board counts only wishes from players whose play it already trusts, and a throwaway identity has none. Lantern Tag also shows "No play on record yet" for the same reason.
+- **Not filmed:** scenes 2, 3, 7, 12, 16, 20, 21 and 23 are drawings. Scene 23 can reuse the chat from scene 1.
+- **Names of AI agents** appear as plain text, without logos.
