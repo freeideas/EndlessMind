@@ -6,7 +6,11 @@
 //
 //   openRelay({ base })  the relay's side, used by a host (see hosting.js)
 //   dial({ relay, ... }) the game's side, used by openGame
+//
+// A relay serves strangers' pages under its owner's name, so its admin decides who is relayed, and can
+// refuse an ID for good: `refuse` writes it to the store's refused.txt, which a running host rereads.
 
+import { join } from "node:path";
 import { hex, isId } from "../shared/keys.js";
 import { addSignature, isComplete } from "../shared/signed.js";
 
@@ -34,6 +38,31 @@ function toBase64(bytes) {
 
 /** @param {string} text */
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+
+/** The file in a host's store that lists the IDs it never relays, one per line. @param {string} store */
+export const refusedFile = (store) => join(store, "refused.txt");
+
+/** The IDs a host never relays. @param {string} store @returns {Promise<Set<string>>} */
+export async function readRefused(store) {
+  try {
+    const text = await Deno.readTextFile(refusedFile(store));
+    return new Set(text.split("\n").map((line) => line.replace(/#.*/, "").trim()).filter(isId));
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return new Set();
+    throw error;
+  }
+}
+
+/**
+ * Never relay an ID again. A host running on this store drops it at once if it relays it now.
+ * @param {string} store @param {string} id
+ */
+export async function refuse(store, id) {
+  if (!isId(id)) throw new Error(`${id} is not an ID.`);
+  if ((await readRefused(store)).has(id)) return;
+  await Deno.mkdir(store, { recursive: true });
+  await Deno.writeTextFile(refusedFile(store), `${id} # refused ${new Date().toISOString()}\n`, { append: true });
+}
 
 /** A plain page of the host program's own. @param {string} title @param {string} text @param {number} status */
 export function page(title, text, status) {
@@ -63,9 +92,10 @@ export function relayedBase(relay, id) {
 /**
  * A relay without a web server of its own: give `handle` each request that arrives. The relay must be
  * reachable at `base` and at every name under it, with HTTPS in front of both.
- * @param {{ base: string, games?: number, taken?: (id: string) => boolean, changed?: () => void, log?: (text: string) => void }} options
- * `games` is how many games it passes at once. `taken` says whether a name is already in use for
- * something else, so that no game is relayed there. `changed` is called when a game comes or goes.
+ * @param {{ base: string, games?: number, allowed?: (id: string) => boolean, taken?: (id: string) => boolean, changed?: () => void, log?: (text: string) => void }} options
+ * `games` is how many games it passes at once. `allowed` says whether the admin lets an ID be relayed
+ * here. `taken` says whether a name is already in use for something else, so that no game is relayed
+ * there. `changed` is called when a game comes or goes.
  */
 export function openRelay(options) {
   const own = new URL(options.base);
@@ -119,6 +149,10 @@ export function openRelay(options) {
       const good = m.t === "note" && note.v === 1 && note.type === "relay" && note.signers.length === 1 && isId(signer) &&
         note.relay === own.href && note.nonce === nonce && (await isComplete(note));
       if (!good) return socket.close(1008, "that note does not prove an ID");
+      if (options.allowed && !options.allowed(signer)) {
+        tell(game, { t: "refused" });
+        return socket.close(1008, "not relayed here");
+      }
       if (options.taken?.(signer)) return socket.close(1008, "that name is in use here");
       const before = games.get(signer);
       if (!before && games.size >= most) {
@@ -241,6 +275,18 @@ export function openRelay(options) {
     base: own.href,
     /** The IDs of the realms relayed now. */
     games: () => [...games.keys()],
+    /** Drop at once every game the admin no longer lets be relayed, telling each it is refused. */
+    recheck() {
+      for (const [id, game] of [...games]) {
+        if (options.allowed?.(id) !== false) continue;
+        games.delete(id);
+        options.changed?.();
+        log(`No longer relaying ${relayedBase(own.href, id)}: it is refused here.`);
+        drop(game);
+        tell(game, { t: "refused" });
+        game.socket.close(1008, "not relayed here");
+      }
+    },
     /**
      * Answer a request that is the relay's: a game asking to be relayed, or anything for a name under
      * the relay's own. Returns null for everything else at the relay's own name.
@@ -296,6 +342,7 @@ export function dial(options) {
   let wait = 500;
   let quiet = false;
   let accepted = false;
+  let refused = false;
   const patient = options.patient !== false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let again;
@@ -356,6 +403,12 @@ export function dial(options) {
       quiet = false;
       accepted = true;
       isReady(true);
+    } else if (m.t === "refused") {
+      log(`The relay at ${relay} does not relay this game, so it is not used.`);
+      refused = true;
+      stopped = true;
+      isReady(false);
+      return mine.close();
     } else if (m.t === "full") {
       if (!quiet && (patient || accepted)) log("The relay has no room for another game now. Still trying.");
       quiet = true;
@@ -454,6 +507,10 @@ export function dial(options) {
     base,
     /** Settles once the relay has first accepted this game, with true, or once dialing has ended without that, with false. */
     ready,
+    /** Whether the relay refused this game: its admin does not relay it. */
+    get refused() {
+      return refused;
+    },
     stop() {
       stopped = true;
       clearTimeout(again);

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { runGame } from "../host/host.js";
 import { runHost } from "../host/hosting.js";
-import { relayedBase } from "../host/relay.js";
+import { refuse, relayedBase } from "../host/relay.js";
 import { newWords, signerFromWords } from "../shared/keys.js";
 import { addSignature } from "../shared/signed.js";
 import { makeMaze, solution } from "../examples/maze/maze.js";
@@ -25,7 +25,7 @@ async function relaying(games = 20) {
       await Deno.remove(store, { recursive: true });
     },
   };
-  return { relay, said, port, base: host.base };
+  return { relay, said, port, store, base: host.base };
 }
 
 /**
@@ -237,6 +237,56 @@ Deno.test("a relay gives a realm's address only to whoever proves they are that 
     await until(() => relay.games().length === 0);
   } finally {
     await relay.stop();
+  }
+});
+
+Deno.test("a relay's admin chooses who is relayed, and can refuse an ID for good, at once", async () => {
+  const temp = await Deno.makeTempDir();
+  const port = nextPort++;
+  const store = join(temp, "store");
+  const words = await newWords();
+  const chosen = (await signerFromWords(words)).id;
+  await Deno.mkdir(join(temp, "chosen"));
+  await Deno.writeTextFile(join(temp, "chosen", "realm-secret.txt"), words + "\n");
+  /** @type {string[]} */
+  const said = [];
+  const host = await runHost({ base: `http://localhost:${port}/`, port, relay: [chosen], entryPortal: false, store, hosts: [], log: (text) => said.push(text) });
+  const base = host.base;
+  /** @type {Awaited<ReturnType<typeof relayed>>[]} */
+  const games = [];
+  try {
+    // Only the IDs the admin named are relayed, and the host's card does not invite anyone else.
+    assert.equal((await host.hosts.card())?.relay, undefined);
+    await assert.rejects(() => relayed(base), /does not relay this game/);
+    const game = await relayed(base, { data: join(temp, "chosen") });
+    games.push(game);
+    assert.deepEqual(host.games(), [chosen]);
+    assert.equal(await status(game.base), 200);
+
+    // Refused for good: dropped at once, and told so.
+    await host.refuse(chosen);
+    assert.deepEqual(host.games(), []);
+    assert.equal(await status(game.base), 503);
+    await until(() => game.said.some((line) => /does not relay this game/.test(line)));
+    assert.match(await Deno.readTextFile(join(store, "refused.txt")), new RegExp(chosen));
+  } finally {
+    for (const game of games) await game.stop();
+    await host.stop();
+  }
+
+  // A host that relays anyone drops a game its admin refuses from another program (`endlessmind refuse`).
+  const open = await relaying();
+  const game = await relayed(open.base);
+  try {
+    assert.deepEqual(open.relay.games(), [game.host.realm.id]);
+    await refuse(open.store, game.host.realm.id);
+    await until(() => open.relay.games().length === 0);
+    assert.equal(await status(game.base), 503);
+    await assert.rejects(() => relayed(open.base, { data: game.data }), /does not relay this game/);
+  } finally {
+    await game.stop();
+    await open.relay.stop();
+    await Deno.remove(temp, { recursive: true });
   }
 });
 

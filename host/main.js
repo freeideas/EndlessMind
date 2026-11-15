@@ -10,8 +10,9 @@
 //   deno run -A host/main.js host --base <address> [--game <folder>] [--load <release ID>,...]
 //                                 [--auto <n>] [--trust <ID>,...] [--hosts <address>,...]
 //                                 [--store <folder>] [--port 8000] [--hostname 127.0.0.1]
-//                                 [--data <folder>] [--portal <address>] [--games 20] [--no-relay]
-//                                 [--no-portal]
+//                                 [--data <folder>] [--portal <address>] [--games 20]
+//                                 [--relay-only <ID>,... | --no-relay] [--no-portal]
+//   deno run -A host/main.js refuse <ID> [--store <folder>]
 //
 //   deno run -A host/main.js setup [--base <address>] [--game <folder>] [--yes]
 //
@@ -22,13 +23,16 @@
 // folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
 // releases, relays for games on other computers, serves a spare EntryPortal and a board of the games
 // the known hosts run. With `--auto <n>` it also loads the `n` most wished-for games by itself, counting
-// the wishes of players with play on record with it, its resident game, or an ID in `--trust`. `--hosts`
-// lists where finding other hosts starts; `--hosts ""` means nowhere. `setup` turns a Linux server into
-// such a host. See host/README.md.
+// the wishes of players with play on record with it, its resident game, or an ID in `--trust`. It relays
+// any game that asks, up to `--games` at once, unless `--relay-only` names the only IDs to relay or
+// `--no-relay` turns relaying off. `refuse` makes a host on that store never relay an ID again, and drop
+// it at once. `--hosts` lists where finding other hosts starts; `--hosts ""` means nowhere. `setup`
+// turns a Linux server into such a host. See host/README.md.
 
 import { runGame } from "./host.js";
 import { runHost } from "./hosting.js";
 import { openHosts, STARTING_HOSTS } from "./hosts.js";
+import { refuse } from "./relay.js";
 import { findRelease, isReleaseId, pack } from "./release.js";
 import { join } from "node:path";
 
@@ -88,9 +92,19 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
   });
   console.log(`Play at ${running.base} (realm ID ${running.realm.id})`);
   if (running.release) console.log(`Others can host it as release ${running.release.id}`);
+} else if (command === "refuse" && names.length === 1) {
+  await refuse(store, names[0]);
+  console.log(`A host using ${store} never relays ${names[0]} again, and drops it within seconds if it relays it now.`);
 } else if (command === "host" && names.length === 0 && flags.base) {
-  if (listed(flags.load).length || Number(flags.auto) || !("no-relay" in flags)) {
+  const relaying = !("no-relay" in flags);
+  if (listed(flags.load).length || Number(flags.auto) || relaying) {
     console.log("You are responsible for what this host serves, like anyone who runs a website. Other people's games are sealed, which protects this computer, not its owner.");
+  }
+  if (relaying) {
+    console.log(
+      `Relaying serves pages from ${"relay-only" in flags ? "the games you named" : "anyone's game"} under your name, unchecked. One page made to trick people, such as a fake sign-in page, could get browsers to block every name of this host. ` +
+        "Limit it with --relay-only <ID>,... or --no-relay, and refuse a game for good with `endlessmind refuse <ID>`.",
+    );
   }
   const host = await runHost({
     base: flags.base,
@@ -105,14 +119,14 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
     auto: flags.auto ? Number(flags.auto) : undefined,
     trust: listed(flags.trust),
     hosts: start,
-    relay: !("no-relay" in flags),
+    relay: !relaying ? false : "relay-only" in flags ? listed(flags["relay-only"]) : true,
     entryPortal: !("no-portal" in flags),
   });
   console.log(`Hosting at ${host.base}`);
   if (host.realm) console.log(`  The game here: ${host.realm.card.name} (realm ID ${host.realm.id}); others can host it as release ${host.release?.id}`);
   for (const game of host.hosted()) console.log(`  ${game.name}: ${game.base} (release ${game.id})`);
   console.log(`  Board: ${host.base}endlessmind/board`);
-  if (!("no-relay" in flags)) console.log("  Relaying: a game on another computer joins with --relay");
+  if (relaying) console.log(`  Relaying: a game on another computer joins with --relay ${host.base}`);
   if (host.entryPortal) console.log(`  EntryPortal: ${host.entryPortal}`);
   console.log(`  Host ID ${host.hosts.id}; it knows ${host.hosts.known().length} other hosts`);
 } else if (command === "setup" && names.length === 0) {
@@ -124,7 +138,8 @@ if (command === "run" && names.length === 1 && isReleaseId(names[0])) {
     "Usage: endlessmind run <folder> [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--relay [<address>]] [--hosts <address>,...] [--portal <address>] [--data <folder>] [--store <folder>] [--no-watch]",
     "       endlessmind run <release ID> [--relay [<address>]] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--base <address>] [--portal <address>]",
     "       endlessmind pack <folder> [--store <folder>] [--data <folder>]",
-    "       endlessmind host --base <address> [--game <folder>] [--load <release ID>,...] [--auto <n>] [--trust <ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--no-relay] [--no-portal]",
+    "       endlessmind host --base <address> [--game <folder>] [--load <release ID>,...] [--auto <n>] [--trust <ID>,...] [--hosts <address>,...] [--store <folder>] [--port 8000] [--hostname 127.0.0.1] [--data <folder>] [--portal <address>] [--games 20] [--relay-only <ID>,... | --no-relay] [--no-portal]",
+    "       endlessmind refuse <ID> [--store <folder>]    (never relay that game again)",
     "       endlessmind setup [--base <address>] [--game <folder>] [--yes]    (a Linux server, as root)",
   ].join("\n"));
   Deno.exit(asked ? 0 : 2);

@@ -307,7 +307,7 @@ A relay lets players reach a game that runs on a computer they cannot connect to
    { "v": 1, "type": "relay", "signers": ["<ID>"], "time": 1790000000000, "relay": "https://relay.example/", "nonce": "<the nonce>" }
    ```
 
-3. The relay checks the signature, that `relay` is its own address and that `nonce` is the one it just sent. It answers `{ "t": "ready", "base": "<the game's address>" }`, or `{ "t": "full" }` if it has no room, and then closes. A host that is offered any address but the one above stops using that relay.
+3. The relay checks the signature, that `relay` is its own address and that `nonce` is the one it just sent. It answers `{ "t": "ready", "base": "<the game's address>" }`; or `{ "t": "refused" }` if its admin does not relay that ID, or `{ "t": "full" }` if it has no room, and then closes. A host that is offered any address but the one above, or is refused, stops using that relay. A relay may also send `refused` later and close, when its admin refuses an ID it carries.
 
 An ID that asks again takes the place of its earlier connection. A relay that is also a host refuses an ID whose name it already uses for a release. The game is at its address for as long as the connection stays open. The host sends `{ "t": "ping" }` after 20 quiet seconds and the relay answers `{ "t": "pong" }`; a host that has heard nothing for 45 seconds takes the connection for dead and dials again.
 
@@ -331,6 +331,8 @@ An ID that asks again takes the place of its earlier connection. A relay that is
 The reference relay passes a body of at most 1 MB from a player, a message of at most 64 KB on a line, at most 200 requests and lines at once for one game, and waits 60 seconds for an answer to begin.
 
 **What a relay can do.** Everything passes through it, so it can read and change what a game and its players say to each other. It cannot learn a secret phrase or make a record, because the realm's secret stays with the game's host and a player's proofs come from their EntryPortal.
+
+**What relaying means for its owner.** A relayed game's display is not sealed: its pages are whatever the game's host sends, served at a name under the relay's own. One page made to trick people could get that name, or every name under the relay's, blocked by browsers. So a relay's admin chooses whom it relays: any ID that asks, only IDs the admin named, or none, and may refuse an ID for good, dropping it at once. The reference relay relays any ID unless its admin says otherwise, and at most 20 games at once.
 
 ## Hosts
 
@@ -365,7 +367,7 @@ No two games share a name, and no game is ever at a path under another's name or
 | Field     | Meaning                                                                                  |
 | --------- | ---------------------------------------------------------------------------------------- |
 | `address` | The host's main address, exactly as `new URL(address).href` writes it                    |
-| `relay`   | `true` if the host relays; left out if it does not                                       |
+| `relay`   | `true` if the host relays any game that asks; left out if it does not                    |
 | `portal`  | The address of the EntryPortal it serves; left out if it serves none                     |
 | `runs`    | Each release it runs and hands on, its resident game's first: `play` is where it is played |
 | `relays`  | Each game it relays now, by the ID in the game's name; left out if there is none         |

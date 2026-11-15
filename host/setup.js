@@ -11,6 +11,7 @@ const USER = "endlessmind"; // the service's own account, with no login
 const UNIT_FILE = "/etc/systemd/system/endless-host.service";
 const CADDYFILE = "/etc/caddy/Caddyfile";
 const PORT = 8000; // the port host/Caddyfile passes everything to
+const STORE = `${HOME}/.endlessmind`; // the host's store: its releases, the hosts it knows, the IDs it refuses
 
 /** The package managers setup can install Caddy with, and how. */
 const INSTALLERS = /** @type {Record<string, string[]>} */ ({
@@ -105,6 +106,22 @@ export function describe({ base, game, source, installer }) {
     `Copy the game in ${source} to ${game}, so its saved data belongs to you`,
     `Write ${UNIT_FILE} and start it, so the host runs now and whenever this computer starts`,
     `Then the game is at ${base}`,
+    ...relaying(base),
+  ];
+}
+
+/**
+ * What relaying means for the owner, in plain words: said before setup changes anything, and again at the end.
+ * @param {string} base
+ */
+export function relaying(base) {
+  const name = new URL(base).host;
+  return [
+    `Relay games that run on other people's computers, each at a name under ${name}, up to 20 at once. ` +
+    `Anyone's game can ask. Its pages are served under your name and nobody checks them: ` +
+    `one page made to trick people, such as a fake sign-in page, could get browsers to block every name of ${name}, your own game's included.`,
+    `To relay only games you name, add --relay-only <ID>,... to the command in ${UNIT_FILE}; --no-relay turns relaying off. ` +
+    `To stop relaying one game for good, at once: sudo endlessmind refuse <ID> --store ${STORE}`,
   ];
 }
 
@@ -184,6 +201,7 @@ export async function setup(flags) {
   await run(["systemctl", "restart", "endless-host"]);
 
   console.log(`\nDone. Open ${base}\nThe first visit to each name waits a few seconds while Caddy gets its certificate. Ports 80 and 443 must be open to the internet.`);
+  console.log(`\nThis host relays:\n${relaying(base).map((line) => `  - ${line}`).join("\n")}`);
 }
 
 /** @param {string} path */

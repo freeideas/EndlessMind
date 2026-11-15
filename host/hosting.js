@@ -20,12 +20,13 @@ import { openBoard } from "./board.js";
 import { openDemand } from "./demand.js";
 import { openGame } from "./host.js";
 import { openHosts } from "./hosts.js";
-import { openRelay, page, relayedBase } from "./relay.js";
+import { openRelay, page, readRefused, refuse, refusedFile, relayedBase } from "./relay.js";
 import { findRelease, serveRelease } from "./release.js";
 
 const PORTAL_NAME = "eportal"; // the EntryPortal's name under the host's own
 const PORTAL_FILES = new URL("../portal/", import.meta.url);
 const ROUND_MS = 10 * 60 * 1000; // how often a host that loads games by itself chooses again
+const REFUSED_MS = 2000; // how often a host looks whether its admin refused another ID
 
 /**
  * The EntryPortal's published files, exactly as they are in portal/: the page that forwards to the
@@ -63,7 +64,7 @@ async function portalFile(request) {
  *   hostname?: string,
  *   data?: string,
  *   portal?: string,
- *   relay?: boolean,
+ *   relay?: boolean | string[],
  *   entryPortal?: boolean,
  *   games?: number,
  *   store?: string,
@@ -75,8 +76,9 @@ async function portalFile(request) {
  *   now?: () => number,
  * }} options
  * `base` is the host's main address, a site's root; every name under it must lead here too. `game` is
- * the resident game's folder, and `data` and `portal` are that game's, as in runGame. `relay` and
- * `entryPortal` are on unless false. `games` is how many games are relayed at once. `load` lists the
+ * the resident game's folder, and `data` and `portal` are that game's, as in runGame. `relay` is who
+ * is relayed: anyone unless false (nobody) or a list of the only IDs to relay; IDs in the store's
+ * refused.txt never are. `entryPortal` is on unless false. `games` is how many games are relayed at once. `load` lists the
  * IDs of releases to run, each fetched from whichever known host runs it unless it is already in
  * `store`, the folder where this host keeps releases, their data, the hosts it knows and its own
  * secret phrase. `auto` is how many more games the host loads by itself, the most wished-for first:
@@ -95,13 +97,16 @@ export async function runHost(options) {
   const auto = options.auto ?? 0;
   if (!Number.isInteger(auto) || auto < 0) throw new Error("How many games a host loads by itself is a whole number, 0 or more.");
   for (const id of options.trust ?? []) if (!isId(id)) throw new Error(`${id} is not the ID of a realm or a host.`);
+  const only = Array.isArray(options.relay) ? new Set(options.relay) : null;
+  for (const id of only ?? []) if (!isId(id)) throw new Error(`${id} is not the ID of a game to relay.`);
+  let refused = await readRefused(store);
 
   const hosts = await openHosts({
     store,
     start: options.hosts,
     address: own.href,
     log,
-    offers: () => ({ relay: !!relay, portal: entryPortal, runs: runs(), relays: games().map((id) => ({ id, play: relayedBase(own.href, id) })) }),
+    offers: () => ({ relay: !!relay && !only, portal: entryPortal, runs: runs(), relays: games().map((id) => ({ id, play: relayedBase(own.href, id) })) }),
   });
 
   /** The releases run here, by the ID of each one's realm. @type {Map<string, { release: import("./release.js").Release, game: Awaited<ReturnType<typeof openGame>> }>} */
@@ -135,7 +140,33 @@ export async function runHost(options) {
     named.push(release.id);
   }
 
-  const relay = options.relay === false ? null : openRelay({ base: own.href, games: options.games, taken: (id) => hosted.has(id), changed: hosts.changed, log });
+  const relay = options.relay === false ? null : openRelay({
+    base: own.href,
+    games: options.games,
+    allowed: (id) => !refused.has(id) && (!only || only.has(id)),
+    taken: (id) => hosted.has(id),
+    changed: hosts.changed,
+    log,
+  });
+  // The admin refuses an ID with `endlessmind refuse`, from another process: the file is looked at
+  // every few seconds, and a game refused there is dropped at once.
+  let refusedAt = await Deno.stat(refusedFile(store)).then((info) => info.mtime?.getTime() ?? 0, () => 0);
+  let looking = false;
+  const watching = setInterval(async () => {
+    if (looking) return;
+    looking = true;
+    try {
+      const at = await Deno.stat(refusedFile(store)).then((info) => info.mtime?.getTime() ?? 0, () => 0);
+      if (at === refusedAt) return;
+      refusedAt = at;
+      refused = await readRefused(store);
+      relay?.recheck();
+    } catch (error) {
+      log(`The list of refused IDs could not be read. ${error instanceof Error ? error.message : error}`);
+    } finally {
+      looking = false;
+    }
+  }, REFUSED_MS);
   // The resident game is packed as it starts, so that others can host it from its ID.
   const resident = options.game ? await openGame({ folder: options.game, base: own.href, data: options.data, portal: options.portal, store, log }) : null;
 
@@ -238,8 +269,15 @@ export async function runHost(options) {
     entryPortal,
     /** The IDs of the realms relayed now. */
     games,
+    /** Never relay an ID again, and drop it now if it is relayed. @param {string} id */
+    async refuse(id) {
+      await refuse(store, id);
+      refused = await readRefused(store);
+      relay?.recheck();
+    },
     async stop() {
       stopped = true;
+      clearInterval(watching);
       clearTimeout(next);
       await demand.stop();
       await board.stop();

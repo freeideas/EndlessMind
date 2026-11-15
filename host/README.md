@@ -87,7 +87,7 @@ It uses the first known host that relays and has room; `--relay https://relay.ex
 
 A game run this way is packed as it starts, and prints its release's ID. While it is running, any host can fetch that release and run it, given only the ID.
 
-Every host is a relay (see "Hosting" below), unless its admin turns that off.
+Every host is a relay (see "Hosting" below), unless its admin turns that off or relays only games they chose. A relay that will not carry a game says so, and the game stops asking it.
 
 ## Finding hosts
 
@@ -112,26 +112,33 @@ deno task host --base https://myvps.example/ --game <folder>
 | `<realm ID>.myvps.example`   | Each release given with `--load` or loaded by demand              |
 | `<ID>.myvps.example`         | Each game on another computer that was run with `--relay`         |
 
-| Option        | Default                           | What it sets                                            |
-| ------------- | --------------------------------- | ------------------------------------------------------- |
-| `--base`      |                                   | The host's main address: a site's root                  |
-| `--game`      |                                   | The resident game's folder; without it, a plain page    |
-| `--load`      |                                   | IDs of releases to run, with commas between them        |
-| `--auto`      | `0`                               | How many more games it loads by itself, by demand       |
-| `--trust`     |                                   | IDs whose records it trusts besides its own             |
-| `--hosts`     | `https://relay.endlessmind.com/`  | Where finding hosts starts, with commas between them    |
-| `--store`     | `.endlessmind/`                   | Releases, their data, known hosts, the host's secret    |
-| `--port`      | `8000`                            | The port to listen on                                   |
-| `--hostname`  | `127.0.0.1`                       | Who can reach it; the default is this computer only     |
-| `--data`      | `.data/` in the game's folder     | Where the resident game's secret phrase and data are    |
-| `--portal`    | `https://portal.endlessmind.com/` | The EntryPortal the sign-in codes at its main name name |
-| `--games`     | `20`                              | How many games it relays at once                        |
-| `--no-relay`  |                                   | Do not relay                                            |
-| `--no-portal` |                                   | Do not serve an EntryPortal                             |
+| Option         | Default                           | What it sets                                            |
+| -------------- | --------------------------------- | ------------------------------------------------------- |
+| `--base`       |                                   | The host's main address: a site's root                  |
+| `--game`       |                                   | The resident game's folder; without it, a plain page    |
+| `--load`       |                                   | IDs of releases to run, with commas between them        |
+| `--auto`       | `0`                               | How many more games it loads by itself, by demand       |
+| `--trust`      |                                   | IDs whose records it trusts besides its own             |
+| `--hosts`      | `https://relay.endlessmind.com/`  | Where finding hosts starts, with commas between them    |
+| `--store`      | `.endlessmind/`                   | Releases, their data, known hosts, the host's secret    |
+| `--port`       | `8000`                            | The port to listen on                                   |
+| `--hostname`   | `127.0.0.1`                       | Who can reach it; the default is this computer only     |
+| `--data`       | `.data/` in the game's folder     | Where the resident game's secret phrase and data are    |
+| `--portal`     | `https://portal.endlessmind.com/` | The EntryPortal the sign-in codes at its main name name |
+| `--games`      | `20`                              | How many games it relays at once                        |
+| `--relay-only` |                                   | IDs of the only games it relays, with commas between    |
+| `--no-relay`   |                                   | Do not relay                                            |
+| `--no-portal`  |                                   | Do not serve an EntryPortal                             |
 
 **Names.** The main name and every name under it must lead to the server. With a domain, that is two DNS records: `myvps.example` and `*.myvps.example`. Without one, a free name made from the server's number works with no setup at all: for the server at `203.0.113.7`, use `--base https://203-0-113-7.sslip.io/`.
 
 **HTTPS.** The host program speaks plain HTTP on this computer only, and [Caddy](Caddyfile) in front of it provides HTTPS (setup installs it): it gets a certificate for each name the first time someone asks for it, after checking with the host program that the name is one of its own. Certificate authorities ration certificates by parent name. For a free name that ration is shared with everyone who uses the naming service; with a domain of one's own, a single certificate for `*.myvps.example` avoids it (see [deploy/README.md](../deploy/README.md) for how the relay at relay.endlessmind.com does that).
+
+**Relaying means lending your name.** A relayed game's pages come from a computer you do not control and are served at a name under yours. Nothing seals or checks them, as the game server is sealed. If one of them is made to trick people, such as a fake sign-in page for a bank, the lists of dangerous sites that browsers use may block that name, or every name of your host, your own game included, and your provider may hear complaints. Relaying is on for anyone by default, because it is what lets a maker share a game with no server at all. To limit it:
+
+- `--relay-only <ID>,...` relays only the games with those IDs (the ID is in each relayed game's name); `--no-relay` relays none. A host that relays only chosen games does not tell other hosts that it relays.
+- `endlessmind refuse <ID>` never relays that ID again: it is written to `refused.txt` in the store (`--store` names the store; on a server set up by `setup`, `/var/lib/endlessmind/.endlessmind`), and a running host drops the game within seconds. Delete its line from the file to allow it again.
+- `--games` caps how many games are relayed at once: 20 unless given. The log names each game as it comes and goes, and `endlessmind/host.json` lists the ones relayed now.
 
 **Other people's games.** When it starts, the host prints the ID of its resident game's release. Anyone can host that game by giving the ID to their own: `deno task host --base https://other.example/ --load <release ID>`. A host is responsible for what it serves, like anyone who runs a website; the seal protects the computer, not its owner.
 

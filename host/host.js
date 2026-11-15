@@ -192,6 +192,7 @@ export async function openGame(options) {
       let slow;
       const ready = await Promise.race([line.ready, new Promise((later) => (slow = setTimeout(() => later(false), RELAY_MS)))]);
       clearTimeout(slow);
+      if (line.refused && !found) throw new Error(`The relay at ${relay} does not relay this game: its admin relays only games they chose, or none.`);
       relayed = line;
       // A relay that was named is waited for. One that was found and is full or gone gives way to the next.
       if (ready || !found) break;

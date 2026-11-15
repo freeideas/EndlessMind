@@ -45,4 +45,7 @@ Deno.test("the plan says plainly what will change", () => {
   assert.ok(lines[0].includes("apt-get install -y caddy"));
   assert.ok(lines.some((line) => line.includes("/etc/caddy/Caddyfile")));
   assert.ok(lines.some((line) => line.includes("/etc/systemd/system/endless-host.service")));
+  // Relaying lends the owner's name to strangers' pages, and the plan says so and how to limit it.
+  assert.ok(lines.some((line) => line.includes("served under your name") && line.includes("block every name of a.example")));
+  assert.ok(lines.some((line) => line.includes("--relay-only") && line.includes("--no-relay") && line.includes("endlessmind refuse <ID> --store /var/lib/endlessmind/.endlessmind")));
 });
