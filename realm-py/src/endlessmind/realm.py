@@ -118,7 +118,7 @@ class Realm:
         self.store = store
         self.now: Callable[[], int] = options.get("now") or (lambda: int(time.time() * 1000))
         self.signin = signin
-        self.data: dict = {"sessions": {}, "offers": {}, "public": [], "records": [], "burned": {}, "players": {}, **data}
+        self.data: dict = {"sessions": {}, "offers": {}, "public": [], "records": [], "visits": {}, "burned": {}, "players": {}, **data}
         self.card: dict | None = None
         self._joins: dict[str, dict] = {}
         self._claims: dict[str, dict] = {}
@@ -142,8 +142,9 @@ class Realm:
         self.card = add_signature(card, self.signer)
 
     def list(self) -> dict:
-        """The realm's public list: its complete records marked public."""
-        return {"v": 1, "type": "list", "realm": self.id, "records": self.data["public"]}
+        """The realm's public list: its complete records marked public, and each player's newest sign-in
+        note marked public, as a visit."""
+        return {"v": 1, "type": "list", "realm": self.id, "records": self.data["public"], "visits": list(self.data["visits"].values())}
 
     async def handle(self, method: str, path: str, headers: Headers = None, body: bytes = b"") -> Response | None:
         """Answer the requests this library owns, or return None to let the game answer. `path` is the
@@ -323,6 +324,9 @@ class Realm:
         portal = portal if isinstance(portal, str) and re.match(r"https?://", portal) else None
         name = tidy_name(note.get("name"))
         self.data["players"][note["player"]] = {**({"portal": portal} if portal else {}), **({"name": name} if name else {}), "seen": now}
+        # A note the player marked public is a visit: the newest one per player is published.
+        if note.get("public") is True:
+            self.data["visits"][note["player"]] = note
         self._save()
         return ""
 
@@ -482,7 +486,7 @@ class Realm:
         return self._page("Burned", "Noted: that player ID is burned here, and nothing signed by it counts any more.")
 
     async def burn(self, id: str, notice: Any) -> None:
-        """Treat an ID as gone: end its sessions, drop its offers and public records, and refuse it from
+        """Treat an ID as gone: end its sessions, drop its offers, records and visit, and refuse it from
         now on. Call this for notices learned elsewhere, such as from a board."""
         self.data["burned"][id] = notice
         for token, session in list(self.data["sessions"].items()):
@@ -491,6 +495,7 @@ class Realm:
         self.data["offers"].pop(id, None)
         self.data["public"] = [r for r in self.data["public"] if id not in r["signers"]]
         self.data["records"] = [r for r in self.data["records"] if id not in r["signers"]]
+        self.data["visits"].pop(id, None)
         self._save()
 
     # ---- helpers ----

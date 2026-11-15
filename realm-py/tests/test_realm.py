@@ -220,6 +220,27 @@ def test_private_records_signed_not_published():
     assert call(realm, "endlessmind/restore", "POST").status == 401, "only for a signed-in player"
 
 
+def test_public_sign_in_note_is_listed_as_a_visit():
+    realm, clock = setup()
+    join(realm, clock.now)
+    assert realm.list()["visits"] == [], "a note without public: true is never published"
+
+    def visit():
+        return join(realm, clock.now, lambda n: add_signature({**n, "public": True, "sigs": {}}, PLAYER))[2]
+
+    visit()
+    clock.now += 1000
+    newest = visit()
+    listed = call(realm, "endlessmind-list.json").json()
+    assert listed["visits"] == [newest], "the note itself, as the player signed it"
+    assert valid_signers(listed["visits"][0]) == [PLAYER.id]
+    assert listed["records"] == [], "a visit is never a record"
+
+    key = base64url(master_key(seed_from_words(words_for(7))))
+    call(realm, "join/ANY", form={"burn": json.dumps({"v": 1, "type": "burn", "key": key})})
+    assert realm.list()["visits"] == [], "a burned ID's visit is gone"
+
+
 def test_card_signed_and_served_to_any_page():
     realm, _ = setup()
     response = call(realm, "endlessmind-card.json")

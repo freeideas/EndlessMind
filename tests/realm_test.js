@@ -38,7 +38,7 @@ async function note(address, time, extra = {}) {
 /** Start a join, send a note for it, and return the code and the response. @param {any} realm @param {number} time */
 async function join(realm, time, edit = (/** @type {any} */ n) => n) {
   const code = await (await call(realm, "endlessmind/start", { method: "POST" })).json();
-  const signed = edit(await note(code.address, time));
+  const signed = await edit(await note(code.address, time));
   const answer = await call(realm, `join/${code.code}`, form({ enter: JSON.stringify(signed) }));
   return { code, answer, signed };
 }
@@ -195,6 +195,25 @@ Deno.test("private records are signed but not published", async () => {
   assert.deepEqual(back.records, done.records);
   assert.equal((await call(realm, `claim/${restore.code}`)).status, 410, "a restore code works once");
   assert.equal((await call(realm, "endlessmind/restore", { method: "POST" })).status, 401, "only for a signed-in player");
+});
+
+Deno.test("a sign-in note the player marked public is listed as a visit, the newest one per player", async () => {
+  const { realm, clock } = await setup();
+  await join(realm, clock.now);
+  assert.deepEqual(realm.list().visits, [], "a note without public: true is never published");
+  const visit = async () => (await join(realm, clock.now, async (n) => addSignature({ ...n, public: true, sigs: {} }, player))).signed;
+  await visit();
+  clock.now += 1000;
+  const newest = await visit();
+
+  const list = await (await call(realm, "endlessmind-list.json")).json();
+  assert.deepEqual(list.visits, [newest], "the note itself, as the player signed it");
+  assert.deepEqual(await validSigners(list.visits[0]), [player.id]);
+  assert.deepEqual(list.records, [], "a visit is never a record");
+
+  const key = base64url(await masterKey(await seedFromWords(await wordsFor(7))));
+  await call(realm, "join/ANY", form({ burn: JSON.stringify({ v: 1, type: "burn", key }) }));
+  assert.deepEqual(realm.list().visits, [], "a burned ID's visit is gone");
 });
 
 Deno.test("the realm card is signed by the realm and served to any page", async () => {

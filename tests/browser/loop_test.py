@@ -195,6 +195,7 @@ def sign_in_by_code(pc, phone, portal: str, site: str, shot=no_shot) -> None:
     assert link.startswith(portal + "#url=")
     phone.goto(link)
     expect(phone.locator("#enter-site")).to_have_text(site)
+    expect(phone.locator("#enter-visits")).to_be_checked()  # public visits are on until the player turns them off
     shot(phone, "2-phone-confirm-sign-in")
     phone.locator("#enter-ok").click()
     expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
@@ -233,6 +234,9 @@ def public_record(pc, maze: str, player: str, words: str) -> dict:
     [record] = listing["records"]
     assert record["public"] is True and set(record["sigs"]) == {player, listing["realm"]}
     assert record["notes"][player]["text"] == words and set(record["notes"]) == {player}
+    # Each sign-in was public, so the newest one is listed as a visit, apart from the records.
+    [visit] = [v for v in listing["visits"] if v["player"] == player]
+    assert visit["type"] == "enter" and visit["public"] is True and visit["address"].startswith(maze + "join/")
     return record
 
 

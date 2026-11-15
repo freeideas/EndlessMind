@@ -93,8 +93,8 @@ export class Realm {
     this.id = signer.id;
     this.store = store;
     this.now = options.now ?? Date.now;
-    /** @type {{ sessions: Record<string, { player: string, created: number }>, offers: Record<string, any[]>, public: any[], records: any[], burned: Record<string, any>, players: Record<string, { portal?: string, name?: string, seen: number }> }} */
-    this.data = { sessions: {}, offers: {}, public: [], records: [], burned: {}, players: {}, ...data };
+    /** @type {{ sessions: Record<string, { player: string, created: number }>, offers: Record<string, any[]>, public: any[], records: any[], visits: Record<string, any>, burned: Record<string, any>, players: Record<string, { portal?: string, name?: string, seen: number }> }} */
+    this.data = { sessions: {}, offers: {}, public: [], records: [], visits: {}, burned: {}, players: {}, ...data };
   }
 
   /** Sign a fresh realm card. */
@@ -117,9 +117,12 @@ export class Realm {
     this.card = await addSignature(card, this.signer);
   }
 
-  /** The realm's public list: its complete records marked public. */
+  /**
+   * The realm's public list: its complete records marked public, and each player's newest sign-in note
+   * marked public, as a visit.
+   */
   list() {
-    return { v: 1, type: "list", realm: this.id, records: this.data.public };
+    return { v: 1, type: "list", realm: this.id, records: this.data.public, visits: Object.values(this.data.visits) };
   }
 
   /**
@@ -302,6 +305,8 @@ export class Realm {
     const portal = typeof note.portal === "string" && /^https?:\/\//.test(note.portal) ? note.portal : undefined;
     const name = tidyName(note.name);
     this.data.players[note.player] = { ...(portal ? { portal } : {}), ...(name ? { name } : {}), seen: now };
+    // A note the player marked public is a visit: the newest one per player is published.
+    if (note.public === true) this.data.visits[note.player] = note;
     await this.#save();
     return "";
   }
@@ -477,7 +482,7 @@ export class Realm {
   }
 
   /**
-   * Treat an ID as gone: end its sessions, drop its offers and public records, and refuse it from now on.
+   * Treat an ID as gone: end its sessions, drop its offers, records and visit, and refuse it from now on.
    * Call this for notices learned elsewhere, such as from a board.
    * @param {string} id
    * @param {any} notice
@@ -488,6 +493,7 @@ export class Realm {
     delete this.data.offers[id];
     this.data.public = this.data.public.filter((r) => !r.signers.includes(id));
     this.data.records = this.data.records.filter((r) => !r.signers.includes(id));
+    delete this.data.visits[id];
     await this.#save();
   }
 

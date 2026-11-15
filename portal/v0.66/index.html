@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0RtjiFzMDa0R9oUu3xpwq+Ai3h8hs3UJU+VCJXGXHH4='; style-src 'sha256-XjNND44bUcscYtcgPgMDAhCG/7hv7ukXhZLFt1moHDg='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MOITwbLn+EjA87R20V1XYJK1vMOGA4VnU5CJtKzQOtc='; style-src 'sha256-baU2QyDO0cQdIf8H4RBTCo6VwBMBGsWE2uTdmbUMJ8U='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <title>EntryPortal | Endless Mind</title>
 <!--
-  Endless Mind EntryPortal, version 0.65. https://github.com/freeideas/EndlessMind
+  Endless Mind EntryPortal, version 0.66. https://github.com/freeideas/EndlessMind
   Served at https://portal.endlessmind.com/, a site that serves nothing else: any script on the same
   site could use the stored key, so nothing else may ever run there.
 
@@ -46,6 +46,7 @@ button.danger { background: var(--warn); }
 input[type=text], textarea { font: inherit; width: 100%; padding: .55rem .7rem; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
 textarea { min-height: 7rem; }
 label { display: block; margin: .5rem 0; }
+label.check { display: flex; gap: .5rem; align-items: center; }
 .id { font: .95rem/1.5 ui-monospace, Menlo, monospace; word-break: break-all; background: var(--card); padding: .5rem .7rem; border-radius: 8px;  white-space: pre-wrap; }
 .site { font-size: 1.5rem; font-weight: 700; word-break: break-all; }
 ol.words { columns: 3; column-gap: .4rem; padding-left: 2.1rem; font: .85rem/1.65 ui-monospace, Menlo, monospace; background: var(--card); border-radius: 10px; padding-top: .6rem; padding-bottom: .6rem; }
@@ -67,7 +68,7 @@ summary { cursor: pointer; font-weight: 600; }
 </head>
 <body>
 <main>
-<div class="brand">Endless Mind EntryPortal, version 0.65</div>
+<div class="brand">Endless Mind EntryPortal, version 0.66</div>
 <p class="warn" id="in-app" hidden>This page is open inside another app, whose browser may forget your identity. Open it in your usual browser instead: look in this app's menu for "Open in browser" or "Open in Safari".</p>
 
 <input type="file" id="picture-input" accept="image/*" hidden>
@@ -143,6 +144,8 @@ summary { cursor: pointer; font-weight: 600; }
   <h1>Your EntryPortal</h1>
   <p>Games call you <strong id="home-name"></strong>. <button id="name-change" class="plain small">Change name</button></p>
   <p>When a game shows a sign-in code, scan it with your phone's camera, or use the game's "Sign in on this computer" link.</p>
+  <label class="check"><input type="checkbox" id="home-visits"> Public visits: anyone may see where and when I sign in</label>
+  <p class="muted">A public visit shows that real people play a game, which helps others find it. It is not a record. Turn this off to keep your sign-ins private.</p>
   <p class="muted" id="home-storage"></p>
   <details>
     <summary>Your player ID</summary>
@@ -189,6 +192,7 @@ summary { cursor: pointer; font-weight: 600; }
   <label id="enter-rename" hidden>Your name, as games show it:
     <input type="text" id="enter-name" maxlength="40" autocomplete="off"></label>
   <p class="warn" id="enter-warn"></p>
+  <label class="check"><input type="checkbox" id="enter-visits"> Public visit: anyone may see that I signed in here, and when</label>
   <button id="enter-ok">Sign in</button>
   <button id="enter-cancel" class="plain">Cancel</button>
 </section>
@@ -6033,6 +6037,17 @@ async function start() {
   carryOn();
 }
 
+/** Whether sign-ins are public visits: on unless the player turned it off. */
+async function publicVisits() {
+  return (await load("visits")) !== false;
+}
+
+/** Show the public visits setting in a checkbox, which changes it. @param {HTMLInputElement} box */
+async function visitsBox(box) {
+  box.checked = await publicVisits();
+  box.onchange = () => save("visits", box.checked);
+}
+
 /** The player's name: the one they chose, or the starting name from their ID. */
 async function playerName() {
   return identity ? (await load("name")) || defaultName(identity.id) : "";
@@ -6358,6 +6373,7 @@ async function showHome() {
     ? "This browser has promised to keep this EntryPortal's storage."
     : "This browser may erase this EntryPortal's storage if you do not use it for a while. Keep your secret phrase safe, so you can set it up again.";
   $("typed-error").hidden = true;
+  await visitsBox($("home-visits"));
   await drawRecords();
   show("home");
 }
@@ -6424,6 +6440,7 @@ async function showEnter(address, rename = false) {
   $("enter-address").textContent = checked;
   $("enter-rename").hidden = !rename;
   $("enter-name").value = await playerName();
+  await visitsBox($("enter-visits"));
   $("enter-ok").textContent = rename ? "Save and sign in again" : "Sign in";
   $("enter-ok").onclick = async () => {
     if (rename) {
@@ -6450,6 +6467,7 @@ async function signIn(address) {
     nonce: hex(crypto.getRandomValues(new Uint8Array(16))),
     portal: HERE,
     name: await playerName(),
+    ...((await publicVisits()) ? { public: true } : {}),
   };
   const signed = await addSignature(note, identity);
   const realms = ((await load("realms")) ?? []).filter((/** @type {any} */ r) => r.origin !== new URL(address).origin);
@@ -6781,6 +6799,7 @@ $("burn-ok").onclick = async () => {
   await remove("records");
   await remove("realms");
   await remove("name");
+  await remove("visits");
   const id = identity.id;
   identity = null;
   showBurned(id, notice, realms);

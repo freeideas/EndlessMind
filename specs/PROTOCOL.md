@@ -41,7 +41,7 @@ https://portal.endlessmind.com/#url=<join address>
 
 To let a signed-in player change their name, a realm may add `&rename` to the link (and name the EntryPortal from the player's sign-in note): the EntryPortal then shows the name with a box to change it and a "Save and sign in again" button, so the new name arrives in a fresh sign-in note at once.
 
-A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.65/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
+A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.66/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
 
 **3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
 
@@ -53,9 +53,10 @@ A realm usually names an address that forwards to the newest version of an Entry
   "address": "https://game-server.com/sword-of-swankery/join/K7Q2",
   "time": 1790000000000,
   "nonce": "0123456789abcdef",
-  "portal": "https://portal.endlessmind.com/v0.65/",
+  "portal": "https://portal.endlessmind.com/v0.66/",
+  "public": true,
   "sigs": {
-    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "tz355fzMN3jvQwUMz8VpUhg0ZPfqsubhxWdUo1w_C4wkoQxlwYzn0qCx0acYPWZk9SVkWmtxcwCbl5R5F1jVAg"
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "JuNRNRZER3ynia79eCRnLf7VdS3AqnEBlF2l7KgHsTFAba9VPD9pM2gdfViTAKCy87eDpPX47ItoUS3hGRmaDA"
   }
 }
 ```
@@ -68,12 +69,15 @@ A realm usually names an address that forwards to the newest version of an Entry
 | `nonce`   | 16 to 64 random characters                                                  |
 | `portal`  | Optional: the EntryPortal's address, so the realm can send records there    |
 | `name`    | Optional: the name the player chose, at most 40 characters; not unique      |
+| `public`  | Optional: `true` if the realm may publish the note as a visit               |
 
-**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. You can close this page and go back to the game on your screen." It may also sign in the browser that sent the note, which belongs to the same player, and offer a link to play there instead. A realm may also answer a plain visit to a join address by sending the browser on to its EntryPortal link, so the short address works when opened in a phone's browser too.
+**4. Delivery.** The EntryPortal sends the browser to `address` with an HTML form POST (`application/x-www-form-urlencoded`) holding one field, `enter`, whose value is the note as JSON. The realm answers with a page such as "You're in. You can close this page and go back to the game on your screen." It may also sign in the browser that sent the note, which belongs to the same player, and offer a link to play there instead. A realm may also answer a browser that simply opens a join address by sending the browser on to its EntryPortal link, so the short address works when opened in a phone's browser too.
 
 **5. The realm checks** that the signature by `player` is valid, that `address` is one of its own join addresses, not yet used and less than two minutes old, that `time` is within two minutes of its clock, and that it has not seen `nonce` before. Then it lets in the screen waiting on that join address. What happens next, such as a session cookie, is up to the realm.
 
 The realm's own ID is not in the note: the address already ties the note to the realm, and the player learns the realm's ID from the records it signs.
+
+**A visit** is a sign-in note marked `public`. It proves that the player entered the realm at that address at that time, at no extra effort, since every sign-in makes one. The player chooses: an EntryPortal shows the choice plainly, and the reference EntryPortal has it on until the player turns it off. A realm publishes the newest such note from each player in its public list (see "Finding realms"), exactly as the player signed it. A visit is never play and never a record.
 
 ## Records
 
@@ -127,7 +131,7 @@ The realm's own ID is not in the note: the address already ties the note to the 
 **Claiming: asking a player to sign, or giving them records.** The realm shows a QR code, a "claim on this computer" link and a short address, all leading to a one-time claim address of its own, such as `https://game-server.com/sword-of-swankery/claim/X9P4`. That address forwards the browser to the EntryPortal named in the player's sign-in note:
 
 ```
-https://portal.endlessmind.com/v0.65/#sign=<URL-encoded JSON>
+https://portal.endlessmind.com/v0.66/#sign=<URL-encoded JSON>
 ```
 
 The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
@@ -181,10 +185,12 @@ A realm serves its newest card at `endlessmind-card.json` under each address in 
 **Public list.** The address in `list` serves, with the same header:
 
 ```json
-{ "v": 1, "type": "list", "realm": "<realm ID>", "records": [ ... ] }
+{ "v": 1, "type": "list", "realm": "<realm ID>", "records": [ ... ], "visits": [ ... ] }
 ```
 
-It holds the realm's complete records marked `public`, signed by the realm and by every player they name, each with its notes. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
+`records` holds the realm's complete records marked `public`, signed by the realm and by every player they name, each with its notes. `visits`, which may be left out, holds the newest sign-in note marked `public` from each player who has one, unchanged. Nothing else is required of it; a realm may split a long list with an optional `next` field giving the address of the rest.
+
+A reader counts a visit only if it is a sign-in note completely signed by its `player`, its `public` is `true`, and its `address` starts with one of the realm card's `play` addresses; only a player's newest visit to a realm counts. A visit shows that someone came, not what they did, so it is weaker evidence than a record, and it is never counted as play.
 
 **Boards** read cards and lists and rank realms however they choose. They should count only complete records that are marked `public` and signed by the players they concern, and may distrust records that first appear long after their `time`. Every host serves one (see "Hosts").
 
@@ -504,7 +510,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 10. **Records can leave.** The page saves and loads records files.
 11. **A site of its own.** The page is served from a site (scheme, host and port) that serves nothing but EntryPortal versions. A stored key cannot be read out, but any script on the same site can use it to sign, so a single other page there, or one broken into, could sign as every player.
 
-The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered below v1.0 (the newest is v0.65), each made in [portal/](../portal/), which keeps only the newest, and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
+The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered below v1.0 (the newest is v0.66), each made in [portal/](../portal/), which keeps only the newest, and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
 
 ## Versions
 

@@ -105,7 +105,7 @@ def test_a_realm_moves_between_the_two_on_its_data_file(tmp_path):
     words, player = PHRASES[3], signer_from_words(PHRASES[4])
     data = tmp_path / "realm-data.json"
     realm = open_realm(BASE, CARD, words=words, data_file=data)
-    # A player signed in, with a chosen name, and a complete public record, made by the Python version.
+    # A player signed in, with a chosen name, a complete public record and a visit, made by the Python version.
     realm.data["players"][player.id] = {"name": "Moon Pie", "seen": 1}
     session = realm._new_session(player.id)
     asyncio.run(realm.offer(player.id, [{"text": "Planted ten seeds.", "data": {"seeds": 10}}]))
@@ -113,6 +113,8 @@ def test_a_realm_moves_between_the_two_on_its_data_file(tmp_path):
     record = add_signature(add_signature({**proposal, "public": True}, player), realm.signer)
     realm.data["records"].append(record)
     realm.data["public"].append(record)
+    visit = {"v": 1, "type": "enter", "player": player.id, "address": BASE + "join/K7Q2P9", "time": 1790000000000, "nonce": "0123456789abcdef", "public": True}
+    realm.data["visits"][player.id] = add_signature(visit, player)
     realm._save()
 
     seen = js("realm", {"base": BASE, "card": CARD, "words": words, "dataFile": str(data), "player": player.id, "cookie": f"endlessmind={session}"})
@@ -120,6 +122,7 @@ def test_a_realm_moves_between_the_two_on_its_data_file(tmp_path):
     assert seen["me"]["playerName"] == "Moon Pie"
     assert seen["records"] == [record]
     assert seen["list"] == realm.list()
+    assert seen["list"]["visits"] == [realm.data["visits"][player.id]]
     # And back: the Python version reads what the JavaScript version wrote.
     again = open_realm(BASE, CARD, words=words, data_file=data)
     assert again.data["offers"][player.id][0]["text"] == "Offered by the JavaScript version."

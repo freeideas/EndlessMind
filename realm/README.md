@@ -37,9 +37,9 @@ A game keeps its data in `.data/` inside its own folder, which Git ignores and w
 | Address under `base`         | What                                                                  |
 | ---------------------------- | --------------------------------------------------------------------- |
 | `endlessmind-card.json`      | The realm card, signed at start-up                                    |
-| `endlessmind-list.json`      | The public list                                                       |
-| `join/<code>`                | Sign-in notes and burn notices (POST); a visit goes on to the EntryPortal |
-| `claim/<code>`               | A visit goes on to the player's EntryPortal; records come back (POST) |
+| `endlessmind-list.json`      | The public list: public records, each player's newest visit           |
+| `join/<code>`                | Sign-in notes and burn notices (POST); opened, goes on to the EntryPortal |
+| `claim/<code>`               | Opened, goes on to the player's EntryPortal; records come back (POST) |
 | `endlessmind/start`, `claim` | Make a join or claim code for the page (POST); `start?rename` for a name change |
 | `endlessmind/wait/<code>`    | The page waits here; a finished sign-in gets its session cookie here  |
 | `endlessmind/me`, `signout`  | Who is signed in, and how many records wait to be claimed             |

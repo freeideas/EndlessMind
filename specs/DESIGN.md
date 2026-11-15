@@ -18,6 +18,7 @@ What makes it one network rather than many separate games is identity: a player 
 - **Proof:** a signature: what a key pair makes to show "the holder of this ID agreed to this exact text." Anyone can check it; nobody can make one without the secret.
 - **EntryPortal:** a small web page that holds a player's key inside their browser, usually on their phone, and makes proofs for them. Anyone can write or host one.
 - **Sign-in note:** a proof that a player wants to enter a realm at a particular web address, now.
+- **Visit:** a sign-in note the player let the realm publish: proof that they came, and when.
 - **Record:** a short text signed by one or more IDs, such as a realm and its players. Anyone holding it can show it to anyone.
 - **Realm card:** what a realm says about itself (name, description, picture, where to play), signed by the realm.
 - **Host card:** what a host says about itself (its address and what it runs), signed by the host.
@@ -128,6 +129,7 @@ What makes it one network rather than many separate games is identity: a player 
 **Finding realms**
 
 - **Playing is the recommendation.** There is no "like" button. Twenty-five achievements in a realm, each taking hours, say more than any vote, and are far harder to fake.
+- **Every sign-in can count as a visit.** A record costs the player a scan, and most players stay guests, so records alone would be thin evidence for a new realm. A sign-in note costs nothing extra, so the player may mark it public, inside what they sign, and the realm then publishes their newest one as a visit. EntryPortals show this as a plain setting, on by default, since a visit exists to be shown, like a public record. A visit says only that someone came, not what they did: it is never play and never a record, and readers weigh it below records.
 - **Players choose which records are public.** A record carries a `public` mark inside its signed text, so every signer agreed to it. EntryPortals show the choice plainly on the signing screen and default to public, since a record exists to be shown.
 - **Public records are published where the play happened.** A tied realm keeps a list of its complete public records, named in its realm card. A host keeps one for each open realm it runs, and boards add up a realm's play across every host. Realms and hosts want to publish, because published play is what ranks them.
 - **Friends are a new realm's first evidence.** Records from play in the maker's browser are what let others find a new game and ask a host to load it.
