@@ -9,10 +9,11 @@ Guest play, sign-in by QR code (read from the screen), claiming a record with wo
 own, the public list, "sign in on this computer", a typed address, and burning an identity. The
 EntryPortal and the realm run on different local addresses, like two sites. Then the heart of the loop
 again through a host: a game on "another computer" relayed by `deno task host`, played at a name of its
-own under the host's, with the host's EntryPortal, then found on the host's board and wished for. Run: uv run tests/browser/loop_test.py [--headed]
+own under the host's, with the host's EntryPortal and the number a phone shows to finish signing in, then
+found on the host's board and wished for. Run: uv run tests/browser/loop_test.py [--headed]
 (it fetches the browser it needs first, which takes a while only the first time and after an update)
 """
-import base64, functools, http.client, http.server, json, os, re, socket, subprocess, sys, tempfile, threading, time
+import base64, functools, http.client, http.server, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
 import cv2
@@ -74,15 +75,19 @@ def start_maze(data: str) -> subprocess.Popen:
 
 
 def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str, str]:
-    """A host with no game of its own, and Endless Maze on "another computer" relayed through it.
-    Returns the two programs, the maze's address under the host's name, the host's EntryPortal and
-    the host's own address."""
+    """A host with no game of its own, and Endless Maze on "another computer" relayed through it, set to
+    let a screen in only once the player types the number their phone shows. Returns the two programs,
+    the maze's address under the host's name, the host's EntryPortal and the host's own address."""
     port = free_port()
+    maze = os.path.join(folder, "maze")
+    shutil.copytree(REPO / "examples" / "maze", maze, ignore=shutil.ignore_patterns(".*"))
+    card = json.loads(Path(maze, "card.json").read_text(encoding="utf-8"))
+    Path(maze, "card.json").write_text(json.dumps({**card, "confirmSignIn": True}), encoding="utf-8")
     portal = f"http://eportal.localhost:{port}/"
     host = host_program("host", "--base", f"http://localhost:{port}/", "--port", str(port), "--store", os.path.join(folder, "host"),
                         "--portal", portal, "--hosts", "")
     wait_for(port)
-    game = host_program("run", "examples/maze", "--relay", f"http://localhost:{port}/", "--portal", portal,
+    game = host_program("run", maze, "--relay", f"http://localhost:{port}/", "--portal", portal,
                         "--port", str(free_port()), "--data", os.path.join(folder, "relayed"), "--no-watch")
     said = ""
     while "Play at " not in said:
@@ -187,8 +192,19 @@ def no_shot(page, name: str) -> None:
     pass
 
 
-def sign_in_by_code(pc, phone, portal: str, site: str, shot=no_shot) -> None:
-    """The screen shows a sign-in code; the phone scans it and confirms."""
+def type_number(pc, phone) -> None:
+    """The phone shows a number after signing in; typing it on the screen lets the screen in."""
+    heading = phone.get_by_role("heading", name=re.compile(r"^Type \d\d on your screen$"))
+    expect(heading).to_be_visible()
+    number = re.search(r"\d\d", heading.text_content()).group(0)
+    expect(pc.get_by_text("Your phone shows a two-digit number.")).to_be_visible()
+    pc.get_by_label("The number on your phone").fill(number)
+    pc.get_by_role("button", name="Finish signing in").click()
+
+
+def sign_in_by_code(pc, phone, portal: str, site: str, shot=no_shot, number: bool = False) -> None:
+    """The screen shows a sign-in code; the phone scans it and confirms, and with `number` the player
+    types the number the phone then shows."""
     pc.get_by_role("button", name="Sign in").click()
     link = read_qr(pc)
     shot(pc, "1-pc-sign-in-code")
@@ -198,7 +214,10 @@ def sign_in_by_code(pc, phone, portal: str, site: str, shot=no_shot) -> None:
     expect(phone.locator("#enter-visits")).to_be_checked()  # public visits are on until the player turns them off
     shot(phone, "2-phone-confirm-sign-in")
     phone.locator("#enter-ok").click()
-    expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+    if number:
+        type_number(pc, phone)
+    else:
+        expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
     expect(pc.locator(".em-name")).to_be_visible()
 
 
@@ -250,7 +269,17 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     pc.goto(maze)
     expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
     run_level(pc, 1)
-    sign_in_by_code(pc, phone, portal, site)
+
+    # A wrong number stops the sign-in; starting again with the right one lets the screen in.
+    pc.get_by_role("button", name="Sign in").click()
+    phone.goto(read_qr(pc))
+    phone.locator("#enter-ok").click()
+    shown = re.search(r"\d\d", phone.get_by_role("heading", name=re.compile(r"^Type \d\d on your screen$")).text_content()).group(0)
+    pc.get_by_label("The number on your phone").fill("10" if shown != "10" else "11")
+    pc.get_by_role("button", name="Finish signing in").click()
+    expect(pc.get_by_text("so this sign-in was stopped")).to_be_visible()
+    pc.get_by_role("button", name="Cancel").click()
+    sign_in_by_code(pc, phone, portal, site, number=True)
     expect(pc.locator(".em-name")).to_have_text(name)
     claim_with_words(pc, phone, maze, site, "Relayed, and still mine.")
     public_record(pc, maze, player, "Relayed, and still mine.")
@@ -262,7 +291,7 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     assert typed.startswith("http://" + site)
     phone.locator("#typed-address").fill(typed.removeprefix("http://"))
     phone.get_by_role("button", name="Sign in").click()
-    expect(phone.get_by_role("heading", name="You're in")).to_be_visible()
+    type_number(pc, phone)
     expect(pc.locator(".em-name")).to_have_text(name)
 
     # The host's board lists the game with its play on record, and the player wishes for it.

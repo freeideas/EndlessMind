@@ -38,13 +38,15 @@ const COOKIE = "endlessmind"; // the session cookie's name; see cookieName
  *   onRecord?: (record: any) => void,
  *   runs?: { realm: string, release: string },
  *   release?: string,
+ *   confirmSignIn?: boolean,
  * }} RealmOptions
  * `base` is the realm's public address, ending in "/"; the realm answers under it. `portal` is the
  * EntryPortal its sign-in codes name. The realm's secret phrase is `words`, or is kept in `secretFile`
  * (made on first run). What it must remember is kept in `dataFile`, or in `store`. A host that runs
  * a release of someone else's realm signs under its own ID and gives `runs`: its card and every record
  * it signs then name that realm and release. A realm that hands out a release of itself gives its ID as
- * `release`, and its card names it.
+ * `release`, and its card names it. With `confirmSignIn`, the page that answers a sign-in note shows a
+ * two-digit number, and the waiting screen is let in only once the player types that number there.
  */
 
 export const DEFAULT_PORTAL = "https://portal.endlessmind.com/"; // forwards to the newest version
@@ -64,7 +66,7 @@ export async function openRealm(options) {
 }
 
 export class Realm {
-  /** @type {Map<string, { token: string, created: number, player?: string, taken?: boolean }>} */
+  /** @type {Map<string, { token: string, created: number, player?: string, number?: string, taken?: boolean }>} */
   #joins = new Map();
   /** @type {Map<string, { token: string, created: number, player: string, records: any[], done?: number, restore?: boolean }>} */
   #claims = new Map();
@@ -149,6 +151,8 @@ export class Realm {
     if (post && path === "endlessmind/signout") return this.#signOut(request);
     let m = path.match(/^endlessmind\/wait\/([A-Za-z0-9]+)$/);
     if (get && m) return this.#wait(m[1].toUpperCase(), url.searchParams.get("token") ?? "");
+    m = path.match(/^endlessmind\/confirm\/([A-Za-z0-9]+)$/);
+    if (post && m) return this.#confirm(m[1].toUpperCase(), request);
     m = path.match(/^join\/([A-Za-z0-9]+)$/);
     if (get && m) return redirect(this.#portalLink(this.joinAddress(m[1].toUpperCase())));
     if (post && m) return this.#joinPost(m[1].toUpperCase(), request);
@@ -262,7 +266,20 @@ export class Realm {
     const problem = await this.#checkNote(code, text);
     if (problem) return this.#page("Not signed in", problem, 400);
     // The device that made the note may play too: give its browser a session of its own.
-    const session = await this.#newSession(/** @type {string} */ (this.#joins.get(code)?.player));
+    const join = /** @type {{ player: string, number?: string }} */ (this.#joins.get(code));
+    const session = await this.#newSession(join.player);
+    if (this.options.confirmSignIn) {
+      // Only this page shows the number, so a screen that showed someone else its code cannot finish.
+      join.number = String(10 + (crypto.getRandomValues(new Uint32Array(1))[0] % 90));
+      const site = new URL(this.base).host;
+      return this.#page(
+        `Type ${join.number} on your screen`,
+        `To sign in the screen where you pressed Sign in, type ${join.number} there, on ${site}. Type it nowhere else: if someone asked you for this number, close this page. You are already signed in on this device.`,
+        200,
+        { href: this.base, text: `Play ${this.card.name} here` },
+        { "set-cookie": this.#cookie(session, SESSION_MS) },
+      );
+    }
     return this.#page(
       "You're in",
       "You're in. If the game is open on another screen, it is signed in there too, and you can close this page.",
@@ -315,6 +332,7 @@ export class Realm {
   async #wait(code, token) {
     const join = this.#joins.get(code);
     if (join && join.token === token) {
+      if (join.player && join.number && !join.taken) return json({ state: "number" });
       if (join.player && !join.taken) {
         join.taken = true;
         const session = await this.#newSession(join.player);
@@ -329,6 +347,28 @@ export class Realm {
       return json({ state: this.now() - claim.created > CLAIM_MS ? "expired" : "waiting" });
     }
     return json({ state: "unknown" }, 404);
+  }
+
+  /**
+   * The waiting screen sends the number the player typed, with its token. The right number lets it in;
+   * a wrong one ends the sign-in, so a guess gets one try in ninety.
+   * @param {string} code @param {Request} request
+   */
+  async #confirm(code, request) {
+    /** @type {any} */
+    let sent = null;
+    try {
+      sent = await request.json();
+    } catch {
+      sent = null;
+    }
+    const join = this.#joins.get(code);
+    if (!join || join.token !== String(sent?.token ?? "") || !join.player || !join.number || join.taken) return json({ state: "unknown" }, 404);
+    this.#joins.delete(code);
+    if (this.now() - join.created > 2 * JOIN_MS) return json({ state: "expired" });
+    if (String(sent?.number ?? "").trim() !== join.number) return json({ state: "wrong" }, 403);
+    const session = await this.#newSession(join.player);
+    return json({ state: "in", player: join.player }, 200, { "set-cookie": this.#cookie(session, SESSION_MS) });
   }
 
   /** @param {Request} request */

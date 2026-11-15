@@ -38,7 +38,7 @@ class Clock:
     now = 1790000000000
 
 
-def setup():
+def setup(**options):
     clock = Clock()
     realm = open_realm(
         BASE,
@@ -47,6 +47,7 @@ def setup():
         words=words_for(1),
         store=memory_store(),
         now=lambda: clock.now,
+        **options,
     )
     return realm, clock
 
@@ -260,6 +261,34 @@ def test_burned_id_refused():
     assert "burned here" in call(realm, "join/ANY", form={"burn": json.dumps({"v": 1, "type": "burn", "key": key})}).text()
     assert call(realm, "endlessmind/me", headers=cookie).json()["player"] is None
     assert "burned" in join(realm, clock.now)[1].text()
+
+
+def test_confirm_sign_in_lets_the_screen_in_only_with_the_number_from_the_phone():
+    realm, clock = setup(confirm_sign_in=True)
+    code, answer, _ = join(realm, clock.now)
+    number = re.search(r"Type (\d\d) on your screen", answer.text())[1]
+    assert re.fullmatch(r"[1-9]\d", number)
+    assert "there, on garden.example" in answer.text()
+    assert answer.headers["set-cookie"], "the phone itself is signed in"
+
+    def confirm(c, body):
+        return asyncio.run(realm.handle("POST", f"/endlessmind/confirm/{c['code']}", {"content-type": "application/json"}, json.dumps(body).encode()))
+
+    wait = call(realm, f"endlessmind/wait/{code['code']}?token={code['token']}")
+    assert wait.json() == {"state": "number"}
+    assert "set-cookie" not in wait.headers, "waiting alone never lets the screen in"
+    assert confirm(code, {"token": "nope", "number": number}).status == 404, "only the screen that asked may answer"
+    right = confirm(code, {"token": code["token"], "number": number})
+    assert right.json() == {"state": "in", "player": PLAYER.id}
+    assert call(realm, "endlessmind/me", headers=cookie_of(right)).json()["player"] == PLAYER.id
+    assert confirm(code, {"token": code["token"], "number": number}).status == 404, "a number works once"
+
+    other, answer, _ = join(realm, clock.now)
+    shown = re.search(r"Type (\d\d) on your screen", answer.text())[1]
+    wrong = confirm(other, {"token": other["token"], "number": "11" if shown == "10" else "10"})
+    assert wrong.json() == {"state": "wrong"}, "a wrong number ends the sign-in"
+    assert confirm(other, {"token": other["token"], "number": shown}).status == 404
+    assert call(realm, f"endlessmind/wait/{other['code']}?token={other['token']}").json()["state"] == "unknown"
 
 
 def test_signing_device_gets_a_session_and_a_link():

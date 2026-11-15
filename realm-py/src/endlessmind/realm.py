@@ -79,11 +79,13 @@ def open_realm(
     is_burned: Callable[[str], bool | Awaitable[bool]] | None = None,
     on_record: Callable[[dict], Any] | None = None,
     signin_file: str | os.PathLike | None = None,
+    confirm_sign_in: bool = False,
 ) -> "Realm":
     """Open a realm, as openRealm in realm/realm.js. `base` is the realm's public address, ending in "/".
     The secret phrase is `words`, or is kept in `secret_file` (made on first run, default
     `.data/realm-secret.txt`). What it must remember is kept in `data_file` (default
-    `.data/realm-data.json`), or in `store`."""
+    `.data/realm-data.json`), or in `store`. With `confirm_sign_in`, the page that answers a sign-in
+    note shows a two-digit number, and the waiting screen is let in only once the player types it there."""
     if (not words and not secret_file) or (not store and not data_file):
         os.makedirs(".data", exist_ok=True)
     words = words or _secret_words(secret_file or ".data/realm-secret.txt")
@@ -95,7 +97,7 @@ def open_realm(
             f"{signin} is missing: install endlessmind as an editable path dependency from a checkout of "
             "the EndlessMind repository, or pass signin_file"
         )
-    options = dict(base=base, card=dict(card), portal=portal, now=now, is_burned=is_burned, on_record=on_record)
+    options = dict(base=base, card=dict(card), portal=portal, now=now, is_burned=is_burned, on_record=on_record, confirm_sign_in=confirm_sign_in)
     realm = Realm(options, signer, store, store.load() or {}, signin)
     realm.sign_card()
     return realm
@@ -177,6 +179,9 @@ class Realm:
         if get and m:
             token = next((v for k, v in params if k == "token"), "")
             return self._wait(m[1].upper(), token)
+        m = re.fullmatch(r"endlessmind/confirm/([A-Za-z0-9]+)", sub)
+        if post and m:
+            return self._confirm(m[1].upper(), body)
         m = re.fullmatch(r"join/([A-Za-z0-9]+)", sub)
         if get and m:
             return _redirect(self._portal_link(self.join_address(m[1].upper())))
@@ -280,7 +285,20 @@ class Realm:
         if problem:
             return self._page("Not signed in", problem, 400)
         # The device that made the note may play too: give its browser a session of its own.
-        session = self._new_session(self._joins[code]["player"])
+        join = self._joins[code]
+        session = self._new_session(join["player"])
+        if self.options.get("confirm_sign_in"):
+            # Only this page shows the number, so a screen that showed someone else its code cannot finish.
+            join["number"] = str(10 + secrets.randbelow(90))
+            site = urlsplit(self.base).netloc
+            return self._page(
+                f"Type {join['number']} on your screen",
+                f"To sign in the screen where you pressed Sign in, type {join['number']} there, on {site}. Type it nowhere else: "
+                "if someone asked you for this number, close this page. You are already signed in on this device.",
+                200,
+                {"href": self.base, "text": f"Play {self.card['name']} here"},
+                {"set-cookie": self._cookie(session, SESSION_MS)},
+            )
         return self._page(
             "You're in",
             "You're in. If the game is open on another screen, it is signed in there too, and you can close this page.",
@@ -333,6 +351,8 @@ class Realm:
     def _wait(self, code: str, token: str) -> Response:
         join = self._joins.get(code)
         if join and join["token"] == token:
+            if join.get("player") and join.get("number") and not join.get("taken"):
+                return _json({"state": "number"})
             if join.get("player") and not join.get("taken"):
                 join["taken"] = True
                 session = self._new_session(join["player"])
@@ -346,6 +366,25 @@ class Realm:
                 return _json({"state": "claimed", "count": claim["done"]})
             return _json({"state": "expired" if self.now() - claim["created"] > CLAIM_MS else "waiting"})
         return _json({"state": "unknown"}, 404)
+
+    def _confirm(self, code: str, body: bytes) -> Response:
+        """The waiting screen sends the number the player typed, with its token. The right number lets it
+        in; a wrong one ends the sign-in, so a guess gets one try in ninety."""
+        try:
+            sent = parse_json(body)
+        except ValueError:
+            sent = None
+        sent = sent if isinstance(sent, dict) else {}
+        join = self._joins.get(code)
+        if not join or join["token"] != _js_string(sent.get("token", "")) or not join.get("player") or not join.get("number") or join.get("taken"):
+            return _json({"state": "unknown"}, 404)
+        del self._joins[code]
+        if self.now() - join["created"] > 2 * JOIN_MS:
+            return _json({"state": "expired"})
+        if _js_string(sent.get("number", "")).strip() != join["number"]:
+            return _json({"state": "wrong"}, 403)
+        session = self._new_session(join["player"])
+        return _json({"state": "in", "player": join["player"]}, 200, {"set-cookie": self._cookie(session, SESSION_MS)})
 
     async def _me(self, headers: Headers) -> dict:
         player = await self.player(headers)
@@ -676,6 +715,17 @@ def _typed(address: str) -> str:
 def _encode(text: str) -> str:
     """encodeURIComponent."""
     return quote(text, safe="!'()*")
+
+
+def _js_string(value: Any) -> str:
+    """String(value ?? "") for the plain JSON values a page sends."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return value if isinstance(value, str) else str(value)
 
 
 def _safe_int(value: Any) -> bool:

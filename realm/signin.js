@@ -7,6 +7,7 @@
 //
 // It shows "playing as a guest" with a sign-in button, or the player ID with any records waiting to be
 // claimed. Signing in and claiming each show a QR code, a link for this computer and a short address.
+// A realm that asks for it lets the screen in only once the player types the number their phone shows.
 
 const BASE = new URL("../", import.meta.url).href;
 
@@ -26,6 +27,7 @@ const STYLE = `
 .em-small { font-size: .85em; opacity: .8; }
 .em-box button { font: inherit; cursor: pointer; padding: .35rem .9rem; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; }
 .em-box button.em-quiet { border: 0; text-decoration: underline; padding: .35rem .3rem; opacity: .8; }
+.em-box input.em-number { font: inherit; font-size: 1.6em; width: 3.2em; text-align: center; padding: .2rem; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; }
 `;
 
 /**
@@ -160,6 +162,9 @@ export function mountSignIn(box, options = {}) {
         panelOpen = false;
         clearInterval(timer);
         refresh();
+      } else if (state === "number") {
+        clearInterval(timer);
+        askNumber(code, /** @type {"join" | "rename"} */ (kind));
       } else if (state === "expired" || state === "unknown") {
         if (join) openPanel(kind);
         else draw();
@@ -167,6 +172,44 @@ export function mountSignIn(box, options = {}) {
     };
     timer = Number(setInterval(tick, 1500));
     tick();
+  }
+
+  /**
+   * The phone that signed in shows a number; typing it here lets this screen in. Someone who showed
+   * a stolen code to another person never sees their phone, so cannot finish.
+   * @param {any} code @param {"join" | "rename"} kind
+   */
+  function askNumber(code, kind) {
+    const input = el("input", { className: "em-number", inputMode: "numeric", maxLength: 2, autocomplete: "off", ariaLabel: "The number on your phone" });
+    const problem = el("p", { className: "em-small" });
+    const form = el("form", {}, [
+      el("p", { textContent: "Your phone shows a two-digit number. Type it here to finish signing in." }),
+      el("div", { className: "em-row" }, [input, el("button", { type: "submit", textContent: "Finish signing in" })]),
+      problem,
+    ]);
+    form.onsubmit = async (/** @type {Event} */ event) => {
+      event.preventDefault();
+      const response = await fetch(`${BASE}endlessmind/confirm/${code.code}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: code.token, number: input.value }),
+      });
+      const { state } = await response.json();
+      if (state === "in") {
+        panelOpen = false;
+        return refresh();
+      }
+      // One try only: a wrong number ends this sign-in, so nobody can guess their way in.
+      problem.textContent = state === "wrong" ? "That number is not the one on the phone, so this sign-in was stopped." : "This sign-in has expired.";
+      form.querySelector("button")?.replaceWith(el("button", { type: "button", textContent: "Start again", onclick: () => openPanel(kind) }));
+      input.disabled = true;
+    };
+    box.replaceChildren(el("div", { className: "em-panel" }, [
+      el("h3", { textContent: "One more step" }),
+      form,
+      el("button", { className: "em-quiet", textContent: "Cancel", onclick: draw }),
+    ]));
+    input.focus();
   }
 
   refresh();

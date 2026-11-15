@@ -75,6 +75,8 @@ A realm usually names an address that forwards to the newest version of an Entry
 
 **5. The realm checks** that the signature by `player` is valid, that `address` is one of its own join addresses, not yet used and less than two minutes old, that `time` is within two minutes of its clock, and that it has not seen `nonce` before. Then it lets in the screen waiting on that join address. What happens next, such as a session cookie, is up to the realm.
 
+**6. A number from the phone, if the realm asks for one.** A realm may choose to let the waiting screen in only after one more step: the page it answers the note with (step 4) shows a two-digit number, says where to type it and to type it nowhere else, and the waiting screen asks the player to type that number. The right number lets the screen in; a wrong one ends that sign-in, so a guess has one chance in ninety. Whoever shows a stolen code to someone else never sees their phone, so cannot finish. Nothing in the note or the EntryPortal changes. The reference realm library does this when the realm turns it on (a game run by the host program turns it on with `"confirmSignIn": true` in its `card.json`): its waiting screen's poll answers `{ "state": "number" }`, and the screen sends `{ "token": "<its token>", "number": "<what was typed>" }` as JSON in a `POST` to `endlessmind/confirm/<code>` under the realm's address.
+
 The realm's own ID is not in the note: the address already ties the note to the realm, and the player learns the realm's ID from the records it signs.
 
 **A visit** is a sign-in note marked `public`. It proves that the player entered the realm at that address at that time, at no extra effort, since every sign-in makes one. The player chooses: an EntryPortal shows the choice plainly, and the reference EntryPortal has it on until the player turns it off. A realm publishes the newest such note from each player in its public list (see "Finding realms"), exactly as the player signed it. A visit is never play and never a record.
@@ -215,7 +217,7 @@ A reader counts a visit only if it is a sign-in note completely signed by its `p
 
 ## Game servers
 
-A game is a folder: `game.js` or `game.wasm` (the game server, one of them), `card.json` (the realm card's `name`, `description` and optional `tags` and `picture`) and the display's files, starting at `index.html`. A file or folder whose name starts with a dot is never served to players and never loaded.
+A game is a folder: `game.js` or `game.wasm` (the game server, one of them), `card.json` (the realm card's `name`, `description` and optional `tags` and `picture`, and the game's optional `confirmSignIn`: `true` to ask for a number from the phone at sign-in, see "Signing in") and the display's files, starting at `index.html`. A file or folder whose name starts with a dot is never served to players and never loaded.
 
 **The calls.** `game.js` is a JavaScript module whose default export is an object with any of these functions. The host calls them one at a time, in order, and waits for each to finish:
 

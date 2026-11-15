@@ -30,7 +30,7 @@ await realm.offer(player, [{ text: "Finished the Glass Maze." }]); // a record f
 
 On the page: `import { mountSignIn } from "./endlessmind/signin.js"; const signIn = mountSignIn(element, { onChange })`. After something may have earned a record, `signIn.refresh()` shows it waiting; `signIn.claim()` opens the claim box at once.
 
-A game keeps its data in `.data/` inside its own folder, which Git ignores and which a web server that refuses names starting with a dot (as endlessmind.com's does) never serves. The realm's secret phrase is made on first run in `.data/realm-secret.txt` (option `secretFile`); keep a copy, since it is the realm's identity. What it must remember (sessions, records waiting to be claimed, the public list, burned IDs) goes in `.data/realm-data.json` (option `dataFile`). Keep the game's own data there too. Other options: `portal` (the EntryPortal its codes name), `isBurned` (check a board's list of burned IDs too) and `onRecord` (called with each completed record).
+A game keeps its data in `.data/` inside its own folder, which Git ignores and which a web server that refuses names starting with a dot (as endlessmind.com's does) never serves. The realm's secret phrase is made on first run in `.data/realm-secret.txt` (option `secretFile`); keep a copy, since it is the realm's identity. What it must remember (sessions, records waiting to be claimed, the public list, burned IDs) goes in `.data/realm-data.json` (option `dataFile`). Keep the game's own data there too. Other options: `portal` (the EntryPortal its codes name), `isBurned` (check a board's list of burned IDs too), `onRecord` (called with each completed record) and `confirmSignIn` (see below).
 
 ## What it answers
 
@@ -42,7 +42,10 @@ A game keeps its data in `.data/` inside its own folder, which Git ignores and w
 | `claim/<code>`               | Opened, goes on to the player's EntryPortal; records come back (POST) |
 | `endlessmind/start`, `claim` | Make a join or claim code for the page (POST); `start?rename` for a name change |
 | `endlessmind/wait/<code>`    | The page waits here; a finished sign-in gets its session cookie here  |
+| `endlessmind/confirm/<code>` | With `confirmSignIn`: the number the player typed (POST)              |
 | `endlessmind/me`, `signout`  | Who is signed in, and how many records wait to be claimed             |
 | `endlessmind/restore`        | Hand a signed-in player every record kept for them (POST)              |
 
 Join codes work once, for two minutes. Only the page that asked for a code (it holds a secret token) can collect the session, so seeing someone's code on screen is not enough to take their sign-in.
+
+With `confirmSignIn: true`, a realm also defends against someone who shows a player its code ("scan for a free sword") to be signed in as them: the phone's page shows a two-digit number, and the waiting screen asks for it before it lets anyone in. One wrong number ends that sign-in. It is off unless the realm turns it on, since every player then types the number.

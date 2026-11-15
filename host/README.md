@@ -53,6 +53,8 @@ It prints the address to open, and starts the game server again whenever a file 
 
 A file or folder whose name starts with a dot is never served and never loaded.
 
+`card.json` may also hold `"confirmSignIn": true`, a stronger defense against someone who shows a player the game's sign-in code to be signed in as them: after the player signs in with their phone, the phone shows a two-digit number, and the game's screen lets them in only once they type it there. It is off unless the game turns it on, since every player then has one more thing to type. A release carries the choice to every host that runs it.
+
 The display imports two files the host serves: `./endlessmind/play.js` for its line to the game server, and `./endlessmind/signin.js` for the sign-in box (see [realm/README.md](../realm/README.md)).
 
 ## Releases

@@ -205,12 +205,15 @@ export async function openGame(options) {
 
   const basePath = new URL(base).pathname;
 
+  // card.json holds the card's words and the game's own choices; a release carries it unchanged.
+  const cardFile = JSON.parse(await Deno.readTextFile(join(folder, "card.json")));
   const realm = await openRealm({
     base,
     portal: options.portal ?? DEFAULT_PORTAL,
     secretFile,
     dataFile: join(data, "realm-data.json"),
-    card: release ? release.note.card : JSON.parse(await Deno.readTextFile(join(folder, "card.json"))),
+    card: release ? release.note.card : cardFile,
+    confirmSignIn: cardFile.confirmSignIn === true,
     ...(release ? { runs: { realm: release.realm, release: release.id } } : shared ? { release: shared.id } : {}),
   });
 

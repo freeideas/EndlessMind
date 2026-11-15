@@ -11,9 +11,10 @@ const PORTAL = "https://portal.example/EntryPortal/v0.1/";
 const wordsFor = (/** @type {number} */ n) => wordsFromEntropy(new Uint8Array(32).fill(n));
 const player = await signerFromWords(await wordsFor(7));
 
-async function setup() {
+async function setup(options = {}) {
   const clock = { now: 1790000000000 };
   const realm = await openRealm({
+    ...options,
     base: BASE,
     portal: PORTAL,
     card: { name: "Test Realm", description: "For tests." },
@@ -240,6 +241,38 @@ Deno.test("a burned ID is refused, and its sessions and public records are gone"
   assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie } })).json()).player, null);
   const again = await join(realm, clock.now);
   assert.match(await again.answer.text(), /burned/);
+});
+
+Deno.test("with confirmSignIn, the waiting screen is let in only after the player types the number on their phone", async () => {
+  const { realm, clock } = await setup({ confirmSignIn: true });
+  const { code, answer } = await join(realm, clock.now);
+  const page = await answer.text();
+  const number = page.match(/Type (\d\d) on your screen/)?.[1] ?? "";
+  assert.match(number, /^[1-9]\d$/);
+  assert.match(page, /type \d\d there, on garden\.example/);
+  assert.ok(answer.headers.get("set-cookie"), "the phone itself is signed in");
+
+  /** @param {any} body */
+  const confirm = (body) => call(realm, `endlessmind/confirm/${code.code}`, { method: "POST", body: JSON.stringify(body) });
+  const wait = await call(realm, `endlessmind/wait/${code.code}?token=${code.token}`);
+  assert.deepEqual(await wait.json(), { state: "number" });
+  assert.equal(wait.headers.get("set-cookie"), null, "waiting alone never lets the screen in");
+  assert.equal((await confirm({ token: "nope", number })).status, 404, "only the screen that asked may answer");
+  const right = await confirm({ token: code.token, number });
+  assert.deepEqual(await right.json(), { state: "in", player: player.id });
+  const cookie = /** @type {string} */ (right.headers.get("set-cookie")).split(";")[0];
+  assert.equal((await (await call(realm, "endlessmind/me", { headers: { cookie } })).json()).player, player.id);
+  assert.equal((await confirm({ token: code.token, number })).status, 404, "a number works once");
+
+  // A wrong number ends the sign-in: there is no second guess.
+  const other = await join(realm, clock.now);
+  const shown = (await other.answer.text()).match(/Type (\d\d) on your screen/)?.[1];
+  const guess = String(shown === "10" ? 11 : 10);
+  const wrong = await call(realm, `endlessmind/confirm/${other.code.code}`, { method: "POST", body: JSON.stringify({ token: other.code.token, number: guess }) });
+  assert.deepEqual(await wrong.json(), { state: "wrong" });
+  const late = await call(realm, `endlessmind/confirm/${other.code.code}`, { method: "POST", body: JSON.stringify({ token: other.code.token, number: shown }) });
+  assert.equal(late.status, 404);
+  assert.equal((await (await call(realm, `endlessmind/wait/${other.code.code}?token=${other.code.token}`)).json()).state, "unknown");
 });
 
 Deno.test("the device that signs in gets a session too, and a link to play there", async () => {
