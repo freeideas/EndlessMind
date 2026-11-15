@@ -39,12 +39,13 @@ Only scan a sign-in code right after you pressed "Sign in" in a game yourself. I
 
 ## Your records
 
-A realm can give you signed **records**: "in good standing as of 1 December", "finished the Glass Maze in 4 minutes 12 seconds", or a trade, "P gives the helmet to Q, and Q gives 95 diamonds to P".
+A realm can give you signed **records**: "in good standing as of 1 December", or "finished the Glass Maze in 4 minutes 12 seconds".
 
 - Your EntryPortal shows you every record before you sign it.
 - When you sign a record you can add words of your own: a review, a boast. They travel with the record, and nobody else can change them.
 - Records are signed by everyone involved, so anyone you show them to can check them, and nobody can fake them.
 - You keep the records you want and drop the rest. Your reputation can only grow.
+- Records only add up, so they show what you did, not what you have now: if you give a helmet away, you still have the record of earning it. Things you can trade are kept by one realm, which knows who holds them now.
 - Your EntryPortal can save your records as a file, which any other EntryPortal can load.
 - Each record has a **public** switch, on unless you turn it off. Public records are how your reputation becomes visible, and how good realms get found. Turn it off for anything you would rather keep to yourself.
 - Want a separate identity for something private? Use a second secret phrase. Your player ID hides your name, but like any website, realms can see your connection, so this is privacy from other people, not a place to hide from the law.
