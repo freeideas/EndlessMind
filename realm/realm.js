@@ -282,7 +282,7 @@ export class Realm {
     }
     return this.#page(
       "You're in",
-      "You're in. If the game is open on another screen, it is signed in there too, and you can close this page.",
+      "If the game is open on another screen, it is signed in there too, and you can close this page.",
       200,
       { href: this.base, text: `Play ${this.card.name} here` },
       { "set-cookie": this.#cookie(session, SESSION_MS) },

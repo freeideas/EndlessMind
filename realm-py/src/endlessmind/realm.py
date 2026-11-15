@@ -301,7 +301,7 @@ class Realm:
             )
         return self._page(
             "You're in",
-            "You're in. If the game is open on another screen, it is signed in there too, and you can close this page.",
+            "If the game is open on another screen, it is signed in there too, and you can close this page.",
             200,
             {"href": self.base, "text": f"Play {self.card['name']} here"},
             {"set-cookie": self._cookie(session, SESSION_MS)},

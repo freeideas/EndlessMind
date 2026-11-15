@@ -95,6 +95,7 @@ if (command === "run" && names.length === 1 && isId(names[0])) {
   });
   console.log(`Play at ${running.base} (realm ID ${running.realm.id})`);
   if (running.release) console.log(`Others can host it by its realm ID; this is release ${running.release.id}`);
+  else if (!relay) console.log("Only this computer can open that address. To let friends anywhere play, run it with --relay and send them the link it prints.");
 } else if (command === "refuse" && names.length === 1) {
   await refuse(store, names[0]);
   console.log(`A host using ${store} never relays ${names[0]} again, and drops it within seconds if it relays it now.`);
