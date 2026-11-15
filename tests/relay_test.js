@@ -47,7 +47,15 @@ async function relayed(relay, game = {}) {
   /** @type {string[]} */
   const said = [];
   const data = game.data ?? join(temp, "data");
-  const host = await runGame({ folder, port, relay, data, log: (text) => said.push(text) });
+  /** @type {Awaited<ReturnType<typeof runGame>>} */
+  let host;
+  try {
+    host = await runGame({ folder, port, relay, data, log: (text) => said.push(text) });
+  } catch (error) {
+    // A relay that refuses the game, or none at all: nothing is left behind.
+    await Deno.remove(temp, { recursive: true });
+    throw error;
+  }
   return {
     host,
     said,
@@ -56,7 +64,8 @@ async function relayed(relay, game = {}) {
     base: host.base,
     async stop() {
       await host.stop();
-      if (!game.data) await Deno.remove(temp, { recursive: true });
+      // A folder given for the game's data is the caller's to remove.
+      await Deno.remove(temp, { recursive: true });
     },
   };
 }
@@ -272,6 +281,7 @@ Deno.test("a relay's admin chooses who is relayed, and can refuse an ID for good
   } finally {
     for (const game of games) await game.stop();
     await host.stop();
+    await Deno.remove(temp, { recursive: true });
   }
 
   // A host that relays anyone drops a game its admin refuses from another program (`endlessmind refuse`).
@@ -286,7 +296,6 @@ Deno.test("a relay's admin chooses who is relayed, and can refuse an ID for good
   } finally {
     await game.stop();
     await open.relay.stop();
-    await Deno.remove(temp, { recursive: true });
   }
 });
 
