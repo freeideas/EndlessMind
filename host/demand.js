@@ -1,9 +1,9 @@
-// Loading by demand: the games a host runs without being asked. Each round it counts the wishes on
-// its board that come from players it has reason to believe, shares each game's wishes among the hosts
+// Loading by demand: the games a host runs without being asked. Each round it takes the wishes on its
+// board, which count only players it has reason to believe, shares each game's wishes among the hosts
 // that run it, and runs the best few it can fetch. A game leaves when another has more wishes per
 // host. See "Loading by demand" in specs/PROTOCOL.md.
 //
-//   const demand = await openDemand({ store, auto, trust, board, hosts, fixed, taken, open, close });
+//   const demand = await openDemand({ store, auto, board, hosts, fixed, taken, open, close });
 //
 //   demand.round()    choose again; resolves to whether anything was loaded or dropped
 //   demand.loaded()   the IDs of the releases loaded this way
@@ -16,8 +16,7 @@ import { checkRelease, findRelease, removeRelease } from "./release.js";
  * @param {{
  *   store: string,
  *   auto: number,
- *   trust: Iterable<string>,
- *   board: Pick<import("./board.js").Board, "refresh" | "games" | "wishes">,
+ *   board: Pick<import("./board.js").Board, "refresh" | "games">,
  *   hosts: import("./hosts.js").Hosts,
  *   fixed: () => string[],
  *   taken: (realm: string) => boolean,
@@ -25,7 +24,7 @@ import { checkRelease, findRelease, removeRelease } from "./release.js";
  *   close: (release: Release) => Promise<void>,
  *   log?: (text: string) => void,
  * }} options
- * `auto` is how many games to load; `trust` holds the IDs whose records make a player's wish count.
+ * `auto` is how many games to load.
  * `fixed` gives the IDs of the releases the host runs whatever is wished, which are never chosen here.
  * `taken` says whether a realm's name on this host is in use. `open` and `close` start and stop a game.
  */
@@ -68,11 +67,9 @@ export async function openDemand(options) {
 
   async function choose() {
     await board.refresh();
-    const wishes = await board.wishes(options.trust);
     const fixed = new Set(options.fixed());
     // A game's wishes are shared among the hosts that run it, this one included if it runs it or would.
-    const ranked = (await board.games()).filter((game) => !fixed.has(game.release)).map(({ release, realm, name, hosts: running }) => {
-      const count = wishes.get(release) ?? 0;
+    const ranked = (await board.games()).filter((game) => !fixed.has(game.release)).map(({ release, realm, name, hosts: running, wishes: count }) => {
       const others = running.filter((host) => host.id !== hosts.id).length;
       return { release, realm, name, count, others, share: count / (others + 1) };
     }).filter((game) => game.count > 0 || mine.has(game.release));

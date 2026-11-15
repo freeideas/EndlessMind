@@ -79,11 +79,16 @@ def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str, s
     the host's own address."""
     port = free_port()
     portal = f"http://eportal.localhost:{port}/"
+    # The host trusts the play the maze signs, so its board counts the maze's players. Packing the maze
+    # first makes its secret phrase and says its realm's ID.
+    data = os.path.join(folder, "relayed")
+    packed = host_program("pack", "examples/maze", "--data", data, "--store", os.path.join(folder, "packed"))
+    realm = re.search(r"realm ID ([a-z2-7]{52})", packed.communicate(timeout=60)[0]).group(1)
     host = host_program("host", "--base", f"http://localhost:{port}/", "--port", str(port), "--store", os.path.join(folder, "host"),
-                        "--portal", portal, "--hosts", "")
+                        "--portal", portal, "--hosts", "", "--trust", realm)
     wait_for(port)
     game = host_program("run", "examples/maze", "--relay", f"http://localhost:{port}/", "--portal", portal,
-                        "--port", str(free_port()), "--data", os.path.join(folder, "relayed"), "--no-watch")
+                        "--port", str(free_port()), "--data", data, "--no-watch")
     said = ""
     while "Play at " not in said:
         line = game.stdout.readline()

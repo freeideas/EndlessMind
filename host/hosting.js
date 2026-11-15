@@ -80,8 +80,8 @@ async function portalFile(request) {
  * IDs of releases to run, each fetched from whichever known host runs it unless it is already in
  * `store`, the folder where this host keeps releases, their data, the hosts it knows and its own
  * secret phrase. `auto` is how many more games the host loads by itself, the most wished-for first:
- * none unless given. `trust` lists the IDs of realms and hosts whose records it trusts besides its own,
- * when it decides whose wishes count. `hosts` lists the addresses of the hosts to start finding others
+ * none unless given. `trust` lists the IDs of realms and hosts whose records it trusts besides its own:
+ * on its board, a player counts only with play on record signed by one of them. `hosts` lists the addresses of the hosts to start finding others
  * from. `now` is the clock the board reads lists by.
  */
 export async function runHost(options) {
@@ -155,11 +155,16 @@ export async function runHost(options) {
     dataFile: join(store, "host-realm-data.json"),
     card: { name: own.host, description: "An Endless Mind host: it runs games for anyone to play." },
   });
-  const board = openBoard({ hosts, realm: resident?.realm ?? /** @type {import("../realm/realm.js").Realm} */ (lobby), games: () => [...hosted.values()].map(({ game }) => game.realm), now: options.now });
+  const board = openBoard({
+    hosts,
+    realm: resident?.realm ?? /** @type {import("../realm/realm.js").Realm} */ (lobby),
+    games: () => [...hosted.values()].map(({ game }) => game.realm),
+    trust: [/** @type {string} */ (hosts.id), ...(resident ? [resident.realm.id] : []), ...(options.trust ?? [])],
+    now: options.now,
+  });
   const demand = await openDemand({
     store,
     auto,
-    trust: [/** @type {string} */ (hosts.id), ...(resident ? [resident.realm.id] : []), ...(options.trust ?? [])],
     board,
     hosts,
     fixed: () => [...named, ...(resident?.release ? [resident.release.id] : [])],

@@ -1,14 +1,14 @@
 // A host's board: the games the known hosts run, with the play on record for each, added up across
-// every place that runs it, and the wishes players have made for it. It is built from the host cards
-// that finding holds (hosts.js) and from each game's realm card and public list. See "Boards" in
-// specs/PROTOCOL.md.
+// every place that runs it, and the wishes players have made for it. Only players the host has reason
+// to believe count: those with play on record signed by an ID it trusts. It is built from the host
+// cards that finding holds (hosts.js) and from each game's realm card and public list. See "The board"
+// in specs/PROTOCOL.md.
 //
-//   const board = openBoard({ hosts, realm, games });
+//   const board = openBoard({ hosts, realm, games, trust });
 //
 //   board.handle(request)   answer for the page, its data, or a wish; null for any other request
 //   board.refresh()         read the lists that have not been read in the last ten minutes
 //   board.games()           the games, most played first, as the board's data holds them
-//   board.wishes(trust)     how many wishes each release has from players with play signed by `trust`
 
 import { isId } from "../shared/keys.js";
 import { isComplete, validNotes } from "../shared/signed.js";
@@ -41,13 +41,17 @@ const PAGE = new URL("./board.html", import.meta.url);
  *   hosts: import("./hosts.js").Hosts,
  *   realm: Realm,
  *   games: () => Realm[],
+ *   trust: Iterable<string>,
  *   now?: () => number,
  * }} options
  * `realm` is the realm at the host's main address, where players sign in to wish. `games` gives the
  * realms of the other games this host runs. Their lists are read where they are kept, with no request.
+ * `trust` holds the IDs whose records make a player count: the host's own, its resident game's, and
+ * those its admin named.
  */
 export function openBoard(options) {
   const { hosts, realm } = options;
+  const trust = [...options.trust];
   const now = options.now ?? Date.now;
   /** What each address on another computer answered, and when it was asked. @type {Map<string, { at: number, place: Place | null }>} */
   const read = new Map();
@@ -56,7 +60,7 @@ export function openBoard(options) {
   let reads = 0;
   /** @type {Promise<void> | null} */
   let reading = null;
-  /** @type {{ stamp: string, games: Game[], wishes: Counted[], played: Map<string, Set<string>> } | null} */
+  /** @type {{ stamp: string, games: Game[] } | null} */
   let built = null;
 
   const here = () => new Map([realm, ...options.games()].map((one) => [one.base, one]));
@@ -218,27 +222,32 @@ export function openBoard(options) {
       }
     }
 
-    /** The players with play on record, by who signed it with them. @type {Map<string, Set<string>>} */
-    const played = new Map();
+    /** The players with play on record signed by an ID this host trusts. @type {Set<string>} */
+    const known = new Set();
     /** Each player's newest wish. @type {Map<string, Counted>} */
     const newest = new Map();
+    for (const place of places) {
+      for (const record of place.records) {
+        if (record.wish) {
+          if (record.time <= now() + AHEAD && !((newest.get(record.player)?.time ?? -Infinity) >= record.time)) newest.set(record.player, record);
+        } else if (trust.includes(place.signer)) known.add(record.player);
+      }
+    }
+    // Only players this host has reason to believe count, wherever they played.
     for (const place of places) {
       const one = place.release ? games.get(place.release) : null;
       if (one && !one.description) one.description = place.description;
       for (const record of place.records) {
-        if (record.wish) {
-          if (record.time <= now() + AHEAD && !((newest.get(record.player)?.time ?? -Infinity) >= record.time)) newest.set(record.player, record);
-          continue;
-        }
-        played.set(place.signer, (played.get(place.signer) ?? new Set()).add(record.player));
-        if (!one || (record.release && record.release !== one.release) || one.seen.has(record.key)) continue;
+        if (record.wish || !known.has(record.player) || !one || (record.release && record.release !== one.release) || one.seen.has(record.key)) continue;
         one.seen.add(record.key);
         one.who.add(record.player);
         if (record.note) one.notes.push({ player: record.player, text: record.note, time: record.time });
       }
     }
-    const wishes = [...newest.values()].filter((wish) => wish.time > now() - WEEK && games.has(/** @type {string} */ (wish.wish)));
-    for (const wish of wishes) /** @type {Game} */ (games.get(/** @type {string} */ (wish.wish))).wishes++;
+    for (const wish of newest.values()) {
+      const one = games.get(/** @type {string} */ (wish.wish));
+      if (one && known.has(wish.player) && wish.time > now() - WEEK) one.wishes++;
+    }
 
     const ranked = [...games.values()].map(({ who, seen, notes, ...one }) => ({
       ...one,
@@ -246,7 +255,7 @@ export function openBoard(options) {
       records: seen.size,
       notes: notes.sort((a, b) => b.time - a.time).slice(0, NOTES),
     })).sort((a, b) => b.players - a.players || b.records - a.records || b.wishes - a.wishes || (a.name + a.release < b.name + b.release ? -1 : 1));
-    return (built = { stamp, games: ranked, wishes, played });
+    return (built = { stamp, games: ranked });
   }
 
   /** @param {unknown} body @param {number} [status] */
@@ -284,21 +293,6 @@ export function openBoard(options) {
     refresh,
     /** The games, most played first. */
     games: async () => (await build()).games,
-    /**
-     * How many wishes each release has that count for a host that trusts the IDs in `trust`: those
-     * from players who have play on record signed by one of them.
-     * @param {Iterable<string>} trust
-     */
-    async wishes(trust) {
-      const { wishes, played } = await build();
-      const known = [...trust].map((id) => played.get(id) ?? new Set());
-      /** @type {Map<string, number>} */
-      const counts = new Map();
-      for (const { player, wish } of wishes) {
-        if (wish && known.some((players) => players.has(player))) counts.set(wish, (counts.get(wish) ?? 0) + 1);
-      }
-      return counts;
-    },
     /**
      * Answer a request for the board's page, its data or a wish, or return null for any other.
      * @param {Request} request

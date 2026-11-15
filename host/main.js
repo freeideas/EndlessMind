@@ -21,8 +21,8 @@
 // someone else's game, fetched from whichever known host runs it. `pack` makes a release from a game's
 // folder and prints its ID. `host` is for a computer everyone can reach: it keeps a resident game, runs
 // releases, relays for games on other computers, serves a spare EntryPortal and a board of the games
-// the known hosts run. With `--auto <n>` it also loads the `n` most wished-for games by itself, counting
-// the wishes of players with play on record with it, its resident game, or an ID in `--trust`. `--hosts`
+// the known hosts run, counting only players with play on record with it, its resident game, or an ID
+// in `--trust`. With `--auto <n>` it also loads the `n` most wished-for games by itself. `--hosts`
 // lists where finding other hosts starts; `--hosts ""` means nowhere. `setup` turns a Linux server into
 // such a host. See host/README.md.
 
