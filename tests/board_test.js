@@ -307,6 +307,49 @@ Deno.test("a board counts the public visits of players who count as visitors, a 
   });
 });
 
+Deno.test("nothing signed by a burned ID counts on a board: not a burned player's play, notes and wishes, nor a burned realm's or host's records", async () => {
+  await withTemp(async (temp) => {
+    const jane = await hosting(temp, { game: await gameFolder(temp, "Garden") });
+    const john = await hosting(temp, { game: await gameFolder(temp, "Pond"), hosts: [jane.base] });
+    try {
+      const garden = /** @type {NonNullable<typeof jane.realm>} */ (jane.realm);
+      const pond = /** @type {string} */ (john.realm?.id);
+      const johnId = /** @type {string} */ (john.hosts.id);
+      // One player with play at both games, who wishes for Pond, and one with play at Jane's game only.
+      const burnt = await newcomer(jane.base, "Lovely.");
+      const again = await signIn(john.base, burnt.player);
+      await play(john.base, again);
+      await claim(john.base, again, burnt.player);
+      await wish(jane.base, burnt.cookie, burnt.player, pond);
+      const stays = await newcomer(jane.base);
+
+      /** @returns {Promise<any[]>} */
+      const counts = async () => (await games(jane.base)).map((game) => [game.name, game.players, game.records, game.wishes, game.notes.length]);
+      assert.deepEqual(await counts(), [["Garden", 2, 2, 0, 1], ["Pond", 1, 1, 1, 0]]);
+
+      // Once the first player is burned, their play, notes and wish are gone from the board, history included.
+      garden.data.burned[burnt.player.id] = {};
+      assert.deepEqual(await counts(), [["Garden", 1, 1, 0, 0], ["Pond", 0, 0, 0, 0]]);
+      delete garden.data.burned[burnt.player.id];
+      assert.deepEqual(await counts(), [["Garden", 2, 2, 0, 1], ["Pond", 1, 1, 1, 0]]);
+
+      // A burned realm: Pond, everything its ID signed, and every run of it are gone.
+      garden.data.burned[pond] = {};
+      assert.deepEqual(await counts(), [["Garden", 2, 2, 0, 1]]);
+      delete garden.data.burned[pond];
+      // A burned host: its card, and so what it runs and the records signed where it says, are gone.
+      garden.data.burned[johnId] = {};
+      assert.deepEqual(await counts(), [["Garden", 2, 2, 0, 1]]);
+      delete garden.data.burned[johnId];
+      assert.deepEqual(await counts(), [["Garden", 2, 2, 0, 1], ["Pond", 1, 1, 1, 0]]);
+      assert(stays.player.id !== burnt.player.id);
+    } finally {
+      await john.stop();
+      await jane.stop();
+    }
+  });
+});
+
 Deno.test("a host loads the most wished-for game by itself and drops it for one wished for more; wishes without trusted play count for nothing", async () => {
   await withTemp(async (temp) => {
     const jane = await hosting(temp, { game: await gameFolder(temp, "Garden") });

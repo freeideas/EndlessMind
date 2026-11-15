@@ -1,7 +1,8 @@
 // A host's board: the realms the known hosts run, each with its releases, the play on record for it
 // added up across every place that runs any of them, the wishes players have made for it, and, as a weaker
 // number, the players who came there lately (their public visits). Only players the host has reason
-// to believe count: those with play on record signed by an ID it trusts. It is built from the host
+// to believe count: those with play on record signed by an ID it trusts. Nothing signed by an ID the realm at
+// the host's main address treats as burned counts, whenever it was signed. It is built from the host
 // cards that finding holds (hosts.js) and from each game's realm card and public list. See "The board"
 // in specs/PROTOCOL.md.
 //
@@ -209,9 +210,24 @@ export function openBoard(options) {
 
   /** Add everything up. The answer is kept until something it was made from changes. */
   async function build() {
-    const all = await cards();
+    /** Whether the realm here treats an ID as burned, asked once for each build. @type {Map<string, boolean>} */
+    const asked = new Map();
+    /** @param {string} id */
+    const ghost = async (id) => {
+      if (!asked.has(id)) asked.set(id, await realm.isBurned(id));
+      return /** @type {boolean} */ (asked.get(id));
+    };
+    // A card signed by a burned host ID is a ghost, and so is a run of a burned realm.
+    /** @type {import("./hosts.js").HostCard[]} */
+    const all = [];
+    for (const card of await cards()) {
+      if (await ghost(card.signers[0])) continue;
+      const runs = [];
+      for (const run of card.runs) if (!(await ghost(run.realm))) runs.push(run);
+      all.push({ ...card, runs });
+    }
     const local = here();
-    const stamp = [reads, Math.floor(now() / MINUTE), all.map((card) => card.time), [...local.values()].map((one) => {
+    const stamp = [reads, Math.floor(now() / MINUTE), Object.keys(realm.data.burned).length, all.map((card) => card.time), [...local.values()].map((one) => {
       const list = one.list();
       return [list.records.length, list.visits.reduce((sum, note) => sum + (Number(note?.time) || 0), 0)];
     })].join("|");
@@ -223,8 +239,15 @@ export function openBoard(options) {
     const at = new Map();
     for (const [address, ids] of named(all)) {
       const kept = local.get(address);
-      const place = kept ? await check(kept.card, kept.list(), ids) : read.get(address)?.place;
-      if (place) places.push(place), at.set(address, place);
+      const found = kept ? await check(kept.card, kept.list(), ids) : read.get(address)?.place;
+      // Nothing signed by a burned ID counts: not a place whose signer or realm is burned, and not the
+      // records or visits of a burned player, whenever they were made.
+      if (!found || (await ghost(found.signer)) || (await ghost(found.realm))) continue;
+      /** @type {Place} */
+      const place = { ...found, records: [], visits: [] };
+      for (const record of found.records) if (!(await ghost(record.player))) place.records.push(record);
+      for (const seen of found.visits) if (!(await ghost(seen.player))) place.visits.push(seen);
+      places.push(place), at.set(address, place);
     }
 
     /**
@@ -301,10 +324,10 @@ export function openBoard(options) {
       const one = games.get(/** @type {string} */ (wish.wish));
       if (one && known.has(wish.player) && wish.time > now() - WEEK) one.wishes++;
     }
-    // Visitors: players who count, not burned, whose newest visit is less than a week old.
+    // Visitors: players who count whose newest visit is less than a week old.
     for (const one of games.values()) {
       for (const [player, time] of one.came) {
-        if (known.has(player) && time > now() - WEEK && !(await realm.isBurned(player))) one.visitors++;
+        if (known.has(player) && time > now() - WEEK) one.visitors++;
       }
     }
 
