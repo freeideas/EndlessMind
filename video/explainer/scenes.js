@@ -205,20 +205,31 @@ export default {
   // 1. I made a game. Now what?
   s01(s) {
     s.text('I made a game. *Now what?*', { x: s.cx, y: 150, size: 84, font: 'display', at: 0, enter: 'none' });
-    const hard = s.time('#hard');
+    const hard = s.time('#hard'), net = s.time('#net');
     D(s, 0, (c) => {
-      maze(c, 110, 290, 860, 540, { t: s.t, colors: [C.maker, '#cfd6ff', '#cfd6ff'] });
-      fig(c, 1130, 900, 1.15, { color: C.maker, hat: 'cap', t: s.t, mood: s.t > hard ? 0 : 1, look: 1, up: s.t < hard - 0.3 });
+      maze(c, 110, 290, 640, 430, { t: s.t, colors: [C.maker, '#cfd6ff', '#cfd6ff'] });
+      fig(c, 880, 920, 1.15, { color: C.maker, hat: 'cap', t: s.t, mood: s.t > hard ? 0 : 1, look: 1, up: s.t < hard - 0.3 });
     }, { enter: 'none' });
-    s.text('A multi-player game,\nmade with AI,\nin one evening.', { x: 1540, y: 470, size: 50, bg: '#fbe2c6', border: 'ink', at: 0, out: hard - 0.35, outDur: 0.3, enter: 'none' });
-    lab(s, 'Lantern Tag, on your computer', 540, 885, { at: '#here' });
-    D(s, '#hard', (c) => fig(c, 1500, 900, 1, { color: C.blue, t: s.t, wave: true }));
-    s.text('Looks great.\nHow do I play it?', { x: 1560, y: 470, size: 48, bg: 'surface', border: 'ink', at: '#hard', enter: 'pop' });
-    D(s, '#friends', (c) => {
-      fig(c, 1720, 900, 1, { color: C.pink, t: s.t + 1 });
-      arrowTo(c, 1230, 800, 1400, 800, 1, INK, 4, [14, 12]); arrowTo(c, 1400, 800, 1230, 800, 1, INK, 4, [14, 12]);
+    s.text('A multi-player game,\nmade with AI,\nin one evening.', { x: 1500, y: 470, size: 50, bg: '#fbe2c6', border: 'ink', at: 0, out: hard - 0.35, outDur: 0.3, enter: 'none' });
+    lab(s, 'Lantern Tag, on your computer', 430, 770, { at: '#here' });
+    D(s, '#hard', (c) => fig(c, 1560, 920, 1, { color: C.blue, t: s.t, wave: s.t < net }));
+    s.text('Looks great.\nHow do I play it?', { x: 1640, y: 400, size: 48, bg: 'surface', border: 'ink', at: '#hard', enter: 'pop' });
+    D(s, '#friends', (c) => fig(c, 1760, 920, 1, { color: C.pink, t: s.t + 1 }));
+    lab(s, 'your friends', 1660, 975, { at: '#friends' });
+    // the internet in between, and no way through it to the computer
+    s.icon('globe', { x: 1180, y: 560, size: 190, color: 'blue', label: 'the internet', labelSize: 40, at: '#net' });
+    D(s, '#net', (c) => {
+      const p = s.p(net + 0.2, 0.5), q = s.p(net + 0.8, 0.5);
+      arrowTo(c, 1470, 700, 1470 - 170 * p, 700 - 80 * p, 1, C.blue, 6);
+      if (q > 0) {
+        arrowTo(c, 1070, 560, 1070 - 110 * q, 560, 1, C.blue, 6);
+        if (q >= 1) {
+          seg(c, 930, 470, 930, 650, INK, 14); cross(c, 930, 560, 26, C.red, 11);
+          seg(c, 900, 560, 770, 560, '#b9b3a7', 5, [12, 12]);
+        }
+      }
     });
-    lab(s, 'somewhere else', 1610, 965, { at: '#friends' });
+    lab(s, 'no way in', 930, 425, { at: net + 1.3, size: 40, color: 'accent' });
   },
 
   // 2. The name.
@@ -273,8 +284,8 @@ export default {
     line('> Make a game called Lantern Tag for Endless Mind.', 375, '#ask');
     line("Players carry lanterns in a dark maze, and whoever is 'it' has a red one.", 505, '#build');
     line('Follow github.com/freeideas/EndlessMind', 690, '#point', { color: 'blue', bold: true });
-    ['Claude', 'Codex', 'Gemini'].forEach((n, i) => s.box(n, { x: 1560, y: 300 + i * 100, w: 300, h: 78, size: 44, color: 'blue', at: s.time('#names') + i * 0.55, enter: 'pop' }));
-    lab(s, 'any of them', 1560, 600, { size: 44, at: 'any' });
+    ['Claude Code', 'Codex', 'OpenCode'].forEach((n, i) => s.box(n, { x: 1560, y: 300 + i * 100, w: 330, h: 78, size: 44, color: 'blue', at: s.time('#names') + i * 0.75, enter: 'pop' }));
+    lab(s, 'or another', 1560, 600, { size: 44, at: 'another' });
   },
 
   // 5. You get a link.
@@ -333,22 +344,20 @@ export default {
 
   // 7. Playing together is already handled.
   s07(s) {
-    top(s, 'Your agent answers five things', '#five');
-    const ps = [[250, 460, C.maker, 'cap'], [250, 720, C.blue], [1670, 460, C.pink], [1670, 720, C.yellow]];
+    top(s, 'Already done for your agent', '#done');
+    const ps = [[250, 560, C.maker, 'cap'], [250, 820, C.blue], [1670, 560, C.pink], [1670, 820, C.yellow]];
     D(s, 0.2, (c) => {
       ps.forEach(([x, y, col, hat], i) => {
-        const tx = x < 960 ? 800 : 1120, fx = x < 960 ? x + 60 : x - 60;
-        seg(c, fx, y - 80, tx, 430, INK, 4);
-        flow(c, fx, y - 80, tx, 430, s.t + i * 0.2, col, 1, 0.55);
-        flow(c, tx, 430, fx, y - 80, s.t + 0.5, PAPER, 1, 0.55);
-        fig(c, x, y, 0.8, { color: col, hat, t: s.t + i, look: x < 960 ? 1 : -1 });
+        const tx = x < 960 ? 790 : 1130, fx = x < 960 ? x + 60 : x - 60;
+        seg(c, fx, y - 80, tx, 530, INK, 4);
+        flow(c, fx, y - 80, tx, 530, s.t + i * 0.2, col, 1, 0.55, 10);
+        flow(c, tx, 530, fx, y - 80, s.t + 0.5, PAPER, 1, 0.55, 10);
+        fig(c, x, y, 0.9, { color: col, hat, t: s.t + i, look: x < 960 ? 1 : -1, up: s.t > s.time('#done') + 0.6 });
       });
     });
-    s.text('Keeping players in step:\nnormally the hard part of a game.', { x: s.cx, y: 820, size: 50, at: 0.4, out: s.time('#e1') - 0.5, enter: 'fade' });
-    s.box('game server', { x: 960, y: 430, w: 330, h: 150, size: 46, color: 'orange', at: 0.2 });
-    const ev = [['started', 'play'], ['joined', 'user-plus'], ['left', 'user-minus'], ['message', 'message-square'], ['timer', 'timer']];
-    ev.forEach(([n, icon], i) => s.box(n, { x: 400 + i * 280, y: 830, w: 250, h: 150, size: 40, icon, color: 'teal', at: `#e${i + 1}`, enter: 'pop' }));
-    s.text('Enough for tag, for chess, for a whole world.', { x: s.cx, y: 965, size: 44, at: '#enough', enter: 'fade' });
+    s.box('game server', { x: 960, y: 530, w: 360, h: 170, size: 50, color: 'orange', at: 0.2 });
+    D(s, '#done', (c) => seal(c, 1130, 450, 46 * s.p('#done', 0.4, 'outBack'), C.green));
+    s.text('Keeping players in step:\nnormally the hard part of a game.', { x: s.cx, y: 890, size: 50, at: 0.4, enter: 'fade' });
   },
 
   // 8. Problem 2: keeping who you are.
@@ -382,50 +391,84 @@ export default {
     s.box('Guest', { x: 1650, y: 420, w: 190, h: 84, size: 42, color: 'gray', at: '#behind', enter: 'pop' });
   },
 
-  // 9. Scan and tap.
+  // 9. Sign in: press, scan, tap, and the game starts on the computer.
   s09(s) {
-    s.text('Scan.', { x: 760, y: 140, size: 76, font: 'display', at: '#scan' });
-    s.text('Tap.', { x: 960, y: 140, size: 76, font: 'display', at: '#tap' });
-    s.text('In.', { x: 1130, y: 140, size: 76, font: 'display', color: 'accent', at: '#in' });
-    const inn = s.t >= s.time('#in');
+    const code = s.time('#code'), scan = s.time('#scan'), tap = s.time('#tap');
+    const inn = Math.max(s.time('#in'), tap + 1.0);          // the proof needs a moment to travel
+    const down = Math.min(inn + 1.0, s.time('#first') - 0.45); // the phone is put down
+    const on = s.t >= inn;
+    s.text('Scan.', { x: 760, y: 140, size: 76, font: 'display', at: scan });
+    s.text('Tap.', { x: 960, y: 140, size: 76, font: 'display', at: tap });
+    s.text('In.', { x: 1130, y: 140, size: 76, font: 'display', color: 'accent', at: inn });
+    // the computer, the player beside it, and the game (which is somewhere else)
     D(s, 0.2, (c) => {
-      rr(c, 140, 260, 800, 520, 22, PAPER, INK, 5);
-      seg(c, 540, 780, 540, 850, INK, 6); seg(c, 400, 850, 680, 850, INK, 6);
-      if (inn) maze(c, 170, 330, 740, 420, { t: s.t, colors: [C.player, C.maker, C.blue], bar: false });
-      fig(c, 1690, 900, 1.1, { color: C.player, hat: 'star', t: s.t, look: -1, up: inn });
-      phone(c, 1080, 250, 440, 690);
+      seg(c, 842, 400, 1468, 320, on ? C.maker : '#b9b3a7', on ? 7 : 4, on ? undefined : [12, 12]);
+      if (on) { const p = s.p(inn, 0.5); arrowTo(c, 1468, 320, 1468 - 626 * p, 320 + 80 * p, 1, C.maker, 7); }
+      rr(c, 120, 300, 720, 470, 22, PAPER, INK, 5);
+      seg(c, 480, 770, 480, 850, INK, 6); seg(c, 340, 850, 620, 850, INK, 6);
+      if (on) maze(c, 150, 370, 660, 380, { t: s.t, colors: [C.player, C.maker, C.blue], bar: false });
+      tile(c, 1640, 310, 340, 170); lanternBadge(c, 1540, 310, 40);
+      fig(c, 960, 960, 1, { color: C.player, hat: 'star', t: s.t, look: s.t > scan && s.t < down ? 1 : -1, up: s.t > inn + 0.3 && s.t < inn + 1.6 });
     });
-    D(s, '#code', (c) => {
-      // A made-up square code: it only looks like one.
-      const n = 21, q = 14, x0 = 540 - (n * q) / 2, y0 = 545 - (n * q) / 2;
+    lab(s, 'the game', 1690, 310, { at: 0.2, size: 42, bold: true });
+    // step 1: the game's first page, with a Sign in button that gets pressed
+    D(s, '#open', (c) => {
+      lanternBadge(c, 480, 430, 46);
+      const press = s.p('#press', 0.25) * (1 - s.p(s.time('#press') + 0.3, 0.3));
+      rr(c, 350 + press * 6, 618 + press * 6, 260 - press * 12, 88 - press * 12, 44, '#1f7f74', INK, 4.5);
+      const ring = s.p(s.time('#press') + 0.1, 0.7);
+      if (ring > 0 && ring < 1) { c.save(); c.globalAlpha *= 1 - ring; dot(c, 480, 662, 55 + ring * 100, null, C.player, 7); c.restore(); }
+      // a mouse pointer that moves onto the button
+      const m = s.p(s.time('#press') - 0.5, 0.5, 'out'), mx = 700 - 170 * m, my = 730 - 50 * m;
+      c.beginPath(); c.moveTo(mx, my); c.lineTo(mx, my + 44); c.lineTo(mx + 12, my + 33); c.lineTo(mx + 22, my + 52); c.lineTo(mx + 31, my + 47); c.lineTo(mx + 21, my + 29); c.lineTo(mx + 36, my + 28); c.closePath();
+      c.fillStyle = PAPER; c.fill(); c.strokeStyle = INK; c.lineWidth = 4; c.lineJoin = 'round'; c.stroke();
+    }, { out: code, outDur: 0.25 });
+    s.text('Lantern Tag', { x: 480, y: 540, size: 56, font: 'display', at: '#open', out: code, outDur: 0.25, enter: 'fade' });
+    s.text('Sign in', { x: 480, y: 662, size: 40, color: '#fffdf8', bold: true, bg: '#1f7f74', padding: 4, radius: 20, at: '#open', out: code, outDur: 0.25, enter: 'fade' });
+    s.text('Guest', { x: 740, y: 338, size: 36, bg: 'surface', border: 'ink', at: 0.2, out: inn, exit: 'none', enter: 'fade' });
+    s.text('Rosy Nebula', { x: 700, y: 338, size: 38, bg: 'surface', border: 'ink', color: '#1f6f66', bold: true, at: inn, enter: 'pop' });
+    // step 2: the QR code (a made-up one: it only looks like a code)
+    D(s, code + 0.25, (c) => {
+      const n = 21, q = 14, x0 = 480 - (n * q) / 2, y0 = 545 - (n * q) / 2;
       rr(c, x0 - 18, y0 - 18, n * q + 36, n * q + 36, 10, '#ffffff', INK, 3);
       c.fillStyle = INK;
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
         const corner = (i < 7 && j < 7) || (i > 13 && j < 7) || (i < 7 && j > 13);
-        const on = corner ? (() => { const a = i > 13 ? i - 14 : i, b = j > 13 ? j - 14 : j; return a === 0 || a === 6 || b === 0 || b === 6 || (a > 1 && a < 5 && b > 1 && b < 5); })() : ((i * 7 + j * 13 + i * j * 3) % 5 < 2);
-        if (on) c.fillRect(x0 + i * q, y0 + j * q, q, q);
+        const a = i > 13 ? i - 14 : i, b = j > 13 ? j - 14 : j;
+        const dark = corner ? (a === 0 || a === 6 || b === 0 || b === 6 || (a > 1 && a < 5 && b > 1 && b < 5)) : ((i * 7 + j * 13 + i * j * 3) % 5 < 2);
+        if (dark) c.fillRect(x0 + i * q, y0 + j * q, q, q);
       }
-    }, { out: '#in' });
-    s.text('Guest', { x: 780, y: 300, size: 36, bg: 'surface', border: 'ink', at: 0.2, out: '#in', exit: 'none', enter: 'fade' });
-    s.text('Rosy Nebula', { x: 730, y: 300, size: 38, bg: 'surface', border: 'ink', color: '#1f6f66', bold: true, at: '#in', enter: 'pop' });
-    D(s, '#scan', (c) => {
-      const p = s.p('#scan', 0.5);
-      seg(c, 1070, 560, 1070 - 300 * p, 550, C.player, 5, [14, 12]);
+    }, { out: inn, outDur: 0.25 });
+    // step 3: the phone scans, names the site, and one tap
+    D(s, scan, (c) => phone(c, 1080, 440, 400, 520), { out: down, outDur: 0.35 });
+    D(s, scan, (c) => {
+      const p = s.p(scan, 0.5);
+      seg(c, 1070, 620, 1070 - 400 * p, 560, C.player, 5, [14, 12]);
       c.strokeStyle = C.player; c.lineWidth = 6; c.lineCap = 'round';
-      [[1150, 330, 1, 1], [1450, 330, -1, 1], [1150, 470, 1, -1], [1450, 470, -1, -1]].forEach(([x, y, a, b]) => { c.beginPath(); c.moveTo(x + 40 * a, y); c.lineTo(x, y); c.lineTo(x, y + 40 * b); c.stroke(); });
-    }, { out: s.time('#scan') + 0.7 });
-    lab(s, 'Sign in to', 1300, 365, { at: s.time('#scan') + 0.8, size: 34, color: 'muted' });
-    lab(s, 'relay.endlessmind.com', 1300, 420, { at: s.time('#scan') + 0.8, size: 34, bold: true });
-    D(s, s.time('#scan') + 0.8, (c) => {
-      const press = s.p('#tap', 0.25) * (1 - s.p(s.time('#tap') + 0.25, 0.3));
-      rr(c, 1140 + press * 6, 560 + press * 6, 320 - press * 12, 96 - press * 12, 48, inn ? '#3b7f51' : '#1f7f74', INK, 4.5);
-      const ring = s.p('#tap', 0.8);
-      if (ring > 0 && ring < 1) { c.save(); c.globalAlpha *= 1 - ring; dot(c, 1300, 608, 60 + ring * 110, null, C.player, 7); c.restore(); }
+      [[1150, 510, 1, 1], [1410, 510, -1, 1], [1150, 650, 1, -1], [1410, 650, -1, -1]].forEach(([x, y, a, b]) => { c.beginPath(); c.moveTo(x + 40 * a, y); c.lineTo(x, y); c.lineTo(x, y + 40 * b); c.stroke(); });
+    }, { out: scan + 0.7 });
+    lab(s, 'Sign in to', 1280, 520, { at: scan + 0.8, out: down, outDur: 0.35, size: 34, color: 'muted' });
+    lab(s, 'relay.endlessmind.com', 1280, 575, { at: scan + 0.8, out: down, outDur: 0.35, size: 34, bold: true });
+    D(s, scan + 0.8, (c) => {
+      const press = s.p(tap, 0.25) * (1 - s.p(tap + 0.25, 0.3));
+      rr(c, 1120 + press * 6, 700 + press * 6, 320 - press * 12, 96 - press * 12, 48, s.t >= tap + 0.3 ? '#3b7f51' : '#1f7f74', INK, 4.5);
+      const ring = s.p(tap, 0.8);
+      if (ring > 0 && ring < 1) { c.save(); c.globalAlpha *= 1 - ring; dot(c, 1280, 748, 60 + ring * 110, null, C.player, 7); c.restore(); }
+    }, { out: down, outDur: 0.35 });
+    s.text('Yes, this is me', { x: 1280, y: 748, size: 38, color: '#fffdf8', bold: true, bg: '#1f7f74', padding: 4, radius: 20, at: scan + 0.8, out: tap + 0.3, exit: 'none', enter: 'fade' });
+    s.text('Proof sent', { x: 1280, y: 748, size: 40, color: '#fffdf8', bold: true, bg: '#3b7f51', padding: 4, radius: 20, at: tap + 0.3, out: down, outDur: 0.35, enter: 'fade' });
+    // step 4: the proof goes from the phone to the game, not to the computer
+    D(s, tap + 0.3, (c) => {
+      const p = s.p(tap + 0.3, 0.6, 'inOut'), x = 1400 + 180 * p, y = 470 - 60 * p;
+      if (s.t < down) seg(c, 1400, 470, 1580, 410, C.green, 6, [10, 10]);
+      rr(c, x - 34, y - 24, 68, 48, 8, C.yellow, INK, 3.5); tick(c, x, y, 13, INK, 5);
     });
-    s.text('Yes, this is me', { x: 1300, y: 608, size: 38, color: '#fffdf8', bold: true, bg: '#1f7f74', padding: 4, radius: 20, at: s.time('#scan') + 0.8, out: '#in', exit: 'none', enter: 'fade' });
-    s.text('Signed in', { x: 1300, y: 608, size: 40, color: '#fffdf8', bold: true, bg: '#3b7f51', padding: 4, radius: 20, at: '#in', enter: 'fade' });
-    lab(s, 'First time: the phone sets\nyou up in about a minute.', 1300, 790, { at: '#first', size: 32, color: 'muted' });
-    s.text('You built *nothing*.', { x: 540, y: 930, size: 60, font: 'display', at: '#built' });
+    lab(s, 'proof', 1640, 465, { at: tap + 0.4, size: 40, color: '#2f7a48', bold: true });
+    lab(s, 'the game starts on the computer', 1150, 262, { at: inn + 0.2, size: 36, color: '#b35d14', bold: true });
+    // step 5: the phone is put down; the player plays on the computer
+    D(s, down + 0.2, (c) => { c.save(); c.translate(1170, 945); c.rotate(-0.08); rr(c, -95, -48, 190, 96, 22, PAPER, INK, 5); seg(c, -70, -18, -70, 18, INK, 5); c.restore(); });
+    lab(s, 'First time: the phone sets them\nup in about a minute.', 1500, 640, { at: '#first', size: 40 });
+    s.text('You built *nothing*.', { x: 1500, y: 810, size: 64, font: 'display', at: '#built' });
   },
 
   // 10. Why nobody can take it away.
@@ -461,7 +504,7 @@ export default {
       fig(c, 120 + 330 * p, 960, 0.95, { color: C.thief, hat: 'mask', t: s.t, walk: p < 1, mood: p < 1 ? 1 : -1, look: 1 });
       if (p >= 1) cross(c, 610, 850, 20);
     });
-    lab(s, 'no password to leak', 420, 1000, { at: '#leak', size: 34 });
+    lab(s, 'no password to steal', 420, 1000, { at: '#stolen', size: 34 });
     s.icon('lock-open', { x: 1560, y: 800, size: 110, color: 'green', at: '#lock' });
     lab(s, 'nobody can\nlock them out', 1560, 925, { at: '#lock', size: 36 });
   },
@@ -602,7 +645,7 @@ export default {
       });
       seg(c, 300, 930, 1200, 930, INK, 6);
     });
-    lab(s, 'their records go where they go', 750, 980, { at: '#go' });
+    lab(s, 'shown anywhere, checked by anyone', 750, 980, { at: '#go' });
     D(s, 0.2, (c) => { tile(c, 1560, 470, 420, 300); lanternBadge(c, 1560, 410, 50); });
     D(s, '#point', (c) => {
       arrowTo(c, 1150, 470, 1330, 470, s.p('#point', 0.5), C.maker, 8);
