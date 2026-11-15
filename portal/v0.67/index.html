@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MOITwbLn+EjA87R20V1XYJK1vMOGA4VnU5CJtKzQOtc='; style-src 'sha256-baU2QyDO0cQdIf8H4RBTCo6VwBMBGsWE2uTdmbUMJ8U='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MOITwbLn+EjA87R20V1XYJK1vMOGA4VnU5CJtKzQOtc='; style-src 'sha256-JtZ1q202v0JiP3rIK6mgJFpi2gwqixWqCrdYF+HmmE4='; form-action https: http://localhost:* http://*.localhost:* http://127.0.0.1:*; base-uri 'none'">
 <meta name="referrer" content="no-referrer">
 <title>EntryPortal | Endless Mind</title>
 <!--
-  Endless Mind EntryPortal, version 0.66. https://github.com/freeideas/EndlessMind
+  Endless Mind EntryPortal, version 0.67. https://github.com/freeideas/EndlessMind
   Served at https://portal.endlessmind.com/, a site that serves nothing else: any script on the same
   site could use the stored key, so nothing else may ever run there.
 
@@ -30,7 +30,7 @@
 :root { --bg: #fbfaf7; --fg: #1f1d1a; --muted: #5d5850; --accent: #6a3fd0; --card: #f1eee8; --line: #ddd8cf; --warn: #a3321f; }
 @media (prefers-color-scheme: dark) { :root { --bg: #15141a; --fg: #ebe8f0; --muted: #a29eab; --accent: #b79bff; --card: #201e27; --line: #34313d; --warn: #ff8f7a; } }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; overflow-wrap: anywhere; }
 main { max-width: 34rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .8rem; }
 h2 { font-size: 1.15rem; margin: 2rem 0 .4rem; }
@@ -38,9 +38,9 @@ p { margin: .6rem 0; }
 .muted { color: var(--muted); font-size: .92rem; }
 .warn { color: var(--warn); }
 .brand { color: var(--muted); font-size: .85rem; margin-bottom: 1.2rem; }
-button, .button { font: inherit; font-weight: 600; padding: .65rem 1.1rem; border-radius: 10px; border: 0; background: var(--accent); color: var(--bg); cursor: pointer; margin: .3rem .5rem .3rem 0; }
+button, .button { font: inherit; font-weight: 600; max-width: 100%; padding: .65rem 1.1rem; border-radius: 10px; border: 0; background: var(--accent); color: var(--bg); cursor: pointer; margin: .3rem .5rem .3rem 0; }
 button.plain, label.button { background: var(--card); color: var(--fg); border: 1px solid var(--line); font-weight: 500; }
-label.button { display: inline-block; }
+label.button, a.button { display: inline-block; }
 button.small { padding: .25rem .7rem; font-size: .85rem; }
 button.danger { background: var(--warn); }
 input[type=text], textarea { font: inherit; width: 100%; padding: .55rem .7rem; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
@@ -68,7 +68,7 @@ summary { cursor: pointer; font-weight: 600; }
 </head>
 <body>
 <main>
-<div class="brand">Endless Mind EntryPortal, version 0.66</div>
+<div class="brand">Endless Mind EntryPortal, version 0.67</div>
 <p class="warn" id="in-app" hidden>This page is open inside another app, whose browser may forget your identity. Open it in your usual browser instead: look in this app's menu for "Open in browser" or "Open in Safari".</p>
 
 <input type="file" id="picture-input" accept="image/*" hidden>

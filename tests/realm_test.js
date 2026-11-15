@@ -44,6 +44,24 @@ async function join(realm, time, edit = (/** @type {any} */ n) => n) {
   return { code, answer, signed };
 }
 
+Deno.test("a phone that signs in is led back to the page that asked: the game, or a host's board", async () => {
+  const { realm, clock } = await setup();
+  /** @type {[string, string, RegExp][]} */
+  const cases = [
+    ["", BASE, /Play [^<]+ here/],
+    ["endlessmind/board", BASE + "endlessmind/board", /Back to the board/],
+    ["../elsewhere", BASE, /Play [^<]+ here/],
+    ["//evil.example/", BASE, /Play [^<]+ here/],
+  ];
+  for (const [back, href, text] of cases) {
+    const code = await (await call(realm, "endlessmind/start?back=" + encodeURIComponent(back), { method: "POST" })).json();
+    const answer = await call(realm, `join/${code.code}`, form({ enter: JSON.stringify(await note(code.address, clock.now)) }));
+    const page = await answer.text();
+    assert.ok(page.includes(`href="${href}"`), back);
+    assert.match(page, text, back);
+  }
+});
+
 Deno.test("a sign-in note lets in the screen waiting on its code, once", async () => {
   const { realm, clock } = await setup();
   const { code, answer, signed } = await join(realm, clock.now);

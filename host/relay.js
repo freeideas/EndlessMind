@@ -67,7 +67,7 @@ export async function refuse(store, id) {
 /** A plain page of the host program's own. @param {string} title @param {string} text @param {number} status */
 export function page(title, text, status) {
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title>` +
-    `<body style="font: 1.1rem system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1rem"><h1>${title}</h1><p>${text}</p>`;
+    `<body style="font: 1.1rem system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1rem; overflow-wrap: anywhere"><h1>${title}</h1><p>${text}</p>`;
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
 

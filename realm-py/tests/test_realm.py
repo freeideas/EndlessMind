@@ -80,6 +80,20 @@ def cookie_of(response):
     return {"cookie": response.headers["set-cookie"].split(";")[0]}
 
 
+def test_a_phone_is_led_back_to_the_page_that_asked():
+    realm, clock = setup()
+    for back, href, text in [
+        ("", BASE, "here</a>"),
+        ("endlessmind/board", BASE + "endlessmind/board", "Back to the board"),
+        ("../elsewhere", BASE, "here</a>"),
+        ("//evil.example/", BASE, "here</a>"),
+    ]:
+        code = call(realm, "endlessmind/start?back=" + quote(back, safe=""), "POST").json()
+        page = call(realm, f"join/{code['code']}", form={"enter": json.dumps(note(code["address"], clock.now))}).text()
+        assert f'href="{href}"' in page, back
+        assert text in page, back
+
+
 def test_sign_in_lets_in_the_waiting_screen_once():
     realm, clock = setup()
     code, answer, signed = join(realm, clock.now)

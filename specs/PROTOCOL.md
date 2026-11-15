@@ -41,7 +41,7 @@ https://portal.endlessmind.com/#url=<join address>
 
 To let a signed-in player change their name, a realm may add `&rename` to the link (and name the EntryPortal from the player's sign-in note): the EntryPortal then shows the name with a box to change it and a "Save and sign in again" button, so the new name arrives in a fresh sign-in note at once.
 
-A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.66/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
+A realm usually names an address that forwards to the newest version of an EntryPortal, such as `https://portal.endlessmind.com/`, which keeps the part after `#` and lands the player on a versioned address such as `https://portal.endlessmind.com/v0.67/`. A realm that wants to vouch for one exact version names that version instead. Browsers keep storage per site, so every version on one site shares the player's key and records.
 
 **3. The EntryPortal asks once and signs.** For an address from a link, it asks "Sign in the screen in front of you at **game-server.com**?" and one tap confirms. An address the player typed or pasted needs no confirmation. Then it makes the sign-in note:
 
@@ -53,10 +53,10 @@ A realm usually names an address that forwards to the newest version of an Entry
   "address": "https://game-server.com/sword-of-swankery/join/K7Q2",
   "time": 1790000000000,
   "nonce": "0123456789abcdef",
-  "portal": "https://portal.endlessmind.com/v0.66/",
+  "portal": "https://portal.endlessmind.com/v0.67/",
   "public": true,
   "sigs": {
-    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "JuNRNRZER3ynia79eCRnLf7VdS3AqnEBlF2l7KgHsTFAba9VPD9pM2gdfViTAKCy87eDpPX47ItoUS3hGRmaDA"
+    "pl5hdegz6xnovjc5szio2phhycltxmhdl5zwdp4fqoe2rty4h46a": "vbydf0pfms66F3YgqdUb5JPo9P_K4f1VvMCC2BHhn_MyxC-U_nC95F54vfuyDHGvFM82qijadZK3Bwe2-CuOBQ"
   }
 }
 ```
@@ -133,7 +133,7 @@ The realm's own ID is not in the note: the address already ties the note to the 
 **Claiming: asking a player to sign, or giving them records.** The realm shows a QR code, a "claim on this computer" link and a short address, all leading to a one-time claim address of its own, such as `https://game-server.com/sword-of-swankery/claim/X9P4`. That address forwards the browser to the EntryPortal named in the player's sign-in note:
 
 ```
-https://portal.endlessmind.com/v0.66/#sign=<URL-encoded JSON>
+https://portal.endlessmind.com/v0.67/#sign=<URL-encoded JSON>
 ```
 
 The JSON is `{ "return": "<address>", "records": [ ... ] }`. The EntryPortal:
@@ -528,7 +528,7 @@ Anyone may write and host an EntryPortal. Players and their AI helpers should ex
 10. **Records can leave.** The page saves and loads records files.
 11. **A site of its own.** The page is served from a site (scheme, host and port) that serves nothing but EntryPortal versions. A stored key cannot be read out, but any script on the same site can use it to sign, so a single other page there, or one broken into, could sign as every player.
 
-The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered below v1.0 (the newest is v0.66), each made in [portal/](../portal/), which keeps only the newest, and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
+The reference EntryPortal follows these rules. It has a site of its own, `https://portal.endlessmind.com/`, which serves nothing else. Its versions are numbered below v1.0 (the newest is v0.67), each made in [portal/](../portal/), which keeps only the newest, and published at `https://portal.endlessmind.com/<version>/` with its fingerprint in `SHA256SUMS` beside it; the site's root forwards to the newest. It also refuses to run inside another page's frame, so no page can lay its own buttons over it.
 
 ## Versions
 

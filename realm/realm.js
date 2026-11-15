@@ -66,9 +66,9 @@ export async function openRealm(options) {
 }
 
 export class Realm {
-  /** @type {Map<string, { token: string, created: number, player?: string, number?: string, taken?: boolean }>} */
+  /** @type {Map<string, { token: string, created: number, back: string, player?: string, number?: string, taken?: boolean }>} */
   #joins = new Map();
-  /** @type {Map<string, { token: string, created: number, player: string, records: any[], done?: number, restore?: boolean }>} */
+  /** @type {Map<string, { token: string, created: number, back: string, player: string, records: any[], done?: number, restore?: boolean }>} */
   #claims = new Map();
   /** @type {Map<string, number>} sign-in note nonces seen recently, with when they can be forgotten */
   #nonces = new Map();
@@ -145,9 +145,9 @@ export class Realm {
       return new Response(code, { headers: { "content-type": "text/javascript; charset=utf-8" } });
     }
     if (get && path === "endlessmind/me") return json(await this.#me(request));
-    if (post && path === "endlessmind/start") return json(await this.#startJoin(request, url.searchParams.has("rename")));
-    if (post && path === "endlessmind/claim") return this.#startClaim(request);
-    if (post && path === "endlessmind/restore") return this.#startRestore(request);
+    if (post && path === "endlessmind/start") return json(await this.#startJoin(request, url.searchParams.has("rename"), backPath(url)));
+    if (post && path === "endlessmind/claim") return this.#startClaim(request, backPath(url));
+    if (post && path === "endlessmind/restore") return this.#startRestore(request, backPath(url));
     if (post && path === "endlessmind/signout") return this.#signOut(request);
     let m = path.match(/^endlessmind\/wait\/([A-Za-z0-9]+)$/);
     if (get && m) return this.#wait(m[1].toUpperCase(), url.searchParams.get("token") ?? "");
@@ -242,12 +242,13 @@ export class Realm {
    * name: the code opens their own EntryPortal with the name box, and signing in again brings the name.
    * @param {Request} request
    * @param {boolean} rename
+   * @param {string} back the page under the realm's address the code was asked for from, to lead back to
    */
-  async #startJoin(request, rename) {
+  async #startJoin(request, rename, back) {
     this.#forgetOld();
     const code = this.#newCode();
     const token = hex(crypto.getRandomValues(new Uint8Array(16)));
-    this.#joins.set(code, { token, created: this.now() });
+    this.#joins.set(code, { token, created: this.now(), back });
     const address = this.joinAddress(code);
     const player = rename ? await this.player(request) : null;
     const portal = (player && this.data.players[player]?.portal) || this.portal;
@@ -266,8 +267,9 @@ export class Realm {
     const problem = await this.#checkNote(code, text);
     if (problem) return this.#page("Not signed in", problem, 400);
     // The device that made the note may play too: give its browser a session of its own.
-    const join = /** @type {{ player: string, number?: string }} */ (this.#joins.get(code));
+    const join = /** @type {{ player: string, back: string, number?: string }} */ (this.#joins.get(code));
     const session = await this.#newSession(join.player);
+    const back = this.#backLink(join.back);
     if (this.options.confirmSignIn) {
       // Only this page shows the number, so a screen that showed someone else its code cannot finish.
       join.number = String(10 + (crypto.getRandomValues(new Uint32Array(1))[0] % 90));
@@ -276,7 +278,7 @@ export class Realm {
         `Type ${join.number} on your screen`,
         `To sign in the screen where you pressed Sign in, type ${join.number} there, on ${site}. Type it nowhere else: if someone asked you for this number, close this page. You are already signed in on this device.`,
         200,
-        { href: this.base, text: `Play ${this.card.name} here` },
+        back,
         { "set-cookie": this.#cookie(session, SESSION_MS) },
       );
     }
@@ -284,7 +286,7 @@ export class Realm {
       "You're in",
       "If the game is open on another screen, it is signed in there too, and you can close this page.",
       200,
-      { href: this.base, text: `Play ${this.card.name} here` },
+      back,
       { "set-cookie": this.#cookie(session, SESSION_MS) },
     );
   }
@@ -394,8 +396,8 @@ export class Realm {
 
   // ---- claiming records ----
 
-  /** @param {Request} request */
-  async #startClaim(request) {
+  /** @param {Request} request @param {string} back */
+  async #startClaim(request, back) {
     const player = await this.player(request);
     if (!player) return json({ error: "not signed in" }, 401);
     const records = this.data.offers[player] ?? [];
@@ -403,7 +405,7 @@ export class Realm {
     this.#forgetOld();
     const code = this.#newCode();
     const token = hex(crypto.getRandomValues(new Uint8Array(16)));
-    this.#claims.set(code, { token, created: this.now(), player, records: [...records] });
+    this.#claims.set(code, { token, created: this.now(), back, player, records: [...records] });
     const address = this.claimAddress(code);
     return json({ code, token, address, link: address, typed: typedAddress(address), qr: qrSvg(address), count: records.length, expires: this.now() + CLAIM_MS });
   }
@@ -412,8 +414,9 @@ export class Realm {
    * "Get my records back": a one-time code that hands the signed-in player every record this realm
    * holds for them, through their EntryPortal, the same way finished claims are handed back.
    * @param {Request} request
+   * @param {string} back
    */
-  async #startRestore(request) {
+  async #startRestore(request, back) {
     const player = await this.player(request);
     if (!player) return json({ error: "not signed in" }, 401);
     const records = this.records(player);
@@ -421,7 +424,7 @@ export class Realm {
     this.#forgetOld();
     const code = this.#newCode();
     const token = hex(crypto.getRandomValues(new Uint8Array(16)));
-    this.#claims.set(code, { token, created: this.now(), player, records, restore: true });
+    this.#claims.set(code, { token, created: this.now(), back, player, records, restore: true });
     const address = this.claimAddress(code);
     return json({ code, token, address, link: address, typed: typedAddress(address), qr: qrSvg(address), count: records.length, expires: this.now() + CLAIM_MS });
   }
@@ -436,7 +439,7 @@ export class Realm {
     if (claim.restore) {
       // Complete records to keep: no `return`, since there is nothing to sign.
       claim.done = claim.records.length;
-      return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: claim.records, back: this.base })));
+      return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: claim.records, back: this.base + claim.back })));
     }
     return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ return: this.claimAddress(code), records: claim.records })));
   }
@@ -471,7 +474,7 @@ export class Realm {
     if (!completed.length) return this.#page("Nothing signed", "No records were signed. Go back to your screen.");
     const portal = this.data.players[claim.player]?.portal ?? this.portal;
     // `back` lets the EntryPortal offer a way back to the game, for a player who claimed on this device.
-    return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: completed, back: this.base })));
+    return redirect(portal + "#sign=" + encodeURIComponent(JSON.stringify({ records: completed, back: this.base + claim.back })));
   }
 
   /**
@@ -574,6 +577,16 @@ export class Realm {
   }
 
   /**
+   * The button that leads a player who signed in on this device back to the page they came from: the
+   * game, or the board of a host whose realm this is.
+   * @param {string} back
+   */
+  #backLink(back) {
+    const text = back === "endlessmind/board" ? "Back to the board" : `Play ${this.card.name} here`;
+    return { href: this.base + back, text };
+  }
+
+  /**
    * A small page for the browser that sent a form here.
    * @param {string} title @param {string} message @param {number} [status]
    * @param {{ href: string, text: string }} [link] a button to show, if any
@@ -582,10 +595,10 @@ export class Realm {
   #page(title, message, status = 200, link = { href: "", text: "" }, headers = {}) {
     const name = escapeHtml(this.card.name);
     const button = link.href
-      ? `<p><a href="${escapeHtml(link.href)}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none">${escapeHtml(link.text)}</a></p>`
+      ? `<p><a href="${escapeHtml(link.href)}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none;overflow-wrap:anywhere">${escapeHtml(link.text)}</a></p>`
       : "";
     const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)} | ${name}</title><style>body{font:20px/1.5 system-ui,sans-serif;max-width:30rem;margin:3rem auto;padding:0 1rem}</style></head>
+<title>${escapeHtml(title)} | ${name}</title><style>body{font:20px/1.5 system-ui,sans-serif;max-width:30rem;margin:3rem auto;padding:0 1rem;overflow-wrap:anywhere}</style></head>
 <body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p>${button}<p><small>${name}</small></p></body></html>`;
     return new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
   }
@@ -675,6 +688,16 @@ function json(value, status = 200, headers = {}) {
 /** @param {string} location */
 function redirect(location) {
   return new Response(null, { status: 303, headers: { location, "cache-control": "no-store" } });
+}
+
+/**
+ * The page a sign-in or claim code was asked for from, as a path under the realm's address ("" for the
+ * game itself), so the player can be led back there. Anything else is ignored.
+ * @param {URL} url
+ */
+function backPath(url) {
+  const back = url.searchParams.get("back") ?? "";
+  return /^[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*\/?$/.test(back) && back.length <= 200 && !back.split("/").some((part) => part === "." || part === "..") ? back : "";
 }
 
 /** @param {string} text */

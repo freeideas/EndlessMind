@@ -168,11 +168,11 @@ class Realm:
         if get and sub == "endlessmind/me":
             return _json(await self._me(headers))
         if post and sub == "endlessmind/start":
-            return _json(await self._start_join(headers, any(k == "rename" for k, _ in params)))
+            return _json(await self._start_join(headers, any(k == "rename" for k, _ in params), _back_path(params)))
         if post and sub == "endlessmind/claim":
-            return await self._start_claim(headers)
+            return await self._start_claim(headers, _back_path(params))
         if post and sub == "endlessmind/restore":
-            return await self._start_restore(headers)
+            return await self._start_restore(headers, _back_path(params))
         if post and sub == "endlessmind/signout":
             return self._sign_out(headers)
         m = re.fullmatch(r"endlessmind/wait/([A-Za-z0-9]+)", sub)
@@ -258,13 +258,14 @@ class Realm:
 
     # ---- signing in ----
 
-    async def _start_join(self, headers: Headers, rename: bool) -> dict:
+    async def _start_join(self, headers: Headers, rename: bool, back: str = "") -> dict:
         """A one-time join code for the page to show. With `rename`, a signed-in player wants to change
-        their name: the code opens their own EntryPortal with the name box."""
+        their name: the code opens their own EntryPortal with the name box. `back` is the page under the
+        realm's address the code was asked for from, to lead back to."""
         self._forget_old()
         code = self._new_code()
         token = secrets.token_hex(16)
-        self._joins[code] = {"token": token, "created": self.now()}
+        self._joins[code] = {"token": token, "created": self.now(), "back": back}
         address = self.join_address(code)
         player = await self.player(headers) if rename else None
         portal = (player and (self.data["players"].get(player) or {}).get("portal")) or self.portal
@@ -287,6 +288,7 @@ class Realm:
         # The device that made the note may play too: give its browser a session of its own.
         join = self._joins[code]
         session = self._new_session(join["player"])
+        back = self._back_link(join.get("back", ""))
         if self.options.get("confirm_sign_in"):
             # Only this page shows the number, so a screen that showed someone else its code cannot finish.
             join["number"] = str(10 + secrets.randbelow(90))
@@ -296,14 +298,14 @@ class Realm:
                 f"To sign in the screen where you pressed Sign in, type {join['number']} there, on {site}. Type it nowhere else: "
                 "if someone asked you for this number, close this page. You are already signed in on this device.",
                 200,
-                {"href": self.base, "text": f"Play {self.card['name']} here"},
+                back,
                 {"set-cookie": self._cookie(session, SESSION_MS)},
             )
         return self._page(
             "You're in",
             "If the game is open on another screen, it is signed in there too, and you can close this page.",
             200,
-            {"href": self.base, "text": f"Play {self.card['name']} here"},
+            back,
             {"set-cookie": self._cookie(session, SESSION_MS)},
         )
 
@@ -405,16 +407,16 @@ class Realm:
 
     # ---- claiming records ----
 
-    async def _start_claim(self, headers: Headers) -> Response:
+    async def _start_claim(self, headers: Headers, back: str = "") -> Response:
         player = await self.player(headers)
         if not player:
             return _json({"error": "not signed in"}, 401)
         records = self.data["offers"].get(player) or []
         if not records:
             return _json({"error": "nothing to claim"}, 400)
-        return self._new_claim(player, list(records), False)
+        return self._new_claim(player, list(records), False, back)
 
-    async def _start_restore(self, headers: Headers) -> Response:
+    async def _start_restore(self, headers: Headers, back: str = "") -> Response:
         """"Get my records back": a one-time code that hands the signed-in player every record this realm
         holds for them, through their EntryPortal, the same way finished claims are handed back."""
         player = await self.player(headers)
@@ -423,13 +425,13 @@ class Realm:
         records = self.records(player)
         if not records:
             return _json({"error": "no records"}, 400)
-        return self._new_claim(player, records, True)
+        return self._new_claim(player, records, True, back)
 
-    def _new_claim(self, player: str, records: list, restore: bool) -> Response:
+    def _new_claim(self, player: str, records: list, restore: bool, back: str) -> Response:
         self._forget_old()
         code = self._new_code()
         token = secrets.token_hex(16)
-        self._claims[code] = {"token": token, "created": self.now(), "player": player, "records": records, **({"restore": True} if restore else {})}
+        self._claims[code] = {"token": token, "created": self.now(), "back": back, "player": player, "records": records, **({"restore": True} if restore else {})}
         address = self.claim_address(code)
         return _json({"code": code, "token": token, "address": address, "link": address, "typed": _typed(address), "qr": qr_svg(address), "count": len(records), "expires": self.now() + CLAIM_MS})
 
@@ -441,7 +443,7 @@ class Realm:
         if claim.get("restore"):
             # Complete records to keep: no `return`, since there is nothing to sign.
             claim["done"] = len(claim["records"])
-            return _redirect(portal + "#sign=" + _encode(to_json({"records": claim["records"], "back": self.base})))
+            return _redirect(portal + "#sign=" + _encode(to_json({"records": claim["records"], "back": self.base + claim["back"]})))
         return _redirect(portal + "#sign=" + _encode(to_json({"return": self.claim_address(code), "records": claim["records"]})))
 
     async def _claim_post(self, code: str, headers: Headers, body: bytes) -> Response:
@@ -473,7 +475,7 @@ class Realm:
             return self._page("Nothing signed", "No records were signed. Go back to your screen.")
         portal = (self.data["players"].get(player) or {}).get("portal", self.portal)
         # `back` lets the EntryPortal offer a way back to the game, for a player who claimed on this device.
-        return _redirect(portal + "#sign=" + _encode(to_json({"records": completed, "back": self.base})))
+        return _redirect(portal + "#sign=" + _encode(to_json({"records": completed, "back": self.base + claim["back"]})))
 
     def _countersign(self, claim: dict, record: Any) -> dict | None:
         """Sign a record the player sent back, if it is one of the claim's proposals with only `public`,
@@ -565,17 +567,23 @@ class Realm:
         self._save()
         return session
 
+    def _back_link(self, back: str) -> dict:
+        """The button that leads a player who signed in on this device back to the page they came from:
+        the game, or the board of a host whose realm this is."""
+        text = "Back to the board" if back == "endlessmind/board" else f"Play {self.card['name']} here"
+        return {"href": self.base + back, "text": text}
+
     def _page(self, title: str, message: str, status: int = 200, link: dict | None = None, headers: dict | None = None) -> Response:
         """A small page for the browser that sent a form here."""
         name = _escape(self.card["name"])
         link = link or {"href": "", "text": ""}
         button = (
-            f'<p><a href="{_escape(link["href"])}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none">{_escape(link["text"])}</a></p>'
+            f'<p><a href="{_escape(link["href"])}" style="display:inline-block;padding:.6rem 1.1rem;border-radius:10px;background:#5b3fd0;color:#fff;text-decoration:none;overflow-wrap:anywhere">{_escape(link["text"])}</a></p>'
             if link["href"]
             else ""
         )
         body = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{_escape(title)} | {name}</title><style>body{{font:20px/1.5 system-ui,sans-serif;max-width:30rem;margin:3rem auto;padding:0 1rem}}</style></head>
+<title>{_escape(title)} | {name}</title><style>body{{font:20px/1.5 system-ui,sans-serif;max-width:30rem;margin:3rem auto;padding:0 1rem;overflow-wrap:anywhere}}</style></head>
 <body><h1>{_escape(title)}</h1><p>{_escape(message)}</p>{button}<p><small>{name}</small></p></body></html>"""
         return Response(status, {"content-type": "text/html; charset=utf-8", **(headers or {})}, body.encode("utf-8"))
 
@@ -751,6 +759,17 @@ def _json(value: Any, status: int = 200, headers: dict | None = None) -> Respons
 
 def _redirect(location: str) -> Response:
     return Response(303, {"location": location, "cache-control": "no-store"})
+
+
+_BACK = re.compile(r"[A-Za-z0-9._~-]+(/[A-Za-z0-9._~-]+)*/?")
+
+
+def _back_path(params: list) -> str:
+    """The page a sign-in or claim code was asked for from, as a path under the realm's address ("" for
+    the game itself), so the player can be led back there. Anything else is ignored."""
+    back = next((v for k, v in params if k == "back"), "")
+    ok = _BACK.fullmatch(back) and len(back) <= 200 and not any(part in (".", "..") for part in back.split("/"))
+    return back if ok else ""
 
 
 def _escape(text: Any) -> str:

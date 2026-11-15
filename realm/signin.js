@@ -11,12 +11,37 @@
 
 const BASE = new URL("../", import.meta.url).href;
 
+// The page this box is on, as a path under the realm's address ("" for the game itself), so that a
+// phone that signs in or claims is led back here, such as to a host's board.
+const BACK = (() => {
+  const base = new URL(BASE);
+  return location.origin === base.origin && location.pathname.startsWith(base.pathname) ? location.pathname.slice(base.pathname.length) : "";
+})();
+
+// A tab that has just claimed records has them in its EntryPortal already, so "Get my records back"
+// would only confuse there. It is offered to a player who signed in again, such as on a new phone.
+const CLAIMED = "em-claimed";
+/** @param {string} player */
+const rememberClaim = (player) => {
+  try {
+    sessionStorage.setItem(CLAIMED, player);
+  } catch { /* storage may be blocked; the link then shows as before */ }
+};
+/** @param {string} player */
+const justClaimed = (player) => {
+  try {
+    return sessionStorage.getItem(CLAIMED) === player;
+  } catch {
+    return false;
+  }
+};
+
 // On a phone or tablet a code would be shown on the very device meant to scan it, so there the buttons
 // go straight to the EntryPortal in this tab, and showing a code is offered for a different phone.
 const ON_PHONE = matchMedia("(pointer: coarse) and (hover: none)").matches;
 
 const STYLE = `
-.em-box { font: inherit; }
+.em-box { font: inherit; overflow-wrap: anywhere; }
 .em-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
 .em-panel { margin-top: .8rem; padding: 1rem; border: 1px solid currentColor; border-radius: 12px; max-width: 22rem; }
 .em-panel h3 { margin: 0 0 .6rem; font-size: 1.1em; }
@@ -90,7 +115,7 @@ export function mountSignIn(box, options = {}) {
       const what = me.claims === 1 ? "1 record is" : `${me.claims} records are`;
       rows.push(el("div", { className: "em-row" }, [el("span", { textContent: `${what} waiting for you to claim.` }), claim]));
     }
-    if (me.records > 0) {
+    if (me.records > 0 && me.claims === 0 && !justClaimed(me.player)) {
       // For a player whose EntryPortal lost its records, such as after setting up a new phone.
       rows.push(el("div", { className: "em-row" }, [
         el("button", { className: "em-quiet", textContent: "Get my records back", onclick: () => openPanel("restore") }),
@@ -107,9 +132,12 @@ export function mountSignIn(box, options = {}) {
     clearInterval(timer);
     panelOpen = true;
     const path = { join: "endlessmind/start", rename: "endlessmind/start?rename", claim: "endlessmind/claim", restore: "endlessmind/restore" }[kind];
-    const response = await fetch(BASE + path, { method: "POST" });
+    const url = new URL(BASE + path);
+    if (BACK) url.searchParams.set("back", BACK);
+    const response = await fetch(url, { method: "POST" });
     const code = await response.json();
     if (!response.ok) return draw();
+    if (kind === "claim" && me?.player) rememberClaim(me.player);
     if (here) {
       location.href = code.link;
       return;

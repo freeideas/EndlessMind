@@ -46,6 +46,6 @@ A game keeps its data in `.data/` inside its own folder, which Git ignores and w
 | `endlessmind/me`, `signout`  | Who is signed in, and how many records wait to be claimed             |
 | `endlessmind/restore`        | Hand a signed-in player every record kept for them (POST)              |
 
-Join codes work once, for two minutes. Only the page that asked for a code (it holds a secret token) can collect the session, so seeing someone's code on screen is not enough to take their sign-in.
+`start`, `claim` and `restore` take `?back=<path>`, the page under `base` that asked (such as `endlessmind/board`), so a phone that signs in or claims is led back there. Join codes work once, for two minutes. Only the page that asked for a code (it holds a secret token) can collect the session, so seeing someone's code on screen is not enough to take their sign-in.
 
 With `confirmSignIn: true`, a realm also defends against someone who shows a player its code ("scan for a free sword") to be signed in as them: the phone's page shows a two-digit number, and the waiting screen asks for it before it lets anyone in. One wrong number ends that sign-in. It is off unless the realm turns it on, since every player then types the number.
