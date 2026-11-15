@@ -6,16 +6,6 @@ AI coding agents now let anyone make a game just by describing it. Endless Mind 
 
 **Try it:** [Endless Maze](https://relay.endlessmind.com/) is a small example realm, and [portal.endlessmind.com](https://portal.endlessmind.com/) is an EntryPortal.
 
-## Project status
-
-Keep this section current: at the end of each work session, replace these three lines (don't append). If there is nothing left to do, say so and why, e.g. `none (finished)` or `none (parked: reason)`. `../LifeStaff/scripts/rundown.py` collects this section from every project.
-
-- Next step: Publish the download package (GitHub release, Homebrew, AUR, winget) per PLAN.md
-- Waiting on: Carl's decisions before publishing (PLAN.md step 3): keep `realm-py/` or drop it, and keep the host name `relay.endlessmind.com` or rename it (cheapest before publishing); then an AUR account for the Arch package and a rented Linux server for the first real `endlessmind setup`
-- Last action: 2026-11-15, the board counts only trusted play and keeps reputation by realm, releases without BitTorrent, public visits (counted on the board as recent visitors), relay controls, optional number from the phone at sign-in
-
-To do: create a YouTube channel to match. The domain endlessmind.com is already ours (Cloudflare, renews 2027-06-25). The handle @EndlessMind is taken ("endlessmind", channel UCQ4n877vlUDqvbwIOl2PnBQ; probably not ours, check). Free on 2026-11-03: @EndlessMindGames, @EndlessMindRealms, @PlayEndlessMind. Once the channel exists, the goal is a new video every day.
-
 ## Your secret phrase
 
 You are your **secret phrase**: 24 ordinary words. They are your one identity in every realm (a game, a place, anything you can enter). There is no account, password or email address.
