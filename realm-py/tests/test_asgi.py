@@ -1,7 +1,9 @@
 # The ASGI adapter in a FastAPI app: the realm answers its own addresses, the game answers the rest
-# (including POST bodies on paths the realm passes on), and the game reads the player from its request.
+# (including POST bodies on paths the realm passes on), and the game reads the player from its request,
+# also after a sign-in that asks for the number from the phone.
 
 import json
+import re
 import secrets
 
 from fastapi import FastAPI, Request
@@ -57,3 +59,38 @@ def test_bodies_the_realm_passes_on_reach_the_game():
     _, app = make_app()
     client = TestClient(app)
     assert client.post("/game/endlessmind/echo", content=b"x" * 300_000).json() == {"body": "x" * 300_000}, "even past the size the realm reads"
+
+
+def test_fastapi_sign_in_with_the_number_from_the_phone():
+    realm = open_realm(BASE, {"name": "ASGI Realm", "description": "For tests."}, words=words_from_entropy(bytes([1]) * 32), store=memory_store(), confirm_sign_in=True)
+    app = FastAPI()
+    app.add_middleware(RealmMiddleware, realm=realm)
+
+    @app.get("/game/")
+    async def home(request: Request):
+        return {"player": await realm.player(request)}
+
+    client = TestClient(app, base_url="http://testserver")
+    phone = TestClient(app, base_url="http://testserver")
+
+    def phone_signs_in():
+        code = client.post("/game/endlessmind/start").json()
+        note = add_signature(
+            {"v": 1, "type": "enter", "player": PLAYER.id, "address": code["address"], "time": realm.now(), "nonce": secrets.token_hex(16)},
+            PLAYER,
+        )
+        answer = phone.post(f"/game/join/{code['code']}", data={"enter": json.dumps(note)})
+        number = re.search(r"Type (\d\d) on your screen", answer.text)[1]
+        assert client.get(f"/game/endlessmind/wait/{code['code']}", params={"token": code["token"]}).json() == {"state": "number"}
+        return code, number
+
+    def confirm(code, number):
+        return client.post(f"/game/endlessmind/confirm/{code['code']}", json={"token": code["token"], "number": number})
+
+    # A wrong number ends that sign-in; the right one, on a new sign-in, lets the screen in.
+    code, shown = phone_signs_in()
+    assert confirm(code, "11" if shown == "10" else "10").json() == {"state": "wrong"}
+    assert client.get("/game/").json() == {"player": None}
+    code, shown = phone_signs_in()
+    assert confirm(code, shown).json() == {"state": "in", "player": PLAYER.id}
+    assert client.get("/game/").json() == {"player": PLAYER.id}

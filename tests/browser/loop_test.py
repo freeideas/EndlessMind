@@ -7,8 +7,9 @@
 
 Guest play, sign-in by QR code (read from the screen), claiming a record with words of the player's
 own, the public list, "sign in on this computer", a typed address, and burning an identity. The
-EntryPortal and the realm run on different local addresses, like two sites. Then the heart of the loop
-again through a host: a game on "another computer" relayed by `deno task host`, played at a name of its
+EntryPortal and the realm run on different local addresses, like two sites. Then a tied realm, the realm
+library on Deno with no host program, that asks for the number a phone shows to finish signing in. Then
+the heart of the loop again through a host: a game on "another computer" relayed by `deno task host`, played at a name of its
 own under the host's, with the host's EntryPortal and the number a phone shows to finish signing in, then
 found on the host's board and wished for. Run: uv run tests/browser/loop_test.py [--headed]
 (it fetches the browser it needs first, which takes a while only the first time and after an update)
@@ -102,6 +103,20 @@ def start_relayed_maze(folder: str) -> tuple[list[subprocess.Popen], str, str, s
     maze = re.search(r"Play at (http://[a-z2-7]{52}\.localhost:\d+/)", said).group(1)
     wait_for(port, maze.split("/")[2].rsplit(":", 1)[0])
     return [host, game], maze, portal, f"http://localhost:{port}/"
+
+
+def start_tied_realm(folder: str) -> tuple[subprocess.Popen, str]:
+    """A tied realm: the realm library on Deno, on its maker's own server, asking for the number from the
+    phone at sign-in (tests/browser/tied_realm.js). Returns the program and its address."""
+    port = free_port()
+    data = os.path.join(folder, "tied")
+    os.makedirs(data, exist_ok=True)
+    realm = subprocess.Popen(
+        ["deno", "run", "--allow-read", "--allow-write", "--allow-net", "tests/browser/tied_realm.js", str(port), PORTAL, data],
+        cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    wait_for(port)
+    return realm, f"http://localhost:{port}/"
 
 
 def read_qr(page, selector: str = ".em-qr") -> str:
@@ -264,6 +279,34 @@ def public_record(pc, maze: str, player: str, words: str) -> dict:
     return record
 
 
+def wrong_number_then_right(pc, phone, portal: str, site: str) -> None:
+    """A wrong number stops the sign-in; starting again with the right one lets the screen in."""
+    pc.get_by_role("button", name="Sign in").click()
+    phone.goto(read_qr(pc))
+    phone.locator("#enter-ok").click()
+    shown = re.search(r"\d\d", phone.get_by_role("heading", name=re.compile(r"^Type \d\d on your screen$")).text_content()).group(0)
+    pc.get_by_label("The number on your phone").fill("10" if shown != "10" else "11")
+    pc.get_by_role("button", name="Finish signing in").click()
+    expect(pc.get_by_text("so this sign-in was stopped")).to_be_visible()
+    pc.get_by_role("button", name="Cancel").click()
+    sign_in_by_code(pc, phone, portal, site, number=True)
+
+
+def tied_loop(browser, watch, realm: str) -> None:
+    """Signing in to a tied realm on Deno that asks for the number from the phone."""
+    site = realm.split("/")[2]
+    phone = watch(browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2).new_page())
+    pc = watch(browser.new_context(viewport={"width": 1280, "height": 900}, device_scale_factor=2).new_page())
+    _, player, name, _, _ = set_up_new_phrase(phone, PORTAL)
+    pc.goto(realm)
+    expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
+    wrong_number_then_right(pc, phone, PORTAL, site)
+    expect(pc.locator(".em-name")).to_have_text(name)
+    assert pc.request.get(realm + "endlessmind/me").json()["player"] == player
+    phone.context.close()
+    pc.context.close()
+
+
 def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     """The heart of the loop where every address is plain http at a name under localhost."""
     site = maze.split("/")[2]
@@ -275,16 +318,7 @@ def relayed_loop(browser, watch, maze: str, portal: str, host: str) -> None:
     expect(pc.get_by_text("Playing as a guest.")).to_be_visible()
     run_level(pc, 1)
 
-    # A wrong number stops the sign-in; starting again with the right one lets the screen in.
-    pc.get_by_role("button", name="Sign in").click()
-    phone.goto(read_qr(pc))
-    phone.locator("#enter-ok").click()
-    shown = re.search(r"\d\d", phone.get_by_role("heading", name=re.compile(r"^Type \d\d on your screen$")).text_content()).group(0)
-    pc.get_by_label("The number on your phone").fill("10" if shown != "10" else "11")
-    pc.get_by_role("button", name="Finish signing in").click()
-    expect(pc.get_by_text("so this sign-in was stopped")).to_be_visible()
-    pc.get_by_role("button", name="Cancel").click()
-    sign_in_by_code(pc, phone, portal, site, number=True)
+    wrong_number_then_right(pc, phone, portal, site)
     expect(pc.locator(".em-name")).to_have_text(name)
     claim_with_words(pc, phone, maze, site, "Relayed, and still mine.")
     public_record(pc, maze, player, "Relayed, and still mine.")
@@ -509,6 +543,11 @@ def main() -> None:
             expect(inside.locator("#in-app")).to_be_visible()
             new_phone.goto(PORTAL)
             expect(new_phone.locator("#in-app")).to_be_hidden()  # an ordinary browser gets no warning
+
+            print("a tied realm on Deno: the realm library alone, asking for the number from the phone")
+            tied, tied_realm = start_tied_realm(data)
+            programs.append(tied)
+            tied_loop(browser, watch, tied_realm)
 
             print("again through a host: a relayed game at a name under localhost, with the host's EntryPortal")
             relayed, relayed_maze, host_portal, host = start_relayed_maze(data)
